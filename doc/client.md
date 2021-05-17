@@ -58,7 +58,7 @@ if err != nil {
 HTTPS works out of box. Certs are loaded from OS cert pool without further ado.
 
 ```go
-client := restful.NewClient().Root("https://nokia.com")
+client := restful.NewClient()
 ```
 
 ### Own set of CA certs

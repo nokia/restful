@@ -12,6 +12,7 @@ You receive and respond with data structures.
 ```go
 type reqData struct{...}
 type respData struct{...}
+
 func create(ctx context.Context, req *reqData) (*respData, error) {...}
 
 func main() {
@@ -31,7 +32,6 @@ location, err := restful.Post(ctx, "https://example.com", &reqData, &respData)
 ## Details
 
 * [Lambda server](doc/lambda.md) Focus on business logic. It is a modern variant of an HTTP server.
-  You may check our [Lambda Journey story](doc/lambdajourney.docx).
 * [RESTful server](doc/server.md) An underlying HTTP server of Lambda. An HTTP server with goodies.
   Besides helper functions for receiving and sending JSON data, it can do logging, and provides `Monitor` hooks for whatever you need, such as adding Prometheus counters without littering your code.
 * [RESTful client](doc/client.md) Such as sending GET, POST (and receiving Location), PUT, PATCH or DELETE requests and receiving their responses.
