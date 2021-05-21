@@ -15,11 +15,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type monitor struct {
-	pre  MonitorFuncPre
-	post MonitorFuncPost
-}
-
 // Server represents a server instance.
 type Server struct {
 	server      *http.Server
@@ -27,12 +22,12 @@ type Server struct {
 	keyFile     string
 	graceful    bool
 	gracePeriod time.Duration
-	monitor     monitor
+	monitors    monitors
 }
 
 // NewServer creates a new Server instance.
 func NewServer() *Server {
-	server := Server{server: &http.Server{Handler: http.DefaultServeMux}}
+	server := Server{server: &http.Server{}}
 	return &server
 }
 
@@ -56,11 +51,10 @@ func (s *Server) Addr(addr string) *Server {
 // Monitor sets monitor functions for the server.
 // These functions are called pre / post serving each request.
 func (s *Server) Monitor(pre MonitorFuncPre, post MonitorFuncPost) *Server {
+	s.monitors.append(pre, post)
 	if s.server.Handler != nil {
-		s.server.Handler = Monitor(s.server.Handler, s.monitor.pre, s.monitor.post)
-	} else {
-		s.monitor.pre = pre
-		s.monitor.post = post
+		s.server.Handler = s.monitors.wrap(s.server.Handler)
+		s.monitors = nil
 	}
 	return s
 }
@@ -72,11 +66,8 @@ func (s *Server) Handler(handler http.Handler) *Server {
 		DefaultServeMux.PathPrefix("/").HandlerFunc(http.DefaultServeMux.ServeHTTP) // In case http.HandleFunc() was used.
 		handler = DefaultServeMux
 	}
-	s.server.Handler = Logger(handler)
-
-	if s.monitor.pre != nil || s.monitor.post != nil {
-		s.server.Handler = Monitor(s.server.Handler, s.monitor.pre, s.monitor.post)
-	}
+	s.server.Handler = Logger(s.monitors.wrap(handler))
+	s.monitors = nil
 	return s
 }
 
@@ -132,6 +123,10 @@ func waitForSignal(c chan error) {
 }
 
 func (s *Server) listenAndServe() error {
+	if s.server.Handler == nil {
+		s.Handler(http.DefaultServeMux)
+	}
+
 	if s.keyFile != "" && s.certFile != "" {
 		return s.server.ListenAndServeTLS(s.certFile, s.keyFile)
 	}

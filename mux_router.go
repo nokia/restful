@@ -29,8 +29,8 @@ var (
 
 // Router routes requests to lambda functions.
 type Router struct {
-	router  *mux.Router
-	monitor monitor
+	router   *mux.Router
+	monitors monitors
 }
 
 // NewRouter creates new Router instance.
@@ -41,8 +41,7 @@ func NewRouter() *Router {
 // Monitor sets monitor functions for the router.
 // These functions are called pre / post serving each request.
 func (r *Router) Monitor(pre MonitorFuncPre, post MonitorFuncPost) *Router {
-	r.monitor.pre = pre
-	r.monitor.post = post
+	r.monitors.append(pre, post)
 	return r
 }
 
@@ -56,8 +55,8 @@ func (r *Router) HandleFunc(path string, f interface{}) *Route {
 // Handle adds traditional http.Handler to route.
 // Cannot use Lambda here.
 func (r *Router) Handle(path string, handler http.Handler) *Route {
-	monitorHandler := Monitor(handler, r.monitor.pre, r.monitor.post)
-	return (*Route)(r.router.Handle(path, monitorHandler))
+	monitored := r.monitors.wrap(handler)
+	return (*Route)(r.router.Handle(path, monitored))
 }
 
 // Get returns the route registered with the given name, or nil.
