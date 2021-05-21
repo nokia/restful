@@ -8,6 +8,25 @@ import (
 	"net/http"
 )
 
+type monitor struct {
+	pre  MonitorFuncPre
+	post MonitorFuncPost
+}
+
+type monitors []monitor
+
+func (m *monitors) append(pre MonitorFuncPre, post MonitorFuncPost) {
+	*m = append(*m, monitor{pre: pre, post: post})
+}
+
+func (m monitors) wrap(h http.Handler) (monitored http.Handler) {
+	monitored = h
+	for _, monitor := range m {
+		monitored = monitorHandler{origHandler: monitored, pre: monitor.pre, post: monitor.post}
+	}
+	return
+}
+
 // MonitorFuncPost is a type of user defined function to be called after the request was served.
 // Handle ResponseWriter with care.
 type MonitorFuncPost func(w http.ResponseWriter, r *http.Request, statusCode int)
@@ -66,6 +85,7 @@ func (c monitorHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Monitor wraps http.Handler, adding user defined pre and post ReporterFunc call after the handler is served.
+// You may prefer Server's or Router's Monitor functions.
 func Monitor(h http.Handler, pre MonitorFuncPre, post MonitorFuncPost) http.Handler {
 	return monitorHandler{origHandler: h, pre: pre, post: post}
 }

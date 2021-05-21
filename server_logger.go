@@ -54,7 +54,7 @@ func loggerPre(w http.ResponseWriter, r *http.Request) *http.Request {
 }
 
 // Logger wraps original handler and returns a handler that logs.
-// Logs start with a random number to be able to match requests to responses.
+// Logs start with a semi-random number to be able to match requests to responses.
 // If path matches LivenessProbePath or HealthCheckPath then does not log and responds with 200 OK.
 // If path matches ReadinessProbePath then does not log, but processed as usual.
 func Logger(h http.Handler) http.Handler {
