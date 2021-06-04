@@ -33,7 +33,7 @@ location, err := restful.Post(ctx, "https://example.com", &reqData, &respData)
 
 * [Lambda server](doc/lambda.md) Focus on business logic. It is a modern variant of an HTTP server.
 * [RESTful server](doc/server.md) An underlying HTTP server of Lambda. An HTTP server with goodies.
-  Besides helper functions for receiving and sending JSON data, it can do logging, and provides `Monitor` hooks for whatever you need, such as adding Prometheus counters without littering your code.
+  Besides helper functions for receiving and sending JSON data, it can do logging, and provides [`Monitor`](doc/server.md#Monitor) hooks for whatever you need, such as adding Prometheus counters without littering your code.
 * [RESTful client](doc/client.md) Such as sending GET, POST (and receiving Location), PUT, PATCH or DELETE requests and receiving their responses.
   And numerous other helper functions.
 * Context is received in Lambda and used in client request.

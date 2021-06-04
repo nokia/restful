@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -127,6 +128,10 @@ func (c *Client) SanitizeJSON() *Client {
 	return c
 }
 
+func errDeadlineOrCancel(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
 // Do sends an HTTP request and returns an HTTP response.
 // All the rules of http.Client.Do() applies.
 // If URL of req is relative path then root defined at client.Root is added as prefix.
@@ -158,13 +163,13 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 	log.Debugf("[%s] Sent req: %s", spanStr, target)
 	resp, err := c.do(req)
 
-	for retries := 0; retries < c.retries && (resp == nil || (resp.StatusCode >= 502 && resp.StatusCode <= 504)); retries++ { // Gateway error responses.
+	for retries := 0; retries < c.retries && !errDeadlineOrCancel(err) && (resp == nil || (resp.StatusCode >= 502 && resp.StatusCode <= 504)); retries++ { // Gateway error responses.
 		if resp != nil {
 			_ = resp.Body.Close()
 		}
 
 		time.Sleep(c.calcBackoff(retries))
-		log.Debugf("[%s] Send rty(%d): %s", spanStr, retries, target)
+		log.Debugf("[%s] Send rty(%d): %s: err=%v", spanStr, retries, target, err)
 		resp, err = c.do(req)
 	}
 	if err != nil {
