@@ -55,8 +55,7 @@ func (r *Router) HandleFunc(path string, f interface{}) *Route {
 // Handle adds traditional http.Handler to route.
 // Cannot use Lambda here.
 func (r *Router) Handle(path string, handler http.Handler) *Route {
-	monitored := r.monitors.wrap(handler)
-	return (*Route)(r.router.Handle(path, monitored))
+	return (*Route)(r.router.Handle(path, handler))
 }
 
 // Get returns the route registered with the given name, or nil.
@@ -143,5 +142,6 @@ func (r *Router) ListenAndServeMTLS(addr, certFile, keyFile, clientCerts string)
 
 // ServeHTTP serves HTTP request with matching handler.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	r.router.ServeHTTP(w, req)
+	monitored := r.monitors.wrap(r.router)
+	monitored.ServeHTTP(w, req)
 }
