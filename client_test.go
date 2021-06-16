@@ -221,6 +221,32 @@ func TestGet500(t *testing.T) {
 	assert.Equal(http.StatusInternalServerError, GetErrStatusCodeElse(err, 0))
 }
 
+func TestGet500Details(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		acc := r.Header["Accept"]
+		assert.Equal(2, len(acc)) // json and problem+json
+		err := NewDetailedError(nil, 500,
+			ProblemDetails{
+				Title:         "title",
+				Detail:        "descr",
+				InvalidParams: map[string]string{"param1": "error text"},
+			})
+
+		SendResp(w, r, err, nil)
+	}))
+	defer srv.Close()
+
+	err := Get(context.Background(), srv.URL, nil)
+	assert.Error(err)
+	assert.NotEmpty(err.Error())
+	assert.Equal("{\"title\":\"title\",\"detail\":\"descr\",\"invalidParams\":{\"param1\":\"error text\"}}", err.Error())
+	assert.Equal(http.StatusInternalServerError, GetErrStatusCode(err))
+	assert.Equal(http.StatusInternalServerError, GetErrStatusCodeElse(err, 0))
+}
+
 func TestSendRecv2xxBadCT(t *testing.T) {
 	assert := assert.New(t)
 

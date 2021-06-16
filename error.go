@@ -5,31 +5,51 @@
 package restful
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
 )
 
 type restError struct {
-	err         error
-	description string
-	statusCode  int
+	err            error
+	statusCode     int
+	problemDetails ProblemDetails
+}
+
+type ProblemDetails struct {
+	Type          string            `json:"type,omitempty"`
+	Title         string            `json:"title,omitempty"`
+	Detail        string            `json:"detail,omitempty"`
+	Instance      string            `json:"instance,omitempty"`
+	Status        int               `json:"status,omitempty"`
+	InvalidParams map[string]string `json:"invalidParams,omitempty"`
+}
+
+func (e ProblemDetails) String() string {
+	b, _ := json.Marshal(e)
+	return string(b)
+}
+
+func (e *restError) ProblemDetails(pd ProblemDetails) error {
+	e.problemDetails = pd
+	return e
 }
 
 // Error returns error string.
-func (e *restError) Error() string {
+func (e restError) Error() string {
 	errStr := ""
 	if e.err != nil {
 		errStr = e.err.Error()
 	}
 
-	if e.description == "" {
+	if e.problemDetails.Detail == "" {
 		return errStr
 	}
 	if errStr == "" {
-		return e.description
+		return e.problemDetails.Detail
 	}
-	return e.description + ": " + errStr
+	return e.problemDetails.Detail + ": " + errStr
 }
 
 // Unwrap returns wrapped error.
@@ -51,14 +71,19 @@ func (e *restError) Unwrap() error {
 //
 // if err != nil {return restful.NewError(nil, http.StatusBadRequest, "bad data")}
 func NewError(err error, statusCode int, description ...string) error {
-	return &restError{err: err, statusCode: statusCode, description: strings.Join(description, " ")}
+	return &restError{err: err, statusCode: statusCode, problemDetails: ProblemDetails{Detail: strings.Join(description, " ")}}
+}
+
+// NewDetailedError creates a new error with specified problem details JSON structure (RFC7807)
+func NewDetailedError(err error, status int, pd ProblemDetails) error {
+	return &restError{err: err, statusCode: status, problemDetails: pd}
 }
 
 // DetailError adds further description to the error. Useful when cascading return values.
-// Can be used on any error, though mostly used on errors created by restful.NewError().
+// Can be used on any error, though mostly used on errors created by restful.NewError() / NewDetailedError()
 // E.g. restful.DetailError(err, "db query failed")
 func DetailError(err error, description string) error {
-	return &restError{err: err, statusCode: GetErrStatusCodeElse(err, 0), description: description}
+	return &restError{err: err, statusCode: GetErrStatusCodeElse(err, 0), problemDetails: ProblemDetails{Detail: description}}
 }
 
 // GetErrStatusCode returns status code of error response.

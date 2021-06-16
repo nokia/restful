@@ -76,7 +76,7 @@ func SendResp(w http.ResponseWriter, r *http.Request, err error, data interface{
 
 	body, _ := getJSONBody(data, LambdaSanitizeJSON)
 	if body == nil {
-		return SendProblemResponse(w, r, GetErrStatusCode(err), err.Error())
+		return SendProblemDetails(w, r, err)
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
 	w.WriteHeader(GetErrStatusCode(err))
@@ -109,7 +109,7 @@ func getProblemContentType(r *http.Request) string {
 	return ct
 }
 
-// SendProblemResponse sends response with problem details JSON body. See RFC 7807.
+// SendProblemResponse sends response with problem text, and extends it to problem+json format if it is a plain string.
 func SendProblemResponse(w http.ResponseWriter, r *http.Request, statusCode int, problem string) (err error) {
 	if problem == "" {
 		SendEmptyResponse(w, statusCode)
@@ -126,4 +126,18 @@ func SendProblemResponse(w http.ResponseWriter, r *http.Request, statusCode int,
 		_, err = w.Write([]byte(problem))
 	}
 	return
+}
+
+// SendProblemDetails adds detailed problem description to JSON body, if available. See RFC 7807.
+func SendProblemDetails(w http.ResponseWriter, r *http.Request, err error) error {
+	//var rerr restError
+	rerr, ok := err.(*restError)
+	if ok {
+		d := rerr.problemDetails.Detail
+		// check in case it is somehow already filled with JSON text...
+		if d != "" && d[0] != '{' {
+			return SendProblemResponse(w, r, rerr.statusCode, rerr.problemDetails.String())
+		}
+	}
+	return SendProblemResponse(w, r, GetErrStatusCode(err), err.Error())
 }
