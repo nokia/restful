@@ -6,9 +6,7 @@ Lambda lets you focus on business logic.
 HTTP + JSON are technical details, just like socket handling and forking on accepting a request.
 These unnecessary details are not in your way.
 Lambda creates a new abstraction, making a server a collection of functions.
-
-The concept is nothing new, many languages have similar solutions.
-Such as Express for node.js, or Flask (and its route decorator) for Python.
+The concept is nothing new. The syntax offered here is similar to AWS Lambda Go handler.
 
 Note that many lambda solutions are often meant to be serverless.
 I.e. your app does not have an HTTP server, but functions directly invoked by an API GW.
