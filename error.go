@@ -17,6 +17,7 @@ type restError struct {
 	problemDetails ProblemDetails
 }
 
+// ProblemDetails is a structure defining fields for RFC 7807 error responses.
 type ProblemDetails struct {
 	Type          string            `json:"type,omitempty"`
 	Title         string            `json:"title,omitempty"`
