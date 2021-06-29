@@ -140,9 +140,11 @@ func TestRetry(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal("hello", r.Header.Get("User-Agent"))
 
-		body, err := ioutil.ReadAll(r.Body)
-		assert.NoError(err)
-		assert.Equal(`{"Str":"hello"}`, string(body))
+		if r.Method == "POST" {
+			body, err := ioutil.ReadAll(r.Body)
+			assert.NoError(err)
+			assert.Equal(`{"Str":"hello"}`, string(body))
+		}
 
 		if reqCount < retries { // r * fail
 			w.WriteHeader(http.StatusGatewayTimeout)
@@ -156,14 +158,27 @@ func TestRetry(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	reqData := strType{Str: "hello"}
-	respData := strType{}
-	client := NewClient().Root(srv.URL).Retry(retries, 10*time.Millisecond, 0).UserAgent("hello")
-	_, err := client.Post(context.Background(), "/", &reqData, &respData)
-	assert.Nil(err)
-	assert.Equal(http.StatusOK, GetErrStatusCode(err))
-	assert.Equal(http.StatusOK, GetErrStatusCodeElse(err, 0))
-	assert.Equal(retries+1, reqCount)
+	{ // POST
+		reqData := strType{Str: "hello"}
+		respData := strType{}
+		client := NewClient().Root(srv.URL).Retry(retries, 10*time.Millisecond, 0).UserAgent("hello")
+		_, err := client.Post(context.Background(), "/", &reqData, &respData)
+		assert.NoError(err)
+		assert.Equal(http.StatusOK, GetErrStatusCode(err))
+		assert.Equal(http.StatusOK, GetErrStatusCodeElse(err, 0))
+		assert.Equal(retries+1, reqCount)
+	}
+
+	{ // GET
+		reqCount = 0 // reset server's counter
+		respData := strType{}
+		client := NewClient().Root(srv.URL).Retry(retries, 10*time.Millisecond, 0).UserAgent("hello")
+		err := client.Get(context.Background(), "/", &respData)
+		assert.NoError(err)
+		assert.Equal(http.StatusOK, GetErrStatusCode(err))
+		assert.Equal(http.StatusOK, GetErrStatusCodeElse(err, 0))
+		assert.Equal(retries+1, reqCount)
+	}
 }
 
 func TestMethodsError(t *testing.T) {
