@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -160,12 +161,22 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		req.Header.Set("User-agent", c.userAgent)
 	}
 
+	var body io.ReadCloser
+	if c.retries > 0 {
+		body, _ = req.GetBody()
+	}
+
 	log.Debugf("[%s] Sent req: %s", spanStr, target)
 	resp, err := c.do(req)
 
 	for retries := 0; retries < c.retries && !errDeadlineOrCancel(err) && (resp == nil || (resp.StatusCode >= 502 && resp.StatusCode <= 504)); retries++ { // Gateway error responses.
 		if resp != nil {
 			_ = resp.Body.Close()
+		}
+
+		if body != nil {
+			req.Body = body
+			body, _ = req.GetBody()
 		}
 
 		time.Sleep(c.calcBackoff(retries))
