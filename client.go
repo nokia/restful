@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -132,33 +133,49 @@ func errDeadlineOrCancel(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
 
+func doSpan(ctx context.Context, req *http.Request) string {
+	trace := newTraceFromCtx(ctx)
+	span := trace.span()
+	if trace.received || log.IsLevelEnabled(log.TraceLevel) {
+		span.addHeader(req.Header)
+	}
+	return span.string()
+}
+
+func (c *Client) setUA(req *http.Request) {
+	if c.userAgent != "" && req.Header.Get("User-agent") == "" {
+		req.Header.Set("User-agent", c.userAgent)
+	}
+}
+
+func (c *Client) cloneBody(req *http.Request) io.ReadCloser {
+	var body io.ReadCloser
+	if c.retries > 0 && req.Body != nil {
+		body, _ = req.GetBody()
+	}
+	return body
+}
+
 // Do sends an HTTP request and returns an HTTP response.
 // All the rules of http.Client.Do() applies.
 // If URL of req is relative path then root defined at client.Root is added as prefix.
 // Do(ctx, req) is somewhat like Do(req.WithContext(ctx)) of http.Client.
 // If ctx contains tracing headers of Lambda class then adds them to the request with a new span ID.
 func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
+	req = req.WithContext(ctx)
+
 	if req.Header == nil {
 		req.Header = make(http.Header)
 	}
-
-	trace := newTraceFromCtx(ctx)
-	span := trace.span()
-	spanStr := span.string()
-	if trace.received || log.IsLevelEnabled(log.TraceLevel) {
-		span.addHeader(req.Header)
-	}
-
-	req = req.WithContext(ctx)
 
 	target, err := c.setReqTarget(req)
 	if err != nil {
 		return nil, err
 	}
 
-	if c.userAgent != "" && req.Header.Get("User-agent") == "" {
-		req.Header.Set("User-agent", c.userAgent)
-	}
+	c.setUA(req)
+	spanStr := doSpan(ctx, req)
+	body := c.cloneBody(req)
 
 	log.Debugf("[%s] Sent req: %s", spanStr, target)
 	resp, err := c.do(req)
@@ -167,6 +184,9 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		if resp != nil {
 			_ = resp.Body.Close()
 		}
+
+		req.Body = body
+		body = c.cloneBody(req)
 
 		time.Sleep(c.calcBackoff(retries))
 		log.Debugf("[%s] Send rty(%d): %s: err=%v", spanStr, retries, target, err)

@@ -13,7 +13,9 @@ You receive and respond with data structures.
 type reqData struct{...}
 type respData struct{...}
 
-func create(ctx context.Context, req *reqData) (*respData, error) {...}
+func create(ctx context.Context, req *reqData) (*respData, error) {
+    ... // You use data structures directly, without marshalling and unmarshalling.
+}
 
 func main() {
     restful.HandleFunc("/user/v1", create).Methods(http.MethodPost)
@@ -46,6 +48,6 @@ Context and error are the glue between Lambda and Client.
 ## Principles
 
 * Simple, intuitive, Go-ish.
-* Similar to Go's built-in http packange and the famous [Gorilla/Mux](https://github.com/gorilla/mux).
+* Similar to Go's built-in http package and the famous [Gorilla/Mux](https://github.com/gorilla/mux).
 * Powerful HTTP+JSON framework reducing development costs while improving quality.
 * Have quite many goodies needed on developing complex applications.
