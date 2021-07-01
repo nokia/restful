@@ -21,6 +21,8 @@ func init() {
 }
 
 // SetFormatter lets caller set logrus log formatter.
+//
+// Deprecated: Caller can set formatter directly.
 func SetFormatter(formatter logrus.Formatter) {
 	logrus.SetFormatter(formatter)
 }
