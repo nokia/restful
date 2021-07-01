@@ -177,7 +177,7 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 	spanStr := doSpan(ctx, req)
 	body := c.cloneBody(req)
 
-	log.Debugf("[%s] Sent req: %s", spanStr, target)
+	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, target)
 	resp, err := c.do(req)
 
 	for retries := 0; retries < c.retries && !errDeadlineOrCancel(err) && (resp == nil || (resp.StatusCode >= 502 && resp.StatusCode <= 504)); retries++ { // Gateway error responses.
@@ -189,7 +189,7 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		body = c.cloneBody(req)
 
 		time.Sleep(c.calcBackoff(retries))
-		log.Debugf("[%s] Send rty(%d): %s: err=%v", spanStr, retries, target, err)
+		log.Debugf("[%s] Send rty(%d): %s %s: err=%v", spanStr, retries, req.Method, target, err)
 		resp, err = c.do(req)
 	}
 	if err != nil {
