@@ -118,7 +118,14 @@ func (c *Client) Retry(retries int, backoffInit time.Duration, backoffMax time.D
 	}
 	c.retryBackoffInit = backoffInit
 	c.retryBackoffMax = backoffMax
-	c.client.Timeout = 2 * backoffInit
+	return c
+}
+
+// Timeout sets client timeout.
+// Timeout and request context timeout are similar concepts.
+// However, Timeout specified here applies to a single attempt, i.e. if Retry is used, then applies to each attempt separately, while context applies to all attempts together.
+func (c *Client) Timeout(timeout time.Duration) *Client {
+	c.client.Timeout = timeout
 	return c
 }
 
@@ -213,7 +220,7 @@ func (c *Client) do(req *http.Request) (resp *http.Response, err error) {
 	resp, err = c.client.Do(req)
 
 	// Workaround for https://github.com/golang/go/issues/36026
-	if err, ok := err.(*url.Error); ok && err.Timeout() {
+	if err, ok := err.(net.Error); ok && err.Timeout() {
 		c.client.CloseIdleConnections()
 	}
 

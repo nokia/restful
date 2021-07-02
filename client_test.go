@@ -7,6 +7,7 @@ package restful
 import (
 	"context"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -178,6 +179,32 @@ func TestRetry(t *testing.T) {
 		assert.Equal(http.StatusOK, GetErrStatusCode(err))
 		assert.Equal(http.StatusOK, GetErrStatusCodeElse(err, 0))
 		assert.Equal(retries+1, reqCount)
+	}
+}
+
+func TestTimeout(t *testing.T) {
+	assert := assert.New(t)
+
+	delay := 10 * time.Millisecond
+
+	// Server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(delay)
+	}))
+	defer srv.Close()
+
+	{ // GET - timeout failure
+		client := NewClient().Timeout(delay / 10)
+		err := client.Get(context.Background(), srv.URL, nil)
+		netErr, ok := err.(net.Error)
+		assert.True(ok)
+		assert.True(netErr.Timeout())
+	}
+
+	{ // GET - OK
+		client := NewClient().Timeout(delay * 2)
+		err := client.Get(context.Background(), srv.URL, nil)
+		assert.NoError(err)
 	}
 }
 
