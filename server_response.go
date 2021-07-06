@@ -130,13 +130,11 @@ func SendProblemResponse(w http.ResponseWriter, r *http.Request, statusCode int,
 
 // SendProblemDetails adds detailed problem description to JSON body, if available. See RFC 7807.
 func SendProblemDetails(w http.ResponseWriter, r *http.Request, err error) error {
-	//var rerr restError
-	rerr, ok := err.(*restError)
-	if ok {
-		d := rerr.problemDetails.Detail
+	if err, ok := err.(*restError); ok {
+		d := err.problemDetails.Detail
 		// check in case it is somehow already filled with JSON text...
 		if d != "" && d[0] != '{' {
-			return SendProblemResponse(w, r, rerr.statusCode, rerr.problemDetails.String())
+			return SendProblemResponse(w, r, GetErrStatusCode(err), err.problemDetails.String())
 		}
 	}
 	return SendProblemResponse(w, r, GetErrStatusCode(err), err.Error())

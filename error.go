@@ -27,11 +27,13 @@ type ProblemDetails struct {
 	InvalidParams map[string]string `json:"invalidParams,omitempty"`
 }
 
+// String makes string of ProblemDetails.
 func (e ProblemDetails) String() string {
 	b, _ := json.Marshal(e)
 	return string(b)
 }
 
+// ProblemDetails adds ProblemDetails data to error.
 func (e *restError) ProblemDetails(pd ProblemDetails) error {
 	e.problemDetails = pd
 	return e
