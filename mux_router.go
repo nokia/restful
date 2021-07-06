@@ -55,46 +55,47 @@ func (r *Router) HandleFunc(path string, f interface{}) *Route {
 // Handle adds traditional http.Handler to route.
 // Cannot use Lambda here.
 func (r *Router) Handle(path string, handler http.Handler) *Route {
-	return (*Route)(r.router.Handle(path, handler))
+	monitored := r.monitors.wrap(handler)
+	return newRoute(r.router.Handle(path, monitored), nil)
 }
 
 // Get returns the route registered with the given name, or nil.
 func (r *Router) Get(name string) *Route {
-	return (*Route)(r.router.Get(name))
+	return newRoute(r.router.Get(name), r.monitors)
 }
 
 // Host registers a new route with a matcher for the URL host regex.
 // E.g. r.Host("{subdomain:[a-z]+}.example.com")
 func (r *Router) Host(hostRegex string) *Route {
-	return (*Route)(r.router.Host(hostRegex))
+	return newRoute(r.router.Host(hostRegex), r.monitors)
 }
 
 // Methods registers a new route with a matcher for HTTP methods.
 // E.g. r.Methods(http.MethodPost, http.MethodPut)
 func (r *Router) Methods(methods ...string) *Route {
-	return (*Route)(r.router.Methods(methods...))
+	return newRoute(r.router.Methods(methods...), r.monitors)
 }
 
 // Name registers a new route with a name.
 // That name can be used to query route.
 func (r *Router) Name(name string) *Route {
-	return (*Route)(r.router.Name(name))
+	return newRoute(r.router.Name(name), r.monitors)
 }
 
 // Path registers a new route with a matcher for the URL path template.
 // E.g. r.Path("/users/{id:[0-9]+}")
 func (r *Router) Path(pathTemplate string) *Route {
-	return (*Route)(r.router.Path(pathTemplate))
+	return newRoute(r.router.Path(pathTemplate), r.monitors)
 }
 
 // PathPrefix registers a new route with a matcher for the URL path template prefix.
 func (r *Router) PathPrefix(pathTemplate string) *Route {
-	return (*Route)(r.router.PathPrefix(pathTemplate))
+	return newRoute(r.router.PathPrefix(pathTemplate), r.monitors)
 }
 
 // Schemes registers a new route with a matcher for URL schemes.
 func (r *Router) Schemes(schemes ...string) *Route {
-	return (*Route)(r.router.Schemes(schemes...))
+	return newRoute(r.router.Schemes(schemes...), r.monitors)
 }
 
 // Start starts router on port 8080 (AddrHTTP).
@@ -142,6 +143,5 @@ func (r *Router) ListenAndServeMTLS(addr, certFile, keyFile, clientCerts string)
 
 // ServeHTTP serves HTTP request with matching handler.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	monitored := r.monitors.wrap(r.router)
-	monitored.ServeHTTP(w, req)
+	r.router.ServeHTTP(w, req)
 }
