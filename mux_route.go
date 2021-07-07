@@ -75,6 +75,7 @@ func (route *Route) Schemes(schemes ...string) *Route {
 //  r := restful.NewRouter()
 //  s := r.PathPrefix("/api/v1/").Subrouter()
 //  s.HandleFunc("/users", handleAllUsers)
+// Subrouter takes the existing Monitors of the parent route and apply them to the handle functions.
 func (route *Route) Subrouter() *Router {
-	return &Router{router: route.route.Subrouter()}
+	return &Router{router: route.route.Subrouter(), monitors: route.monitors}
 }
