@@ -38,7 +38,6 @@ func LambdaWrap(f interface{}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var reqData reflect.Value
 		var params []reflect.Value
-		var err error
 		t := reflect.TypeOf(f)
 		if t.NumIn() > 0 {
 			reqDataIdx := 0
@@ -53,6 +52,7 @@ func LambdaWrap(f interface{}) http.HandlerFunc {
 
 			// Handle other parameter
 			if reqDataIdx < t.NumIn() {
+				var err error
 				reqDataType := t.In(reqDataIdx)
 				if reqDataType.Kind() == reflect.Ptr {
 					reqData = reflect.New(reqDataType.Elem())
@@ -73,17 +73,31 @@ func LambdaWrap(f interface{}) http.HandlerFunc {
 		res := reflect.ValueOf(f).Call(params)
 
 		if len(res) <= 0 {
-			SendEmptyResponse(w, http.StatusOK)
+			status := http.StatusOK
+			l := L(r.Context())
+			if l != nil && l.status > 0 {
+				status = l.status
+			}
+			SendEmptyResponse(w, status)
 		} else if len(res) == 1 {
 			if resErr, ok := res[0].Interface().(error); ok {
 				_ = SendResp(w, r, resErr, nil)
 			} else {
+				l := L(r.Context())
+				if l != nil && l.status > 0 {
+					_ = SendResp(w, r, NewError(nil, l.status), res[0].Interface())
+				}
 				_ = SendResp(w, r, nil, res[0].Interface())
 			}
 		} else {
 			var err error
 			if resErr, ok := res[1].Interface().(error); ok {
 				err = resErr
+			} else {
+				l := L(r.Context())
+				if l != nil && l.status > 0 {
+					err = NewError(nil, l.status)
+				}
 			}
 			if res[0].Kind() == reflect.Ptr {
 				/* #nosec G103 */

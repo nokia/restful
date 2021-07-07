@@ -20,10 +20,11 @@ const ctxName = ctxKey("restfulRequestData")
 // Usually it is available via lambda function context and provides data for header manipulation.
 // Often accessed as restful.L(ctx).
 type Lambda struct {
-	r     *http.Request
-	w     http.ResponseWriter
-	trace *trace
-	vars  map[string]string
+	r      *http.Request
+	w      http.ResponseWriter
+	status int
+	trace  *trace
+	vars   map[string]string
 }
 
 func newLambda(w http.ResponseWriter, r *http.Request, vars map[string]string) *Lambda {
@@ -94,6 +95,14 @@ func (l *Lambda) RequestHeaderGet(header string) string {
 // RequestHeaderValues returns all the values of header in received HTTP request.
 func (l *Lambda) RequestHeaderValues(header string) []string {
 	return l.r.Header.Values(header)
+}
+
+// ResponseStatus sets HTTP status code to be sent.
+// Use that if you want to set positive (non-error) status code.
+//    restful.L(ctx).ResponseStatus(http.StatusAccepted)
+// Has no effect if lambda returns a non-nil error. In such case status is taken from the error (see restful.NewError), or 500 is returned.
+func (l *Lambda) ResponseStatus(status int) {
+	l.status = status
 }
 
 // ResponseHeaderSet sets an HTTP header to the response to be sent.
