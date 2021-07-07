@@ -64,15 +64,15 @@ func (e *restError) Unwrap() error {
 // NewError creates a new error that contains HTTP status code.
 // Coupling HTTP status code to error makes functions return values clean. And controls what Lambda sends on errors.
 //
-// if err != nil {return restful.NewError(err, http.StatusBadRequest)}
+//    if err != nil {return restful.NewError(err, http.StatusBadRequest)}
 //
 // Parameter description is optional, caller may provide extra description, appearing at the beginning of the error string.
 //
-// if err != nil {return restful.NewError(err, http.StatusBadRequest, "bad data")}
+//    if err != nil {return restful.NewError(err, http.StatusBadRequest, "bad data")}
 //
 // Parameter err may be nil, if there is no error to wrap or original error text is better not to be propagated.
 //
-// if err != nil {return restful.NewError(nil, http.StatusBadRequest, "bad data")}
+//    if err != nil {return restful.NewError(nil, http.StatusBadRequest, "bad data")}
 func NewError(err error, statusCode int, description ...string) error {
 	return &restError{err: err, statusCode: statusCode, problemDetails: ProblemDetails{Detail: strings.Join(description, " ")}}
 }
