@@ -25,7 +25,7 @@ func dupCtx(ctx context.Context, si strint) (strint, error) {
 	ssii := strint{S: si.S + si.S, I: si.I * 2}
 	L(ctx).ResponseHeaderAdd("request-method", L(ctx).RequestMethod())
 	L(ctx).ResponseHeaderAdd("request-url", L(ctx).RequestURL().String())
-	L(ctx).ResponseHeaderAdd("request-path-id", L(ctx).RequestPathParameters()["id"])
+	L(ctx).ResponseHeaderAdd("request-path-id", L(ctx).RequestVars()["id"])
 	L(ctx).ResponseHeaderAdd("request-content-type", L(ctx).RequestHeaderGet("content-type"))
 	L(ctx).ResponseHeaderSet("hello", "world")
 
@@ -39,7 +39,8 @@ func dupCtx(ctx context.Context, si strint) (strint, error) {
 
 func ctxOnly(ctx context.Context) error {
 	L(ctx).ResponseHeaderAdd("request-method", L(ctx).RequestMethod())
-	L(ctx).ResponseHeaderAdd("request-path-id", L(ctx).RequestPathParameters()["id"])
+	L(ctx).ResponseHeaderAdd("request-path-id", L(ctx).RequestVars()["id"])
+	L(ctx).ResponseHeaderAdd("request-param-querystring", L(ctx).RequestVars()["querystring"])
 	L(ctx).ResponseHeaderAddAs("request-param-q", L(ctx).RequestQueryStringParameter("q"))
 	L(ctx).ResponseHeaderSet("hello", "world")
 	return nil
@@ -179,7 +180,7 @@ func TestContextOnly(t *testing.T) {
 	assert := assert.New(t)
 
 	r := NewRouter()
-	r.HandleFunc("/context/{id}", ctxOnly).Methods(http.MethodPost)
+	r.HandleFunc("/context/{id}", ctxOnly).Queries("q", "{querystring:[a-zA-Z ]+}").Methods(http.MethodPost)
 
 	{ // Context-only
 		req, err := http.NewRequest("POST", "/context/42", nil)
@@ -191,6 +192,7 @@ func TestContextOnly(t *testing.T) {
 		assert.Equal(204, rr.Code)
 		assert.Equal("POST", rr.Header().Get("Request-method"))
 		assert.Equal("hello world", rr.Header()["request-param-q"][0]) //lint:ignore SA1008 I want to check non-canonical stuff.
+		assert.Equal("hello world", rr.Header().Get("request-param-querystring"))
 		assert.Equal("42", rr.Header().Get("Request-path-id"))
 		assert.Equal(``, respBody)
 	}

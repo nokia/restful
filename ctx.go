@@ -57,7 +57,14 @@ func (l *Lambda) RequestURL() *url.URL {
 }
 
 // RequestPathParameters returns all the path parameters of received HTTP request.
+//
+// Deprecated: Use RequestVars instead.
 func (l *Lambda) RequestPathParameters() map[string]string {
+	return l.RequestVars()
+}
+
+// RequestVars returns all the named path or query parameters of received HTTP request.
+func (l *Lambda) RequestVars() map[string]string {
 	if l.vars == nil {
 		l.vars = make(map[string]string)
 	}

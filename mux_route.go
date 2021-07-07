@@ -65,6 +65,15 @@ func (route *Route) PathPrefix(pathTemplate string) *Route {
 	return route
 }
 
+// Queries adds a matcher for URL query values.
+//     route.Queries("id", "{id:[0-9]+}")
+// The odd (1st, 3rd, etc) string is the query parameter.
+// The even (2nd, 4th, etc) string is the variable name and optional regex pattern.
+func (route *Route) Queries(pairs ...string) *Route {
+	route.route = route.route.Queries(pairs...)
+	return route
+}
+
 // Schemes adds a matcher for URL schemes.
 func (route *Route) Schemes(schemes ...string) *Route {
 	route.route = route.route.Schemes(schemes...)

@@ -93,6 +93,14 @@ func (r *Router) PathPrefix(pathTemplate string) *Route {
 	return newRoute(r.router.PathPrefix(pathTemplate), r.monitors)
 }
 
+// Queries registers a new route with a matcher for URL query values.
+//     router.Queries("id", "{id:[0-9]+}")
+// The odd (1st, 3rd, etc) string is the query parameter.
+// The even (2nd, 4th, etc) string is the variable name and optional regex pattern.
+func (r *Router) Queries(pairs ...string) *Route {
+	return newRoute(r.router.Queries(pairs...), r.monitors)
+}
+
 // Schemes registers a new route with a matcher for URL schemes.
 func (r *Router) Schemes(schemes ...string) *Route {
 	return newRoute(r.router.Schemes(schemes...), r.monitors)
