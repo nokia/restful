@@ -81,7 +81,7 @@ func TestMonitorsWithSubrouter(t *testing.T) {
 	handlerA := func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }
 	handlerB := func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) }
 
-	mux := NewRouter()
+	mux := NewRouter().Monitor(pre, post)
 	sub := mux.PathPrefix("/sub").Subrouter()
 	sub.Monitor(pre, post).Monitor(pre, post)
 	sub.HandleFunc("/a", handlerA)
@@ -101,8 +101,8 @@ func TestMonitorsWithSubrouter(t *testing.T) {
 		assert.Equal(204, rr.Code)
 	}
 
-	assert.Equal(4, preCount)
-	assert.Equal(4, postCount)
+	assert.Equal(6, preCount)
+	assert.Equal(6, postCount)
 }
 
 func TestMonitorsWithServer(t *testing.T) {
