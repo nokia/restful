@@ -89,6 +89,9 @@ func getJSONData(headers http.Header, ioBody io.ReadCloser, maxBytes int, data i
 		return err
 	}
 	if len(body) == 0 {
+		if request {
+			return NewError(nil, http.StatusBadRequest, "body expected")
+		}
 		return nil
 	}
 
