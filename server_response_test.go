@@ -6,6 +6,7 @@ package restful
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -69,4 +70,18 @@ func TestSendLocationResponse(t *testing.T) {
 	assert.Equal(http.StatusCreated, resp.StatusCode)
 	assert.Equal("https://me", resp.Header.Get("Location"))
 	assert.Equal(int64(0), resp.ContentLength)
+}
+
+func TestSendRespEmbeddedError(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	srv := httptest.NewServer(Logger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		err := NewError(errors.New("embedded"), 400, "error")
+		SendResp(w, r, err, nil)
+	})))
+	defer srv.Close()
+
+	err := NewClient().Get(context.Background(), srv.URL, nil)
+	assert.Equal(`{"detail":"error: embedded"}`, err.Error())
 }

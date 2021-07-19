@@ -134,6 +134,11 @@ func SendProblemDetails(w http.ResponseWriter, r *http.Request, err error) error
 		d := err.problemDetails.Detail
 		// check in case it is somehow already filled with JSON text...
 		if d != "" && d[0] != '{' {
+			if err.err != nil {
+				if embeddedStr := err.err.Error(); embeddedStr != "" {
+					err.problemDetails.Detail += ": " + embeddedStr
+				}
+			}
 			return SendProblemResponse(w, r, GetErrStatusCode(err), err.problemDetails.String())
 		}
 	}
