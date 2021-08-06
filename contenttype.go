@@ -16,7 +16,7 @@ const (
 	ContentTypeAny             = "*/*"
 	ContentTypeApplicationAny  = "application/*"
 	ContentTypeApplicationJSON = "application/json"
-	ContentTypeProblemJSON     = "application/problem+json"
+	ContentTypeProblemJSON     = "application/problem+json"     // RFC 7807
 	ContentTypePatchJSON       = "application/json-patch+json"  // RFC 6902
 	ContentTypeMergeJSON       = "application/merge-patch+json" // RFC 7386
 	ContentTypeForm            = "application/x-www-form-urlencoded"
