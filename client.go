@@ -26,14 +26,15 @@ var defaultClient = NewClient()
 
 // Client is an instance of RESTful client.
 type Client struct {
-	client           *http.Client
-	sanitizeJSON     bool
-	rootURL          string
-	userAgent        string
-	maxBytesToParse  int
-	retries          int
-	retryBackoffInit time.Duration
-	retryBackoffMax  time.Duration
+	client            *http.Client
+	sanitizeJSON      bool
+	rootURL           string
+	userAgent         string
+	maxBytesToParse   int
+	retries           int
+	retryBackoffInit  time.Duration
+	retryBackoffMax   time.Duration
+	acceptProblemJSON bool
 }
 
 var h2CTransport = http2.Transport{
@@ -72,6 +73,7 @@ var h2Transport = http2.Transport{
 func NewClient() *Client {
 	c := &Client{}
 	c.client = &http.Client{}
+	c.acceptProblemJSON = true /* backward compatible */
 	return c
 }
 
@@ -92,6 +94,13 @@ func NewH2CClient() *Client {
 // UserAgent to be sent as User-Agent HTTP header. If not set then default Go settings are used.
 func (c *Client) UserAgent(userAgent string) *Client {
 	c.userAgent = userAgent
+	return c
+}
+
+// AcceptProblemJSON sets whether client is to send "Accept: application/problem+json" header.
+// I.e. tells the server whether your client wants RFC 7807 answers.
+func (c *Client) AcceptProblemJSON(acceptProblemJSON bool) *Client {
+	c.acceptProblemJSON = acceptProblemJSON
 	return c
 }
 
@@ -303,7 +312,9 @@ func (c *Client) sendRequestBytes(ctx context.Context, method string, target str
 
 	if req.Header.Get(AcceptHeader) == "" {
 		req.Header.Set(AcceptHeader, ContentTypeApplicationJSON)
-		req.Header.Add(AcceptHeader, ContentTypeProblemJSON)
+		if c.acceptProblemJSON {
+			req.Header.Add(AcceptHeader, ContentTypeProblemJSON)
+		}
 	}
 
 	return c.Do(ctx, req)

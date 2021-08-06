@@ -262,12 +262,30 @@ func TestGet500(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	err := Get(context.Background(), srv.URL, nil)
+	c := NewClient().AcceptProblemJSON(true)
+	err := c.Get(context.Background(), srv.URL, nil)
 	assert.Error(err)
 	assert.NotEmpty(err.Error())
 	assert.Equal(problem, err.Error())
 	assert.Equal(http.StatusInternalServerError, GetErrStatusCode(err))
 	assert.Equal(http.StatusInternalServerError, GetErrStatusCodeElse(err, 0))
+}
+
+func TestGet500NoProblemJSON(t *testing.T) {
+	assert := assert.New(t)
+	const problem = `{"title":"Configuration error"}`
+
+	// Server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		acc := r.Header["Accept"]
+		assert.Equal(1, len(acc)) // json only
+		SendResp(w, r, NewError(nil, 500, problem), nil)
+	}))
+	defer srv.Close()
+
+	c := NewClient().AcceptProblemJSON(false)
+	err := c.Get(context.Background(), srv.URL, nil)
+	assert.Error(err)
 }
 
 func TestGet500Details(t *testing.T) {
@@ -288,7 +306,8 @@ func TestGet500Details(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	err := Get(context.Background(), srv.URL, nil)
+	c := NewClient().AcceptProblemJSON(true)
+	err := c.Get(context.Background(), srv.URL, nil)
 	assert.Error(err)
 	assert.NotEmpty(err.Error())
 	assert.Equal("{\"title\":\"title\",\"detail\":\"descr\",\"invalidParams\":{\"param1\":\"error text\"}}", err.Error())
