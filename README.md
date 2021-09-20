@@ -38,10 +38,9 @@ location, err := restful.Post(ctx, "https://example.com", &reqData, &respData)
   Besides helper functions for receiving and sending JSON data, it can do logging, and provides [`Monitor`](doc/server.md#Monitor) hooks for whatever you need, such as adding Prometheus counters without littering your code.
 * [RESTful client](doc/client.md) Such as sending GET, POST (and receiving Location), PUT, PATCH or DELETE requests and receiving their responses.
   And numerous other helper functions.
-* Context is received in Lambda and used in client request.
-  That is highly important, as some tracing headers should propagate from service to service (with some changes).
+* [Tracing](doc/tracing.md) information is propagated in context, received in Lambda and used in client request.
   That is all done without any extra coding on your side.
-* Error is used by Lambda, Server and Client classes. It contains HTTP status code besides traditional error.
+* **Error** is used by Lambda, Server and Client classes. It contains HTTP status code besides traditional error.
 
 Context and error are the glue between Lambda and Client.
 
