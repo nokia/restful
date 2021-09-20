@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,9 +19,11 @@ import (
 // Server represents a server instance.
 type Server struct {
 	server      *http.Server
+	serverMutex sync.Mutex
 	certFile    string
 	keyFile     string
 	graceful    bool
+	restarting  bool
 	gracePeriod time.Duration
 	monitors    monitors
 }
@@ -129,20 +132,46 @@ func (s *Server) listenAndServe() error {
 		s.Handler(http.DefaultServeMux)
 	}
 
-	if s.keyFile != "" && s.certFile != "" {
-		return s.server.ListenAndServeTLS(s.certFile, s.keyFile)
+	for {
+		var err error
+		if s.keyFile != "" && s.certFile != "" {
+			err = s.server.ListenAndServeTLS(s.certFile, s.keyFile)
+		} else {
+			err = s.server.ListenAndServe()
+		}
+
+		if !s.restarting {
+			return err
+		}
+		s.restarting = false
+
+		s.serverMutex.Lock() // ListenAndServe routines and Close are executed in parallel.
+		s.server = &http.Server{Handler: s.server.Handler, Addr: s.server.Addr}
+		s.serverMutex.Unlock()
 	}
-	return s.server.ListenAndServe()
+}
+
+// Restart restarts the server abruptly.
+// During restart active connections are dropped and there may be an outage.
+func (s *Server) Restart() {
+	s.restarting = true
+	if err := s.server.Close(); err != nil {
+		log.Errorf("restart close incomplete: %v", err)
+	}
 }
 
 // Close immediately closes all connections.
 func (s *Server) Close() error {
+	s.serverMutex.Lock()
+	defer s.serverMutex.Unlock()
 	return s.server.Close()
 }
 
 // Shutdown closes all connections gracefully.
 // E.g. server.Shutdown(context.Background())
 func (s *Server) Shutdown(ctx context.Context) error {
+	s.serverMutex.Lock()
+	defer s.serverMutex.Unlock()
 	return s.server.Shutdown(ctx)
 }
 

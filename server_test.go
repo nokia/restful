@@ -5,7 +5,10 @@
 package restful
 
 import (
+	"errors"
+	"net/http"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -35,6 +38,54 @@ func TestGracefulNonzero(t *testing.T) {
 func TestGracefulBadAddr(t *testing.T) {
 	s := NewServer().Graceful(0).Addr(":-1")
 	assert.Error(t, s.ListenAndServe())
+}
+
+func TestRestart(t *testing.T) {
+	assert := assert.New(t)
+	s := NewServer().Addr("127.0.0.1:0")
+
+	// Logger
+	logs := make([]string, 0)
+	logchn := make(chan string, 6)
+	var wgLogs sync.WaitGroup
+	wgLogs.Add(1)
+	go func() {
+		for s := range logchn {
+			logs = append(logs, s)
+		}
+		wgLogs.Done()
+	}()
+
+	// Listen - Restart - Close
+	var err error
+	var wgServer sync.WaitGroup
+	wgServer.Add(3)
+	go func() {
+		logchn <- "listen"
+		err = s.ListenAndServe()
+		logchn <- "listened"
+		wgServer.Done()
+	}()
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		logchn <- "restart"
+		s.Restart()
+		logchn <- "restarted"
+		wgServer.Done()
+	}()
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		logchn <- "close"
+		s.Close()
+		logchn <- "closed"
+		wgServer.Done()
+	}()
+	wgServer.Wait()
+	assert.True(errors.Is(err, http.ErrServerClosed))
+
+	close(logchn)
+	wgLogs.Wait()
+	assert.Equal("listen, restart, restarted, close, closed, listened", strings.Join(logs, ", "))
 }
 
 func TestHTTPServerBadAddrNilHandler(t *testing.T) {
