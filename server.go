@@ -85,6 +85,8 @@ func (s *Server) ListenAndServe() error {
 	go func() {
 		if err := s.listenAndServe(); err != http.ErrServerClosed {
 			c <- err
+		} else {
+			c <- nil
 		}
 	}()
 
