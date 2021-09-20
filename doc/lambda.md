@@ -120,3 +120,33 @@ Notes:
   * You can define cancellation timeout.
   * Lambda context contains request information, including [tracing HTTP headers](tracing.md).
   * You can add header to HTTP response.
+
+## Response status codes
+
+Explicit status codes:
+
+* When your lambda returns with error, that may use RESTful's errors.
+
+    ```go
+    func checkUser(ctx context.Context, usr user) error {
+        err := errors.New("unknown user")
+        return restful.NewError(err, http.StatusNotFound)
+    }
+    ```
+
+* In successful cases status may be defined this way:
+
+    ```go
+    func checkUser(ctx context.Context, usr user) error {
+        l := restful.L(ctx)
+        l.ResponseStatus(http.StatusAccepted)
+        return nil
+    }
+    ```
+
+In most successful cases one lets RESTful set status code automatically.
+The following rules are applied in this order:
+
+* On `POST` request when `Location` header is present, `201 Created` is sent.
+* When the response is empty, e.g. on successful `DELETE` operation without any content, `204 No Content` is sent.
+* Otherwise `200 OK` is sent.

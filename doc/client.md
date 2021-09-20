@@ -24,6 +24,7 @@ type user struct{
 }
 
 client := restful.NewClient().Root("https://example.com") /* Setting API root is optional, may avoid passing config around. */
+client.Timeout(5 * time.Second).Retry(3, time.Second, 5*time.Second)
 
 joe := user{Name: "Joe", Address: "Karakaari 7, 02610 Espoo, Suomi"}
 location, err := client.Post(ctx, "/user", &joe, nil /*no answer expected*/)

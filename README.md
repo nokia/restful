@@ -35,18 +35,22 @@ location, err := restful.Post(ctx, "https://example.com", &reqData, &respData)
 
 * [Lambda server](doc/lambda.md) Focus on business logic. It is a modern variant of an HTTP server.
 * [RESTful server](doc/server.md) An underlying HTTP server of Lambda. An HTTP server with goodies.
-  Besides helper functions for receiving and sending JSON data, it can do logging, and provides [`Monitor`](doc/server.md#Monitor) hooks for whatever you need, such as adding Prometheus counters without littering your code.
-* [RESTful client](doc/client.md) Such as sending GET, POST (and receiving Location), PUT, PATCH or DELETE requests and receiving their responses.
+  Besides helper functions for receiving and sending JSON data and it can do logging.
+  Router is based on [Gorilla/Mux](https://github.com/gorilla/mux), offering similar services.
+* [RESTful client](doc/client.md) Sending GET, POST (and receiving Location), PUT, PATCH or DELETE requests and receiving their responses.
   And numerous other helper functions.
 * [Tracing](doc/tracing.md) information is propagated in context, received in Lambda and used in client request.
   That is all done without any extra coding on your side.
+* [Monitor](doc/monitor.md) can pre-process requests and post-process responses.
+  Pre and post hooks can be used for whatever you want, such as adding Prometheus counters on router level, without littering your business logic.
 * **Error** is used by Lambda, Server and Client classes. It contains HTTP status code besides traditional error.
 
-Context and error are the glue between Lambda and Client.
+Trace context and error are the glue between Lambda and Client.
+That is why they form a module together.
 
 ## Principles
 
 * Simple, intuitive, Go-ish.
-* Similar to Go's built-in http package and the famous [Gorilla/Mux](https://github.com/gorilla/mux).
+* Similar to Go's built-in http package and the famous [Gorilla/Mux](https://github.com/gorilla/mux) router.
 * Powerful HTTP+JSON framework reducing development costs while improving quality.
 * Have quite many goodies needed on developing complex applications.
