@@ -101,7 +101,7 @@ Monitor is a unique construct of RESTful package.
 That can be used to execute functions *pre* and *post* calling handlers.
 That is used by built-in `Logger` and can be utilized other ways, e.g. to create various metrics, service charging or filters.
 
-Monitor is available for `Server` and `Router` classes, including sub-routers.
+Monitor is available for `Server`, `Router` and `Route` classes, including sub-routers.
 
 ```go
 func pre(w http.ResponseWriter, r *http.Request) *http.Request {
@@ -122,6 +122,8 @@ func post(w http.ResponseWriter, r *http.Request, statusCode int) {
     // Whatever to do after processing the request.
     // You can use the status code.
     fmt.Println("Ended with ", statusCode)
+
+    // If the pre function changed the context, e.g. added a new value, then r.Context() contains that change.
 }
 
 func main() {

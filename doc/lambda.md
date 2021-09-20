@@ -118,5 +118,5 @@ Notes:
 * You can define port at `ListenAndServe()`, if you do not like default 8080.
 * Receiving context and passing that to client has several advantages.
   * You can define cancellation timeout.
-  * Lambda context contains request information, including tracing HTTP headers. Those can be passed to client, which creates its own span and sends request with that. See [W3C](https://www.w3.org/TR/trace-context/). [OpenTelemetry](https://opentelemetry.io/) behaves similarly.
+  * Lambda context contains request information, including [tracing HTTP headers](tracing.md).
   * You can add header to HTTP response.
