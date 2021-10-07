@@ -157,6 +157,17 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 	return c
 }
 
+// SetJar sets cookie jar for the client.
+func (c *Client) SetJar(jar http.CookieJar) *Client {
+	c.client.Jar = jar
+	return c
+}
+
+// Jar gets cookie jar of the client.
+func (c *Client) Jar() http.CookieJar {
+	return c.client.Jar
+}
+
 func errDeadlineOrCancel(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
