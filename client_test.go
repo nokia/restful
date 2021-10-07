@@ -243,6 +243,24 @@ func TestMethodsError(t *testing.T) {
 	assert.NotNil(err)
 }
 
+func TestClientBasicAuth(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		username, password, ok := r.BasicAuth()
+		assert.True(ok)
+		assert.Equal("username", username)
+		assert.Equal("password", password)
+	}))
+	defer srv.Close()
+
+	ctx := context.Background()
+	client := NewClient().Root(srv.URL).SetBasicAuth("username", "password")
+	err := client.Get(ctx, "/", nil)
+	assert.NoError(err)
+}
+
 func TestGetBadURL(t *testing.T) {
 	assert := assert.New(t)
 	respData := strType{}

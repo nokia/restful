@@ -241,6 +241,28 @@ func TestContextTracing(t *testing.T) {
 	assert.Equal(204, rr.Code)
 }
 
+func TestLambdaBasicAuth(t *testing.T) {
+	assert := assert.New(t)
+	r := NewRouter()
+	r.HandleFunc("/{id}", func(ctx context.Context) (string, error) {
+		l := L(ctx)
+		assert.Equal("123", l.RequestVars()["id"])
+		username, password, ok := l.RequestBasicAuth()
+		assert.True(ok)
+		assert.Equal("username", username)
+		assert.Equal("password", password)
+		assert.Equal(1, len(l.RequestHeaderValues("Authorization"))) // 1 such header
+		return username, nil
+	})
+
+	req, err := http.NewRequest("POST", "/123", nil)
+	assert.NoError(err)
+	req.SetBasicAuth("username", "password")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(`"username"`, rr.Body.String())
+}
+
 func TestDefaultRouter(t *testing.T) {
 	assert := assert.New(t)
 
