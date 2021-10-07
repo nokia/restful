@@ -2,6 +2,11 @@
 // Licensed under the BSD 3-Clause License.
 // SPDX-License-Identifier: BSD-3-Clause
 
+/* There are numerous Lambda context functions to query request data and set response.
+ * It would be easy to expose http.ResponseWriter and *http.Request.
+ * Here, instead, separate functions are defined. That might help if a serverless environment is to be supported later.
+ */
+
 package restful
 
 import (
