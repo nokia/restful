@@ -30,6 +30,8 @@ type Client struct {
 	sanitizeJSON      bool
 	rootURL           string
 	userAgent         string
+	username          string
+	password          string
 	maxBytesToParse   int
 	retries           int
 	retryBackoffInit  time.Duration
@@ -145,6 +147,16 @@ func (c *Client) SanitizeJSON() *Client {
 	return c
 }
 
+// SetBasicAuth sets Authorization header for each request sent by the client.
+// String username:password sent in HTTP header.
+//
+// Make sure encrypted transport is used, e.g. the link is https.
+func (c *Client) SetBasicAuth(username, password string) *Client {
+	c.username = username
+	c.password = password
+	return c
+}
+
 func errDeadlineOrCancel(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
@@ -192,6 +204,10 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 	c.setUA(req)
 	spanStr := doSpan(ctx, req)
 	body := c.cloneBody(req)
+
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
 
 	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, target)
 	resp, err := c.do(req)

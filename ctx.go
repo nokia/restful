@@ -97,6 +97,13 @@ func (l *Lambda) RequestHeaderValues(header string) []string {
 	return l.r.Header.Values(header)
 }
 
+// RequestBasicAuth returns the username and password provided in the request's Authorization header.
+// Returned flag ok indicates if the header is received fine.
+// That way one can tell if the header was received with empty strings or not.
+func (l *Lambda) RequestBasicAuth() (username, password string, ok bool) {
+	return l.r.BasicAuth()
+}
+
 // ResponseStatus sets HTTP status code to be sent.
 // Use that if you want to set positive (non-error) status code.
 //    restful.L(ctx).ResponseStatus(http.StatusAccepted)
