@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"testing"
@@ -261,6 +262,27 @@ func TestClientBasicAuth(t *testing.T) {
 	assert.NoError(err)
 }
 
+func TestCookieJar(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, _ := r.Cookie("token")
+		assert.Equal("secret", cookie.Value)
+		cookie.Value = "new secret"
+		http.SetCookie(w, cookie)
+	}))
+	srvURL, _ := url.Parse(srv.URL)
+	defer srv.Close()
+
+	ctx := context.Background()
+	jar, _ := cookiejar.New(nil)
+	client := NewClient().Root(srv.URL).SetJar(jar)
+	jar.SetCookies(srvURL, []*http.Cookie{&http.Cookie{Name: "token", Value: "secret", MaxAge: 10}})
+	err := client.Get(ctx, "/", nil)
+	assert.NoError(err)
+	assert.Equal("new secret", client.Jar().Cookies(srvURL)[0].Value)
+}
 func TestGetBadURL(t *testing.T) {
 	assert := assert.New(t)
 	respData := strType{}
