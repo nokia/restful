@@ -2,7 +2,12 @@
 
 Monitor is a unique construct of RESTful package.
 That can be used to execute functions *pre* and *post* calling handlers.
-That is used by built-in `Logger` and can be utilized other ways, e.g. to create various metrics, service charging or filters.
+That is used by built-in `Logger` and can be utilized other ways, e.g. to create various metrics, service charging, filters, or authentication.
+
+The concept is somewhat overlapping with container sidecars.
+Sidecars are completely independent, therefore much better customizable and upgradeable.
+But they are usually expensive, require network interface tweaking, and problematic in serverless environment.
+Monitor does not have these issues.
 
 Monitor is available for `Server`, `Router` and `Route` classes, including sub-routers.
 
@@ -12,7 +17,7 @@ func pre(w http.ResponseWriter, r *http.Request) *http.Request {
     fmt.Println("Begin")
 
     // If you write a response here, the handler function is not called.
-    // Use it to terminate the request instead of serving it.
+    // Use it to terminate the request instead of let it being served.
     if r.URL.Path == "/error" {
         w.WriteHeader(http.StatusBadRequest)
     }
@@ -37,7 +42,7 @@ func main() {
 }
 ```
 
-Monitor is practically a wrapper layer added around the original handler functions.
+Monitor is practically a wrapper around the original handler functions.
 You may apply several such wrappers.
 
 ```go
