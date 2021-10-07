@@ -7,6 +7,7 @@ COV=/tmp/test.out
 .PHONY: all
 all: gotools
 	$(RUN) bash -c ' \
+		go get -u ./... && \
 		go mod tidy && \
 		go vet ./... && \
 		go test -race -coverprofile=$(COV) ./... && \
