@@ -99,6 +99,13 @@ func (c *Client) UserAgent(userAgent string) *Client {
 	return c
 }
 
+// CheckRedirect set client CheckRedirect field
+// CheckRedirect specifies the policy for handling redirects.
+func (c *Client) CheckRedirect(checkRedirect func(req *http.Request, via []*http.Request) error) *Client {
+	c.client.CheckRedirect = checkRedirect
+	return c
+}
+
 // AcceptProblemJSON sets whether client is to send "Accept: application/problem+json" header.
 // I.e. tells the server whether your client wants RFC 7807 answers.
 func (c *Client) AcceptProblemJSON(acceptProblemJSON bool) *Client {
