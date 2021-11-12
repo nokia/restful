@@ -435,3 +435,24 @@ func TestBroadcastBadURL(t *testing.T) {
 	err := NewClient().BroadcastRequest(context.Background(), "GET", ":::-1", nil, nil)
 	assert.Error(err)
 }
+
+func TestCheckRedirect(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", "https://TemporaryLocation")
+		SendResp(w, r, NewError(nil, 307), nil)
+	}))
+	defer srv.Close()
+
+	c := NewClient().CheckRedirect(func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	})
+
+	var empty struct{}
+	resp, err := c.SendRecv(context.Background(), http.MethodGet, srv.URL, nil, nil, &empty)
+	assert.NoError(err)
+	assert.Equal(http.StatusTemporaryRedirect, resp.StatusCode)
+
+}
