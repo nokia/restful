@@ -22,6 +22,7 @@ type ProblemDetails struct {
 	Type          string            `json:"type,omitempty"`
 	Title         string            `json:"title,omitempty"`
 	Detail        string            `json:"detail,omitempty"`
+	Cause         string            `json:"cause,omitempty"`
 	Instance      string            `json:"instance,omitempty"`
 	Status        int               `json:"status,omitempty"`
 	InvalidParams map[string]string `json:"invalidParams,omitempty"`
