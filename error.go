@@ -20,7 +20,7 @@ type restError struct {
 // InvalidParam is the common InvalidParam object defined in 3GPP TS 29.571
 type InvalidParam struct {
 	Param  string `json:"param"`
-	Reason string `json:"reason"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // ProblemDetails is a structure defining fields for RFC 7807 error responses.
