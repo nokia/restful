@@ -278,7 +278,7 @@ func TestCookieJar(t *testing.T) {
 	ctx := context.Background()
 	jar, _ := cookiejar.New(nil)
 	client := NewClient().Root(srv.URL).SetJar(jar)
-	jar.SetCookies(srvURL, []*http.Cookie{&http.Cookie{Name: "token", Value: "secret", MaxAge: 10}})
+	jar.SetCookies(srvURL, []*http.Cookie{{Name: "token", Value: "secret", MaxAge: 10}})
 	err := client.Get(ctx, "/", nil)
 	assert.NoError(err)
 	assert.Equal("new secret", client.Jar().Cookies(srvURL)[0].Value)
@@ -339,7 +339,7 @@ func TestGet500Details(t *testing.T) {
 			ProblemDetails{
 				Title:         "title",
 				Detail:        "descr",
-				InvalidParams: map[string]string{"param1": "error text"},
+				InvalidParams: []InvalidParam{{"param1", "error text"}},
 			})
 
 		SendResp(w, r, err, nil)
@@ -350,7 +350,7 @@ func TestGet500Details(t *testing.T) {
 	err := c.Get(context.Background(), srv.URL, nil)
 	assert.Error(err)
 	assert.NotEmpty(err.Error())
-	assert.Equal("{\"title\":\"title\",\"detail\":\"descr\",\"invalidParams\":{\"param1\":\"error text\"}}", err.Error())
+	assert.Equal(`{"title":"title","detail":"descr","invalidParams":[{"param":"param1","reason":"error text"}]}`, err.Error())
 	assert.Equal(http.StatusInternalServerError, GetErrStatusCode(err))
 	assert.Equal(http.StatusInternalServerError, GetErrStatusCodeElse(err, 0))
 }
