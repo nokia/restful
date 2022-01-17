@@ -17,7 +17,7 @@ import (
 )
 
 func TestGracefulZero(t *testing.T) {
-	s := NewServer().Graceful(0)
+	s := NewServer().Graceful(0).Addr(":8080")
 	go func() {
 		time.Sleep(time.Millisecond)
 		syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
