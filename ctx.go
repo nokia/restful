@@ -70,6 +70,25 @@ func (l *Lambda) RequestVars() map[string]string {
 	return l.vars
 }
 
+// RequestQueryParams returns all query parameters and values of received HTTP request.
+// Limitation: only the first occurence of each query parameters are returned.
+func (l *Lambda) RequestQueryParams() map[string]string {
+	rawQuery := l.r.URL.RawQuery
+	parsedQueryParams := make(map[string]string)
+	queryParams, _ := url.ParseQuery(rawQuery)
+	for key, value := range queryParams {
+		parsedQueryParams[key] = value[0]
+	}
+	return parsedQueryParams
+}
+
+// RequestQueryParams returns all query parameters and values of received HTTP request.
+func (l *Lambda) RequestQueryParamsMultipleOccurence() map[string][]string {
+	rawQuery := l.r.URL.RawQuery
+	queryParams, _ := url.ParseQuery(rawQuery)
+	return queryParams
+}
+
 // RequestQueryStringParameter returns value of given path parameter of received HTTP request.
 func (l *Lambda) RequestQueryStringParameter(parameter string) string {
 	return l.r.URL.Query().Get(parameter)
