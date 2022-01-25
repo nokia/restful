@@ -45,6 +45,35 @@ func TestDataGetQuery(t *testing.T) {
 	}
 }
 
+func TestDataGetQueryLambda(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	// A real listening one, so that one can make a capture.
+	mux := NewRouter()
+	mux.HandleFunc("/", func(ab abs) error {
+		assert.Equal("a", ab.A)
+		assert.Equal("b", ab.B[0])
+		assert.Equal("B", ab.B[1])
+		return nil
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mux.ServeHTTP(w, r)
+	}))
+	defer srv.Close()
+
+	// Client
+	{
+		req, err := http.NewRequest("GET", srv.URL, nil)
+		assert.NoError(err)
+		q := url.Values{"a": {"a"}, "b": {"b", "B"}}
+		req.URL.RawQuery = q.Encode()
+		_, err = NewClient().Do(context.Background(), req)
+		assert.NoError(err)
+	}
+}
+
 func TestDataPostForm(t *testing.T) {
 	assert := assert.New(t)
 
