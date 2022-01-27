@@ -78,8 +78,10 @@ func main() {
     logrus.SetLevel(logrus.DebugLevel)
 
     // You may populate DB using 2 content types:
-    // curl -i http://localhost:8080/users -d '{"name": "Joe", "address": "Karakaari 7, 02610 Espoo, Suomi"}' -H 'Content-Type:application/json'
-    // curl -i http://localhost:8080/users -d "name=Jane" -d "address=Bokay Janos 36, 1083 Budapest, Hungary"
+    // As application/json:
+    //     curl -i http://localhost:8080/users -d '{"name": "Joe", "address": "Karakaari 7, 02610 Espoo, Suomi"}' -H 'Content-Type:application/json'
+    // As application/x-www-form-urlencoded:
+    //     curl -i http://localhost:8080/users -d "name=Jane" -d "address=Bokay Janos 36, 1083 Budapest, Hungary"
     restful.HandleFunc("/users", createUser).Methods(http.MethodPost)
 
     // Query using the URL/path returned in Location header
@@ -97,6 +99,8 @@ Notes:
 * K8s liveness probe (/livez or /healthz) are answered automatically.
 * Logs errors to stdout. If log level is debug, then log messages, too.
 * `restful.L(ctx)` provides Lambda's HTTP request attributes, such as path parameters and method.
+* On GET or POST with urlencoded parameters, [Gorilla/Schema](https://github.com/gorilla/schema) is used.
+  If Go field names and parameter names do not match, use `schema:"query-parameter-name"` tagging.
 
 ## Example on using path-based parameters
 
@@ -183,15 +187,23 @@ The following rules are applied in this order:
 
 ## Q&A
 
-* Q: Why is this library based on Gorilla/Mux, when there are other high-performance alternatives, such as Gin?
-* A: There are several reasons, like allowing smooth transition from standard http or Gorilla/Mux packages.
-     Or have a simple syntax.
+**Q: Why is this library based on Gorilla/Mux, when there are other high-performance alternatives, such as Gin?**
 
-* Q: Is it possible to send alternative types in responses, decided run-time? Like `f() (T1, T2, error)`.
-* A: At the moment it is not possible. But you can freely mix lambdas and http handler functions.
+A: There are several reasons, like allowing smooth transition from standard http or Gorilla/Mux packages.
+   And have a simple syntax.
 
-* Q: Is it possible sending multi-part responses?
-* A: Not possible. But you can freely mix lambdas and http handler functions.
+**Q: Is it possible to send alternative types in responses, decided run-time? Like `f() (T1, T2, error)`.**
 
-* Q: Can one stream response? E.g. if response for request is to contain millions of database entries?
-* A: Not possible. But you can freely mix lambdas and http handler functions. Base http package does streaming wonderfully.
+A: At the moment it is not supported. But you can freely mix lambdas and http handler functions.
+
+**Q: Is it possible sending multi-part responses?**
+
+A: Not supported. But you can freely mix lambdas and http handler functions.
+
+**Q: Can one stream response? E.g. if response for request is to contain millions of database entries?**
+
+A: Not supported. But you can freely mix lambdas and http handler functions. Base http package can do streaming wonderfully.
+
+**Q: How to respont with binary content, such as downloading favicon or an image?**
+
+A: Lambda serves primarily the purpose of JSON content. But you can freely mix lambdas and http handler functions. Base http package can send binary payload fine.

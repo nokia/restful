@@ -15,9 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type abs struct {
-	A string
-	B []string
+type abcType struct {
+	A      string
+	B      []string
+	CField int `schema:"c-field"`
 }
 
 func TestDataGetQuery(t *testing.T) {
@@ -25,11 +26,12 @@ func TestDataGetQuery(t *testing.T) {
 
 	// Server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var ab abs
-		GetRequestData(r, 0, &ab)
-		assert.Equal("a", ab.A)
-		assert.Equal("b", ab.B[0])
-		assert.Equal("B", ab.B[1])
+		var abc abcType
+		GetRequestData(r, 0, &abc)
+		assert.Equal("a", abc.A)
+		assert.Equal("b", abc.B[0])
+		assert.Equal("B", abc.B[1])
+		assert.Equal(42, abc.CField)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
@@ -38,7 +40,7 @@ func TestDataGetQuery(t *testing.T) {
 	{
 		req, err := http.NewRequest("GET", srv.URL, nil)
 		assert.Nil(err)
-		q := url.Values{"a": {"a"}, "b": {"b", "B"}}
+		q := url.Values{"a": {"a"}, "b": {"b", "B"}, "c-field": {"42"}}
 		req.URL.RawQuery = q.Encode()
 		_, err = NewClient().Do(context.Background(), req)
 		assert.Nil(err)
@@ -51,7 +53,7 @@ func TestDataGetQueryLambda(t *testing.T) {
 	// Server
 	// A real listening one, so that one can make a capture.
 	mux := NewRouter()
-	mux.HandleFunc("/", func(ab abs) error {
+	mux.HandleFunc("/", func(ab abcType) error {
 		assert.Equal("a", ab.A)
 		assert.Equal("b", ab.B[0])
 		assert.Equal("B", ab.B[1])
@@ -79,7 +81,7 @@ func TestDataPostForm(t *testing.T) {
 
 	// Server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var ab abs
+		var ab abcType
 		GetRequestData(r, 0, &ab)
 		assert.Equal("a", ab.A)
 		assert.Equal("b", ab.B[0])

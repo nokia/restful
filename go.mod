@@ -7,7 +7,7 @@ require (
 	github.com/gorilla/schema v1.2.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.6.1
-	golang.org/x/net v0.0.0-20220121210141-e204ce36a2ba
+	golang.org/x/net v0.0.0-20220127074510-2fabfed7e28f
 )
 
 require (
