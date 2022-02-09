@@ -23,10 +23,11 @@ func getJSONBody(data interface{}, sanitizeJSON bool) ([]byte, error) {
 	}
 	if sanitizeJSON {
 		body = SanitizeJSONBytes(body)
+		if len(body) == 2 && body[0] == '{' && body[1] == '}' {
+			return nil, nil
+		}
 	}
-	if len(body) == 2 && body[0] == '{' && body[1] == '}' {
-		return nil, nil
-	}
+
 	return body, nil
 }
 
