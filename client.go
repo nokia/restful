@@ -73,8 +73,16 @@ var h2Transport = http2.Transport{
 // NewClient creates a RESTful client instance.
 // The instance has a semi-permanent transport TCP connection.
 func NewClient() *Client {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConns = 100
+	t.MaxConnsPerHost = 100
+	t.MaxIdleConnsPerHost = 100
+
 	c := &Client{}
-	c.client = &http.Client{}
+	c.client = &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: t,
+	}
 	c.acceptProblemJSON = true /* backward compatible */
 	return c
 }
