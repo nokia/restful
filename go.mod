@@ -1,4 +1,4 @@
-module github.com/nokia/restful
+module github.com/Pisztrang/restful
 
 go 1.17
 
