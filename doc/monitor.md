@@ -48,3 +48,6 @@ You may apply several such wrappers.
 ```go
 router = router.Monitor(pre1, post1).Monitor(pre2, nil).Monitor(nil, post3)
 ```
+
+Monitor is quite similar to Middleware of Gorilla/Mux. The result is the same that the original handler is wrapped by another handler.
+The syntax is a bit different. Probably slightly more convenient in some cases, especially when status code of the wrapped handler is needed.

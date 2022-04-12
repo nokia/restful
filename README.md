@@ -5,6 +5,8 @@
 This Go package is a powerful extension of standard Go HTTP server and client libraries.
 It lets you handle HTTP+JSON without any extra code.
 
+[Reference.](https://pkg.go.dev/github.com/nokia/restful)
+
 ### Lambda server
 
 You receive and respond with data structures.

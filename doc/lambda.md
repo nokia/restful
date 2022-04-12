@@ -139,7 +139,7 @@ func main() {
 
 // In _test source:
 func TestValidateUser(t *testing.T) {
-    ctx := NewTestCtx("POST", "/users", nil, nil)
+    ctx := NewTestCtx("POST", "/users", nil /* no headers */, nil /* no vars */)
     joe := user{Name: "Joe", Address: "Karakaari 7, 02610 Espoo, Suomi"}
     assert.NoError(t, validateUser(ctx, joe))
 }
@@ -148,7 +148,9 @@ func TestValidateUser(t *testing.T) {
 Notes:
 
 * You can test your lambda directly, using `NewTestCtx()`.
-* Creating your own router instance instead of using default one is great when you test your code. You can call `ServeHTTP()` with standard [httptest](https://golang.org/pkg/net/http/httptest/) package.
+* Creating your own router instance is great when you test your code.
+  You can call `ServeHTTP()` with standard [httptest](https://golang.org/pkg/net/http/httptest/) package.
+  That may be more convenient when path or query variables are used, compared to creating test lambda context.
 * You can define port at `ListenAndServe()`, if you do not like default 8080.
 * Receiving context and passing that to client has several advantages.
   * You can define cancellation timeout.
@@ -204,6 +206,6 @@ A: Not supported. But you can freely mix lambdas and http handler functions.
 
 A: Not supported. But you can freely mix lambdas and http handler functions. Base http package can do streaming wonderfully.
 
-**Q: How to respont with binary content, such as downloading favicon or an image?**
+**Q: How to respond with binary content, such as downloading favicon or an image?**
 
 A: Lambda serves primarily the purpose of JSON content. But you can freely mix lambdas and http handler functions. Base http package can send binary payload fine.
