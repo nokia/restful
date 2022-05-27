@@ -210,6 +210,14 @@ func (c *Client) cloneBody(req *http.Request) io.ReadCloser {
 	return body
 }
 
+func retryStatus(statusCode int) bool {
+	return (statusCode >= 502 && statusCode <= 504)
+}
+
+func retryResp(resp *http.Response) bool {
+	return resp == nil || retryStatus(resp.StatusCode)
+}
+
 // Do sends an HTTP request and returns an HTTP response.
 // All the rules of http.Client.Do() applies.
 // If URL of req is relative path then root defined at client.Root is added as prefix.
@@ -238,7 +246,7 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, target)
 	resp, err := c.do(req)
 
-	for retries := 0; retries < c.retries && !errDeadlineOrCancel(err) && (resp == nil || (resp.StatusCode >= 502 && resp.StatusCode <= 504)); retries++ { // Gateway error responses.
+	for retries := 0; retries < c.retries && !errDeadlineOrCancel(err) && retryResp(resp); retries++ { // Gateway error or overload responses.
 		if resp != nil {
 			_ = resp.Body.Close()
 		}
