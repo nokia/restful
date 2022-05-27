@@ -87,7 +87,7 @@ func (c *Client) haveTLSClientConfig() *tls.Config {
 	}
 
 	if transport.TLSClientConfig == nil {
-		transport.TLSClientConfig = &tls.Config{} // #gosec false positive, see below
+		transport.TLSClientConfig = &tls.Config{} // #nosec G402 -- false positive, see below
 	}
 
 	transport.TLSClientConfig.MinVersion = tls.VersionTLS12 // TLS 1.2 is the minimum supported.
