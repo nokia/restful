@@ -189,14 +189,16 @@ The following rules are applied in this order:
 
 ## Q&A
 
-**Q: Why is this library based on Gorilla/Mux, when there are other high-performance alternatives, such as Gin?**
+**Q: Why is this library based on Gorilla/Mux, when there are other high-performance alternatives, such as [Gin](https://github.com/gin-gonic/gin) or [Bunrouter](https://bunrouter.uptrace.dev/)?**
 
-A: There are several reasons, like allowing smooth transition from standard http or Gorilla/Mux packages.
-   And have a simple syntax.
+A: We are fortunate to have so many great routers.
+   Our aim is simple syntax similar to standard http or Gorilla/Mux packages, easing the transition.
+   For a complex app with database operations, router speed difference may be negliable.
 
 **Q: Is it possible to send alternative types in responses, decided run-time? Like `f() (T1, T2, error)`.**
 
 A: At the moment it is not supported. But you can freely mix lambdas and http handler functions.
+Alternatively, you may put T1 and T2 to a common T3 struct, e.g. as anonymous members.
 
 **Q: Is it possible sending multi-part responses?**
 
