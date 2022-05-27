@@ -136,7 +136,7 @@ func TestGetTooLongAnswer(t *testing.T) {
 func TestRetry(t *testing.T) {
 	assert := assert.New(t)
 
-	// Server
+	// Server: Rejecting with 504 `retries` times.
 	reqCount := 0
 	retries := 4
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -149,7 +149,7 @@ func TestRetry(t *testing.T) {
 		}
 
 		if reqCount < retries { // r * fail
-			w.WriteHeader(http.StatusGatewayTimeout)
+			w.WriteHeader(http.StatusGatewayTimeout) // Retry attempt may be made
 			w.Write([]byte(`{"time" :"` + time.Now().String() + `"}`))
 		} else {
 			w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
@@ -160,7 +160,7 @@ func TestRetry(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	{ // POST
+	{ // POST: Check if body is sent on all attempts.
 		reqData := strType{Str: "hello"}
 		respData := strType{}
 		client := NewClient().Root(srv.URL).Retry(retries, 10*time.Millisecond, 0).UserAgent("hello")
@@ -171,7 +171,7 @@ func TestRetry(t *testing.T) {
 		assert.Equal(retries+1, reqCount)
 	}
 
-	{ // GET
+	{ // GET: Check if non-existing body does not cause any issue.
 		reqCount = 0 // reset server's counter
 		respData := strType{}
 		client := NewClient().Root(srv.URL).Retry(retries, 10*time.Millisecond, 0).UserAgent("hello")
@@ -181,6 +181,24 @@ func TestRetry(t *testing.T) {
 		assert.Equal(http.StatusOK, GetErrStatusCodeElse(err, 0))
 		assert.Equal(retries+1, reqCount)
 	}
+}
+
+func TestRetryStatus(t *testing.T) {
+	assert.False(t, retryStatus(200))
+	assert.False(t, retryStatus(404))
+	assert.False(t, retryStatus(429))
+	assert.False(t, retryStatus(500))
+
+	assert.True(t, retryStatus(502))
+	assert.True(t, retryStatus(503))
+	assert.True(t, retryStatus(504))
+}
+
+func TestRetryResp(t *testing.T) {
+	assert.False(t, retryResp(&http.Response{StatusCode: 200}))
+
+	assert.True(t, retryResp(nil))
+	assert.True(t, retryResp(&http.Response{StatusCode: 502}))
 }
 
 func TestTimeout(t *testing.T) {
