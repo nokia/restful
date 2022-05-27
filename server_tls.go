@@ -14,7 +14,7 @@ import (
 // File name should match *.crt or *.pem.
 func (s *Server) TLSClientCert(path string) *Server {
 	if s.server.TLSConfig == nil {
-		s.server.TLSConfig = &tls.Config{}
+		s.server.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 	}
 	s.server.TLSConfig.ClientCAs = NewCertPool(path)
 	s.server.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
