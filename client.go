@@ -236,14 +236,17 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 	}
 
 	c.setUA(req)
-	spanStr := doSpan(ctx, req)
+
 	body := c.cloneBody(req)
 
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
 	}
 
-	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, target)
+	return c.doLog(ctx, req, body, target)
+}
+
+func (c *Client) doWithRetry(req *http.Request, body io.ReadCloser, spanStr, target string) (*http.Response, error) {
 	resp, err := c.do(req)
 
 	for retries := 0; retries < c.retries && !errDeadlineOrCancel(err) && retryResp(resp); retries++ { // Gateway error or overload responses.
@@ -258,11 +261,19 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		log.Debugf("[%s] Send rty(%d): %s %s: err=%v", spanStr, retries, req.Method, target, err)
 		resp, err = c.do(req)
 	}
-	if err != nil {
-		return nil, err
-	}
 
-	log.Debugf("[%s] Recv rsp %d (%v)", spanStr, resp.StatusCode, resp.Status)
+	return resp, err
+}
+
+func (c *Client) doLog(ctx context.Context, req *http.Request, body io.ReadCloser, target string) (*http.Response, error) {
+	spanStr := doSpan(ctx, req)
+	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, target)
+	resp, err := c.doWithRetry(req, body, spanStr, target)
+	if err != nil {
+		log.Debugf("[%s] Fail req: %s %s", spanStr, req.Method, target)
+	} else {
+		log.Debugf("[%s] Recv rsp: %s", spanStr, resp.Status)
+	}
 	return resp, err
 }
 
