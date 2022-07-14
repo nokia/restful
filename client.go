@@ -37,6 +37,7 @@ type Client struct {
 	retryBackoffInit  time.Duration
 	retryBackoffMax   time.Duration
 	acceptProblemJSON bool
+	monitor           clientMonitors
 }
 
 var h2CTransport = http2.Transport{
@@ -243,7 +244,27 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		req.SetBasicAuth(c.username, c.password)
 	}
 
-	return c.doLog(ctx, req, body, target)
+	for i := len(c.monitor) - 1; i >= 0; i-- {
+		if c.monitor[i].pre != nil {
+			resp, err := c.monitor[i].pre(req)
+			if resp != nil || err != nil {
+				return resp, err
+			}
+		}
+	}
+
+	resp, err := c.doLog(ctx, req, body, target)
+
+	for i := 0; i < len(c.monitor); i++ {
+		if c.monitor[i].post != nil {
+			newResp := c.monitor[i].post(req, resp, err)
+			if newResp != nil {
+				resp = newResp
+			}
+		}
+	}
+
+	return resp, err
 }
 
 func (c *Client) doWithRetry(req *http.Request, body io.ReadCloser, spanStr, target string) (*http.Response, error) {
