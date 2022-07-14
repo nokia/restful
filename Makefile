@@ -1,7 +1,7 @@
 MINIMUM_COVERAGE=85
 MAXIMUM_COMPLEXITY=15
 
-RUN:=docker run -it --rm -v $(CURDIR):/src:Z gotools:latest
+RUN:=docker run -it --rm -w $(CURDIR) -v $(CURDIR):$(CURDIR):Z gotools:latest
 COV=/tmp/test.out
 
 .PHONY: all
