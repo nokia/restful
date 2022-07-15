@@ -409,6 +409,7 @@ func TestH2CFailed(t *testing.T) {
 	assert := assert.New(t)
 	respData := strType{}
 	client := NewH2CClient().Root("http://127.0.0.1:0")
+	assert.Equal("h2c", client.Kind)
 	err := client.Get(context.Background(), "/", &respData)
 	assert.NotNil(err)
 }
