@@ -33,7 +33,7 @@ func TestHTTPS(t *testing.T) {
 	assert.Nil(err)
 
 	// Check cert
-	transport, ok := client.client.Transport.(*http.Transport)
+	transport, ok := client.Client.Transport.(*http.Transport)
 	assert.True(ok)
 	certs := transport.TLSClientConfig.RootCAs.Subjects()
 	assert.Equal(1, len(certs))
