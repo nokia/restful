@@ -21,10 +21,10 @@ import (
 // Use if specific config is needed, e.g. server cert or whether to accept untrusted certs.
 // You may use it this way: client := New().TLS(...) or just client.TLS(...)
 func (c *Client) TLS(tlsConfig *tls.Config) *Client {
-	if transport, ok := c.client.Transport.(*http.Transport); ok {
+	if transport, ok := c.Client.Transport.(*http.Transport); ok {
 		transport.TLSClientConfig = tlsConfig
 	} else {
-		c.client.Transport = &http.Transport{TLSClientConfig: tlsConfig}
+		c.Client.Transport = &http.Transport{TLSClientConfig: tlsConfig}
 	}
 	return c
 }
@@ -72,7 +72,7 @@ func NewCertPool(path string) *x509.CertPool {
 
 func (c *Client) haveTLSClientConfig() *tls.Config {
 	// HTTP2
-	if transport2, ok := c.client.Transport.(*http2.Transport); ok {
+	if transport2, ok := c.Client.Transport.(*http2.Transport); ok {
 		if transport2.TLSClientConfig == nil {
 			transport2.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 		}
@@ -80,10 +80,10 @@ func (c *Client) haveTLSClientConfig() *tls.Config {
 	}
 
 	// HTTP 1.x
-	transport, ok := c.client.Transport.(*http.Transport)
+	transport, ok := c.Client.Transport.(*http.Transport)
 	if !ok {
 		transport = &http.Transport{}
-		c.client.Transport = transport
+		c.Client.Transport = transport
 	}
 
 	if transport.TLSClientConfig == nil {

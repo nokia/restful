@@ -26,7 +26,10 @@ var defaultClient = NewClient()
 
 // Client is an instance of RESTful client.
 type Client struct {
-	client            *http.Client
+	// Client is the http.Client instance used by restful.Client.
+	// Do not touch it, unless really necessary.
+	Client *http.Client
+
 	sanitizeJSON      bool
 	rootURL           string
 	userAgent         string
@@ -80,7 +83,7 @@ func NewClient() *Client {
 	t.MaxIdleConnsPerHost = 100
 
 	c := &Client{}
-	c.client = &http.Client{
+	c.Client = &http.Client{
 		Timeout:   10 * time.Second,
 		Transport: t,
 	}
@@ -91,14 +94,14 @@ func NewClient() *Client {
 // NewH2Client creates a RESTful client instance, forced to use HTTP2 with TLS (H2) (a.k.a. prior knowledge).
 func NewH2Client() *Client {
 	c := &Client{}
-	c.client = &http.Client{Transport: &h2Transport}
+	c.Client = &http.Client{Transport: &h2Transport}
 	return c
 }
 
 // NewH2CClient creates a RESTful client instance, forced to use HTTP2 Cleartext (H2C).
 func NewH2CClient() *Client {
 	c := &Client{}
-	c.client = &http.Client{Transport: &h2CTransport}
+	c.Client = &http.Client{Transport: &h2CTransport}
 	return c
 }
 
@@ -111,7 +114,7 @@ func (c *Client) UserAgent(userAgent string) *Client {
 // CheckRedirect set client CheckRedirect field
 // CheckRedirect specifies the policy for handling redirects.
 func (c *Client) CheckRedirect(checkRedirect func(req *http.Request, via []*http.Request) error) *Client {
-	c.client.CheckRedirect = checkRedirect
+	c.Client.CheckRedirect = checkRedirect
 	return c
 }
 
@@ -152,7 +155,7 @@ func (c *Client) Retry(retries int, backoffInit time.Duration, backoffMax time.D
 // Timeout and request context timeout are similar concepts.
 // However, Timeout specified here applies to a single attempt, i.e. if Retry is used, then applies to each attempt separately, while context applies to all attempts together.
 func (c *Client) Timeout(timeout time.Duration) *Client {
-	c.client.Timeout = timeout
+	c.Client.Timeout = timeout
 	return c
 }
 
@@ -175,13 +178,13 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 
 // SetJar sets cookie jar for the client.
 func (c *Client) SetJar(jar http.CookieJar) *Client {
-	c.client.Jar = jar
+	c.Client.Jar = jar
 	return c
 }
 
 // Jar gets cookie jar of the client.
 func (c *Client) Jar() http.CookieJar {
-	return c.client.Jar
+	return c.Client.Jar
 }
 
 func errDeadlineOrCancel(err error) bool {
@@ -308,11 +311,11 @@ func (c *Client) setReqTarget(req *http.Request) (target string, err error) {
 }
 
 func (c *Client) do(req *http.Request) (resp *http.Response, err error) {
-	resp, err = c.client.Do(req)
+	resp, err = c.Client.Do(req)
 
 	// Workaround for https://github.com/golang/go/issues/36026
 	if err, ok := err.(net.Error); ok && err.Timeout() {
-		c.client.CloseIdleConnections()
+		c.Client.CloseIdleConnections()
 	}
 
 	return
