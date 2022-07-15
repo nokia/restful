@@ -24,11 +24,22 @@ import (
 
 var defaultClient = NewClient()
 
+// Kind is a string representation of what kind the client is. Depending on which New() function is called.
+const (
+	KindBasic = ""
+	KindH2    = "h2"
+	KindH2C   = "h2c"
+)
+
 // Client is an instance of RESTful client.
 type Client struct {
 	// Client is the http.Client instance used by restful.Client.
 	// Do not touch it, unless really necessary.
 	Client *http.Client
+
+	// Kind is a string representation of what kind the client is. Depending on which New() function is called.
+	// Changing its value does not change client kind.
+	Kind string
 
 	sanitizeJSON      bool
 	rootURL           string
@@ -82,7 +93,7 @@ func NewClient() *Client {
 	t.MaxConnsPerHost = 100
 	t.MaxIdleConnsPerHost = 100
 
-	c := &Client{}
+	c := &Client{Kind: KindBasic}
 	c.Client = &http.Client{
 		Timeout:   10 * time.Second,
 		Transport: t,
@@ -93,14 +104,14 @@ func NewClient() *Client {
 
 // NewH2Client creates a RESTful client instance, forced to use HTTP2 with TLS (H2) (a.k.a. prior knowledge).
 func NewH2Client() *Client {
-	c := &Client{}
+	c := &Client{Kind: KindH2}
 	c.Client = &http.Client{Transport: &h2Transport}
 	return c
 }
 
 // NewH2CClient creates a RESTful client instance, forced to use HTTP2 Cleartext (H2C).
 func NewH2CClient() *Client {
-	c := &Client{}
+	c := &Client{Kind: KindH2C}
 	c.Client = &http.Client{Transport: &h2CTransport}
 	return c
 }

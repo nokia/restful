@@ -97,6 +97,7 @@ func TestHTTPSCertFail(t *testing.T) {
 	defer srv.Close()
 
 	client := NewH2Client().Root(srv.URL)
+	assert.Equal("h2", client.Kind)
 	client.TLS(nil)
 	client.TLS(&tls.Config{})
 	client.TLSRootCerts("")
