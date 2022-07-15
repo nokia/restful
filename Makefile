@@ -17,7 +17,7 @@ all-go:
 	staticcheck ./...
 	gosec ./...
 	gocyclo -over $(MAXIMUM_COMPLEXITY) ./
-	if [ `go tool cover -func=$(COV) | tail -n1 | rev | cut -f1 | rev | cut -d. -f1` -lt $(MINIMUM_COVERAGE) ]; then echo "Error: Coverage too low."; false; fi
+	@if [ `go tool cover -func=$(COV) | tail -n1 | rev | cut -f1 | rev | cut -d. -f1` -lt $(MINIMUM_COVERAGE) ]; then echo "Error: Coverage too low."; false; fi
 
 .PHONY: gotools
 gotools:
