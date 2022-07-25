@@ -239,6 +239,9 @@ func retryResp(resp *http.Response) bool {
 // Do(ctx, req) is somewhat like Do(req.WithContext(ctx)) of http.Client.
 // If ctx contains tracing headers of Lambda class then adds them to the request with a new span ID.
 func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
+	if err := ctx.Err(); err != nil { // Do not start the Dial if context cancelled/deadlined already.
+		return nil, err
+	}
 	req = req.WithContext(ctx)
 
 	if req.Header == nil {
@@ -322,6 +325,10 @@ func (c *Client) setReqTarget(req *http.Request) (target string, err error) {
 }
 
 func (c *Client) do(req *http.Request) (resp *http.Response, err error) {
+	if ctxErr := req.Context().Err(); ctxErr != nil { // Do not start the Dial if context cancelled/deadlined already.
+		err = ctxErr
+		return
+	}
 	resp, err = c.Client.Do(req)
 
 	// Workaround for https://github.com/golang/go/issues/36026
