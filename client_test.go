@@ -475,3 +475,28 @@ func TestCheckRedirect(t *testing.T) {
 	assert.Equal(http.StatusTemporaryRedirect, resp.StatusCode)
 
 }
+
+func TestCtxCancelBefore(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	{ // GET - timeout failure
+		client := NewClient()
+		ctx := context.Background()
+		ctx, cancel := context.WithCancel(ctx)
+		cancel()
+		err := client.Get(ctx, srv.URL, nil)
+		assert.True(errDeadlineOrCancel(err))
+	}
+}
+
+func TestSetClientCredentialAuthDown(t *testing.T) {
+	client := NewClient().SetClientCredentialAuth("id", "secret", "https://0.0.0.0:1")
+	err := client.Get(context.Background(), "https://127.0.0.1", nil)
+	assert.Contains(t, err.Error(), "0.0.0.0:1")
+}
