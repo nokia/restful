@@ -16,13 +16,24 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 )
 
 var defaultClient = NewClient()
+
+// TokenClient is an http.Client used to obtain OAuth2 token.
+// If not set, a default client is used with 10s timeout.
+// The reason for having a separate client is that Authorization Server and Resource Server may support different transport.
+//
+// If you want to use the same client, try
+//    restful.TokenClient = myClient.Client
+var TokenClient *http.Client = &http.Client{Timeout: 10 * time.Second}
 
 // Kind is a string representation of what kind the client is. Depending on which New() function is called.
 const (
@@ -52,6 +63,9 @@ type Client struct {
 	retryBackoffMax   time.Duration
 	acceptProblemJSON bool
 	monitor           clientMonitors
+	clientCredConfig  *clientcredentials.Config
+	oauth2Token       oauth2.Token
+	oauth2TokenMutex  sync.RWMutex
 }
 
 var h2CTransport = http2.Transport{
@@ -187,6 +201,14 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 	return c
 }
 
+// SetClientCredentialAuth makes client obtain OAuth2 access token for given client credentials.
+//
+// Make sure encrypted transport is used, e.g. the link is https.
+func (c *Client) SetClientCredentialAuth(clientID, clientSecret, tokenURL string) *Client {
+	c.clientCredConfig = &clientcredentials.Config{ClientID: clientID, ClientSecret: clientSecret, TokenURL: tokenURL}
+	return c
+}
+
 // SetJar sets cookie jar for the client.
 func (c *Client) SetJar(jar http.CookieJar) *Client {
 	c.Client.Jar = jar
@@ -233,6 +255,41 @@ func retryResp(resp *http.Response) bool {
 	return resp == nil || retryStatus(resp.StatusCode)
 }
 
+func (c *Client) obtainClientCredentialToken(ctx context.Context, req *http.Request) error {
+	// Release reader lock, obtain writer lock instead. Revert to reader lock when finished.
+	c.oauth2TokenMutex.RUnlock()
+	c.oauth2TokenMutex.Lock()
+	defer func() {
+		c.oauth2TokenMutex.Unlock()
+		c.oauth2TokenMutex.RLock()
+	}()
+
+	// Check if token has been obtained by another instance while waiting for writer lock.
+	if !c.oauth2Token.Valid() {
+		oauthCtx := context.WithValue(ctx, oauth2.HTTPClient, TokenClient)
+		token, err := c.clientCredConfig.Token(oauthCtx)
+		if err != nil {
+			return err
+		}
+		c.oauth2Token = *token
+	}
+	return nil
+}
+
+func (c *Client) setClientCredentialAuth(ctx context.Context, req *http.Request) error {
+	// Reader lock
+	c.oauth2TokenMutex.RLock()
+	defer c.oauth2TokenMutex.RUnlock()
+
+	if !c.oauth2Token.Valid() { // Valid adds some extra time for client (10s)
+		if err := c.obtainClientCredentialToken(ctx, req); err != nil {
+			return err
+		}
+	}
+	c.oauth2Token.SetAuthHeader(req)
+	return nil
+}
+
 // Do sends an HTTP request and returns an HTTP response.
 // All the rules of http.Client.Do() applies.
 // If URL of req is relative path then root defined at client.Root is added as prefix.
@@ -259,6 +316,11 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
+	}
+	if c.clientCredConfig != nil {
+		if err := c.setClientCredentialAuth(ctx, req); err != nil {
+			return nil, err
+		}
 	}
 
 	for i := len(c.monitor) - 1; i >= 0; i-- {
