@@ -31,13 +31,6 @@ func TestHTTPS(t *testing.T) {
 	client := NewClient().Root(srv.URL).TLSRootCerts("test_certs")
 	err = client.Get(context.Background(), "/NEF", nil)
 	assert.Nil(err)
-
-	// Check cert
-	transport, ok := client.Client.Transport.(*http.Transport)
-	assert.True(ok)
-	certs := transport.TLSClientConfig.RootCAs.Subjects()
-	assert.Equal(1, len(certs))
-	assert.Contains(string(certs[0]), "My Organization Ltd.")
 }
 
 func TestHTTPSMTLS(t *testing.T) {

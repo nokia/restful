@@ -66,7 +66,6 @@ func NewCertPool(path string) *x509.CertPool {
 		log.Errorf("Error finding CA files at '%s': %v", path, err)
 	}
 
-	log.Debugf("Read %d certs", len(pool.Subjects()))
 	return pool
 }
 
