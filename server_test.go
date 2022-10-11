@@ -85,7 +85,9 @@ func TestRestart(t *testing.T) {
 
 	close(logchn)
 	wgLogs.Wait()
-	assert.Equal("listen, restart, restarted, close, closed, listened", strings.Join(logs, ", "))
+	assert.Contains(strings.Join(logs, ", "), "listen, restart, restarted, close")
+	assert.Contains(logs, "closed")
+	assert.Contains(logs, "listened")
 }
 
 func TestHTTPServerBadAddrNilHandler(t *testing.T) {
