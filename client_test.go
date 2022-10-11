@@ -6,7 +6,7 @@ package restful
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -143,7 +143,7 @@ func TestRetry(t *testing.T) {
 		assert.Equal("hello", r.Header.Get("User-Agent"))
 
 		if r.Method == "POST" {
-			body, err := ioutil.ReadAll(r.Body)
+			body, err := io.ReadAll(r.Body)
 			assert.NoError(err)
 			assert.Equal(`{"Str":"hello"}`, string(body))
 		}
