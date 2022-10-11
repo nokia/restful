@@ -7,7 +7,6 @@ package restful
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -30,7 +29,7 @@ func (c *Client) TLS(tlsConfig *tls.Config) *Client {
 }
 
 func appendCert(path string, pool *x509.CertPool) {
-	pem, err := ioutil.ReadFile(path) // #nosec
+	pem, err := os.ReadFile(path) // #nosec
 	if err != nil {
 		log.Errorf("Error reading CA from '%s': %v", path, err)
 		return

@@ -202,6 +202,7 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 }
 
 // SetClientCredentialAuth makes client obtain OAuth2 access token for given client credentials.
+// Either on first request to be sent or later when the obtained access token is expired.
 //
 // Make sure encrypted transport is used, e.g. the link is https.
 func (c *Client) SetClientCredentialAuth(clientID, clientSecret, tokenURL string) *Client {
