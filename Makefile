@@ -21,4 +21,5 @@ all-go:
 
 .PHONY: gotools
 gotools:
+	docker pull golang:latest # Make sure latest is latest
 	docker build . --tag gotools
