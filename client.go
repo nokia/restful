@@ -20,6 +20,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/net/http2"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
@@ -32,7 +33,8 @@ var defaultClient = NewClient()
 // The reason for having a separate client is that Authorization Server and Resource Server may support different transport.
 //
 // If you want to use the same client, try
-//    restful.TokenClient = myClient.Client
+//
+//	restful.TokenClient = myClient.Client
 var TokenClient *http.Client = &http.Client{Timeout: 10 * time.Second}
 
 // Kind is a string representation of what kind the client is. Depending on which New() function is called.
@@ -110,7 +112,7 @@ func NewClient() *Client {
 	c := &Client{Kind: KindBasic}
 	c.Client = &http.Client{
 		Timeout:   10 * time.Second,
-		Transport: t,
+		Transport: otelhttp.NewTransport(t),
 	}
 	c.acceptProblemJSON = true /* backward compatible */
 	return c
