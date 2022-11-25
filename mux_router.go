@@ -56,9 +56,11 @@ func (r *Router) HandleFunc(path string, f interface{}) *Route {
 // Handle adds traditional http.Handler to route.
 // Cannot use Lambda here.
 func (r *Router) Handle(path string, handler http.Handler) *Route {
-	monitored := r.monitors.wrap(handler)
-	otelWrapped := otelhttp.NewHandler(monitored, path)
-	return newRoute(r.router.Handle(path, otelWrapped), nil)
+	wrapped := r.monitors.wrap(handler)
+	if isTraced {
+		wrapped = otelhttp.NewHandler(wrapped, path)
+	}
+	return newRoute(r.router.Handle(path, wrapped), nil)
 }
 
 // Get returns the route registered with the given name, or nil.

@@ -14,6 +14,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var isTraced bool
+
+// SetTrace can enable/disable tracing in restful
+func SetTrace(b bool) {
+	isTraced = b
+}
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }

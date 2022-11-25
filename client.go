@@ -121,14 +121,14 @@ func NewClient() *Client {
 // NewH2Client creates a RESTful client instance, forced to use HTTP2 with TLS (H2) (a.k.a. prior knowledge).
 func NewH2Client() *Client {
 	c := &Client{Kind: KindH2}
-	c.Client = &http.Client{Transport: &h2Transport}
+	c.Client = &http.Client{Transport: otelhttp.NewTransport(&h2Transport)}
 	return c
 }
 
 // NewH2CClient creates a RESTful client instance, forced to use HTTP2 Cleartext (H2C).
 func NewH2CClient() *Client {
 	c := &Client{Kind: KindH2C}
-	c.Client = &http.Client{Transport: &h2CTransport}
+	c.Client = &http.Client{Transport: otelhttp.NewTransport(&h2CTransport)}
 	return c
 }
 
