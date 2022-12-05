@@ -109,11 +109,17 @@ func NewClient() *Client {
 	t.MaxConnsPerHost = 100
 	t.MaxIdleConnsPerHost = 100
 
+	var rt http.RoundTripper = t
+	if isTraced {
+		rt = otelhttp.NewTransport(t)
+	}
+
 	c := &Client{Kind: KindBasic}
 	c.Client = &http.Client{
 		Timeout:   10 * time.Second,
-		Transport: otelhttp.NewTransport(t),
+		Transport: rt,
 	}
+
 	c.acceptProblemJSON = true /* backward compatible */
 	return c
 }
@@ -121,14 +127,22 @@ func NewClient() *Client {
 // NewH2Client creates a RESTful client instance, forced to use HTTP2 with TLS (H2) (a.k.a. prior knowledge).
 func NewH2Client() *Client {
 	c := &Client{Kind: KindH2}
-	c.Client = &http.Client{Transport: otelhttp.NewTransport(&h2Transport)}
+	var rt http.RoundTripper = &h2Transport
+	if isTraced {
+		rt = otelhttp.NewTransport(rt)
+	}
+	c.Client = &http.Client{Transport: rt}
 	return c
 }
 
 // NewH2CClient creates a RESTful client instance, forced to use HTTP2 Cleartext (H2C).
 func NewH2CClient() *Client {
 	c := &Client{Kind: KindH2C}
-	c.Client = &http.Client{Transport: otelhttp.NewTransport(&h2CTransport)}
+	var rt http.RoundTripper = &h2Transport
+	if isTraced {
+		rt = otelhttp.NewTransport(rt)
+	}
+	c.Client = &http.Client{Transport: rt}
 	return c
 }
 
