@@ -24,7 +24,11 @@ func (c *Client) TLS(tlsConfig *tls.Config) *Client {
 	if transport, ok := c.Client.Transport.(*http.Transport); ok {
 		transport.TLSClientConfig = tlsConfig
 	} else {
-		c.Client.Transport = otelhttp.NewTransport(&http.Transport{TLSClientConfig: tlsConfig})
+		if isTraced {
+			c.Client.Transport = otelhttp.NewTransport(&http.Transport{TLSClientConfig: tlsConfig})
+		} else {
+			c.Client.Transport = &http.Transport{TLSClientConfig: tlsConfig}
+		}
 	}
 	return c
 }
