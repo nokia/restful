@@ -194,6 +194,8 @@ The following rules are applied in this order:
 A: We are fortunate to have so many great routers.
    Our aim is simple syntax similar to standard http or Gorilla/Mux packages, easing the transition.
    For a complex app with database operations, router speed difference may be negliable.
+   Gorilla project is [not in active maintenance](https://github.com/gorilla#gorilla-toolkit), anymore. But there are candidates to take it over.
+   And given its dependencies, keeping Go up-to-date leaves small room for vulnerabilities.
 
 **Q: Is it possible to send alternative types in responses, decided run-time? Like `f() (T1, T2, error)`.**
 
