@@ -28,9 +28,16 @@ type Server struct {
 	monitors    monitors
 }
 
+// ServerReadHeaderTimeout is the amount of time allowed to read request headers.
+var ServerReadHeaderTimeout = 5 * time.Second
+
+// ServerReadTimeout is the amount of time allowed to read request body.
+// Default 60s is quite liberal.
+var ServerReadTimeout = 60 * time.Second
+
 // NewServer creates a new Server instance.
 func NewServer() *Server {
-	server := Server{server: &http.Server{}}
+	server := Server{server: &http.Server{ReadHeaderTimeout: ServerReadHeaderTimeout, ReadTimeout: ServerReadTimeout}}
 	return &server
 }
 
@@ -146,7 +153,7 @@ func (s *Server) listenAndServe() error {
 		s.restarting = false
 
 		s.serverMutex.Lock() // ListenAndServe routines and Close are executed in parallel.
-		s.server = &http.Server{Handler: s.server.Handler, Addr: s.server.Addr}
+		s.server = &http.Server{Handler: s.server.Handler, Addr: s.server.Addr, ReadHeaderTimeout: ServerReadHeaderTimeout, ReadTimeout: ServerReadTimeout}
 		s.serverMutex.Unlock()
 	}
 }

@@ -16,17 +16,42 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 )
 
 var defaultClient = NewClient()
 
+// TokenClient is an http.Client used to obtain OAuth2 token.
+// If not set, a default client is used with 10s timeout.
+// The reason for having a separate client is that Authorization Server and Resource Server may support different transport.
+//
+// If you want to use the same client, try
+//    restful.TokenClient = myClient.Client
+var TokenClient *http.Client = &http.Client{Timeout: 10 * time.Second}
+
+// Kind is a string representation of what kind the client is. Depending on which New() function is called.
+const (
+	KindBasic = ""
+	KindH2    = "h2"
+	KindH2C   = "h2c"
+)
+
 // Client is an instance of RESTful client.
 type Client struct {
-	client            *http.Client
+	// Client is the http.Client instance used by restful.Client.
+	// Do not touch it, unless really necessary.
+	Client *http.Client
+
+	// Kind is a string representation of what kind the client is. Depending on which New() function is called.
+	// Changing its value does not change client kind.
+	Kind string
+
 	sanitizeJSON      bool
 	rootURL           string
 	userAgent         string
@@ -37,6 +62,10 @@ type Client struct {
 	retryBackoffInit  time.Duration
 	retryBackoffMax   time.Duration
 	acceptProblemJSON bool
+	monitor           clientMonitors
+	clientCredConfig  *clientcredentials.Config
+	oauth2Token       oauth2.Token
+	oauth2TokenMutex  sync.RWMutex
 }
 
 var h2CTransport = http2.Transport{
@@ -73,23 +102,31 @@ var h2Transport = http2.Transport{
 // NewClient creates a RESTful client instance.
 // The instance has a semi-permanent transport TCP connection.
 func NewClient() *Client {
-	c := &Client{}
-	c.client = &http.Client{}
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConns = 100
+	t.MaxConnsPerHost = 100
+	t.MaxIdleConnsPerHost = 100
+
+	c := &Client{Kind: KindBasic}
+	c.Client = &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: t,
+	}
 	c.acceptProblemJSON = true /* backward compatible */
 	return c
 }
 
 // NewH2Client creates a RESTful client instance, forced to use HTTP2 with TLS (H2) (a.k.a. prior knowledge).
 func NewH2Client() *Client {
-	c := &Client{}
-	c.client = &http.Client{Transport: &h2Transport}
+	c := &Client{Kind: KindH2}
+	c.Client = &http.Client{Transport: &h2Transport}
 	return c
 }
 
 // NewH2CClient creates a RESTful client instance, forced to use HTTP2 Cleartext (H2C).
 func NewH2CClient() *Client {
-	c := &Client{}
-	c.client = &http.Client{Transport: &h2CTransport}
+	c := &Client{Kind: KindH2C}
+	c.Client = &http.Client{Transport: &h2CTransport}
 	return c
 }
 
@@ -102,7 +139,7 @@ func (c *Client) UserAgent(userAgent string) *Client {
 // CheckRedirect set client CheckRedirect field
 // CheckRedirect specifies the policy for handling redirects.
 func (c *Client) CheckRedirect(checkRedirect func(req *http.Request, via []*http.Request) error) *Client {
-	c.client.CheckRedirect = checkRedirect
+	c.Client.CheckRedirect = checkRedirect
 	return c
 }
 
@@ -143,7 +180,7 @@ func (c *Client) Retry(retries int, backoffInit time.Duration, backoffMax time.D
 // Timeout and request context timeout are similar concepts.
 // However, Timeout specified here applies to a single attempt, i.e. if Retry is used, then applies to each attempt separately, while context applies to all attempts together.
 func (c *Client) Timeout(timeout time.Duration) *Client {
-	c.client.Timeout = timeout
+	c.Client.Timeout = timeout
 	return c
 }
 
@@ -164,15 +201,24 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 	return c
 }
 
+// SetClientCredentialAuth makes client obtain OAuth2 access token for given client credentials.
+// Either on first request to be sent or later when the obtained access token is expired.
+//
+// Make sure encrypted transport is used, e.g. the link is https.
+func (c *Client) SetClientCredentialAuth(clientID, clientSecret, tokenURL string) *Client {
+	c.clientCredConfig = &clientcredentials.Config{ClientID: clientID, ClientSecret: clientSecret, TokenURL: tokenURL}
+	return c
+}
+
 // SetJar sets cookie jar for the client.
 func (c *Client) SetJar(jar http.CookieJar) *Client {
-	c.client.Jar = jar
+	c.Client.Jar = jar
 	return c
 }
 
 // Jar gets cookie jar of the client.
 func (c *Client) Jar() http.CookieJar {
-	return c.client.Jar
+	return c.Client.Jar
 }
 
 func errDeadlineOrCancel(err error) bool {
@@ -202,12 +248,58 @@ func (c *Client) cloneBody(req *http.Request) io.ReadCloser {
 	return body
 }
 
+func retryStatus(statusCode int) bool {
+	return (statusCode >= 502 && statusCode <= 504)
+}
+
+func retryResp(resp *http.Response) bool {
+	return resp == nil || retryStatus(resp.StatusCode)
+}
+
+func (c *Client) obtainClientCredentialToken(ctx context.Context, req *http.Request) error {
+	// Release reader lock, obtain writer lock instead. Revert to reader lock when finished.
+	c.oauth2TokenMutex.RUnlock()
+	c.oauth2TokenMutex.Lock()
+	defer func() {
+		c.oauth2TokenMutex.Unlock()
+		c.oauth2TokenMutex.RLock()
+	}()
+
+	// Check if token has been obtained by another instance while waiting for writer lock.
+	if !c.oauth2Token.Valid() {
+		oauthCtx := context.WithValue(ctx, oauth2.HTTPClient, TokenClient)
+		token, err := c.clientCredConfig.Token(oauthCtx)
+		if err != nil {
+			return err
+		}
+		c.oauth2Token = *token
+	}
+	return nil
+}
+
+func (c *Client) setClientCredentialAuth(ctx context.Context, req *http.Request) error {
+	// Reader lock
+	c.oauth2TokenMutex.RLock()
+	defer c.oauth2TokenMutex.RUnlock()
+
+	if !c.oauth2Token.Valid() { // Valid adds some extra time for client (10s)
+		if err := c.obtainClientCredentialToken(ctx, req); err != nil {
+			return err
+		}
+	}
+	c.oauth2Token.SetAuthHeader(req)
+	return nil
+}
+
 // Do sends an HTTP request and returns an HTTP response.
 // All the rules of http.Client.Do() applies.
 // If URL of req is relative path then root defined at client.Root is added as prefix.
 // Do(ctx, req) is somewhat like Do(req.WithContext(ctx)) of http.Client.
 // If ctx contains tracing headers of Lambda class then adds them to the request with a new span ID.
 func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
+	if err := ctx.Err(); err != nil { // Do not start the Dial if context cancelled/deadlined already.
+		return nil, err
+	}
 	req = req.WithContext(ctx)
 
 	if req.Header == nil {
@@ -220,17 +312,45 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 	}
 
 	c.setUA(req)
-	spanStr := doSpan(ctx, req)
+
 	body := c.cloneBody(req)
 
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
 	}
+	if c.clientCredConfig != nil {
+		if err := c.setClientCredentialAuth(ctx, req); err != nil {
+			return nil, err
+		}
+	}
 
-	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, target)
+	for i := len(c.monitor) - 1; i >= 0; i-- {
+		if c.monitor[i].pre != nil {
+			resp, err := c.monitor[i].pre(req)
+			if resp != nil || err != nil {
+				return resp, err
+			}
+		}
+	}
+
+	resp, err := c.doLog(ctx, req, body, target)
+
+	for i := 0; i < len(c.monitor); i++ {
+		if c.monitor[i].post != nil {
+			newResp := c.monitor[i].post(req, resp, err)
+			if newResp != nil {
+				resp = newResp
+			}
+		}
+	}
+
+	return resp, err
+}
+
+func (c *Client) doWithRetry(req *http.Request, body io.ReadCloser, spanStr, target string) (*http.Response, error) {
 	resp, err := c.do(req)
 
-	for retries := 0; retries < c.retries && !errDeadlineOrCancel(err) && (resp == nil || (resp.StatusCode >= 502 && resp.StatusCode <= 504)); retries++ { // Gateway error responses.
+	for retries := 0; retries < c.retries && !errDeadlineOrCancel(err) && retryResp(resp); retries++ { // Gateway error or overload responses.
 		if resp != nil {
 			_ = resp.Body.Close()
 		}
@@ -242,11 +362,19 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		log.Debugf("[%s] Send rty(%d): %s %s: err=%v", spanStr, retries, req.Method, target, err)
 		resp, err = c.do(req)
 	}
-	if err != nil {
-		return nil, err
-	}
 
-	log.Debugf("[%s] Recv rsp %d (%v)", spanStr, resp.StatusCode, resp.Status)
+	return resp, err
+}
+
+func (c *Client) doLog(ctx context.Context, req *http.Request, body io.ReadCloser, target string) (*http.Response, error) {
+	spanStr := doSpan(ctx, req)
+	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, target)
+	resp, err := c.doWithRetry(req, body, spanStr, target)
+	if err != nil {
+		log.Debugf("[%s] Fail req: %s %s", spanStr, req.Method, target)
+	} else {
+		log.Debugf("[%s] Recv rsp: %s", spanStr, resp.Status)
+	}
 	return resp, err
 }
 
@@ -260,11 +388,15 @@ func (c *Client) setReqTarget(req *http.Request) (target string, err error) {
 }
 
 func (c *Client) do(req *http.Request) (resp *http.Response, err error) {
-	resp, err = c.client.Do(req)
+	if ctxErr := req.Context().Err(); ctxErr != nil { // Do not start the Dial if context cancelled/deadlined already.
+		err = ctxErr
+		return
+	}
+	resp, err = c.Client.Do(req)
 
 	// Workaround for https://github.com/golang/go/issues/36026
 	if err, ok := err.(net.Error); ok && err.Timeout() {
-		c.client.CloseIdleConnections()
+		c.Client.CloseIdleConnections()
 	}
 
 	return

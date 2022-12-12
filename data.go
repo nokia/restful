@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 
@@ -35,14 +34,14 @@ func GetDataBytes(headers http.Header, ioBody io.ReadCloser, maxBytes int) (body
 		var cl int
 		cl, err = strconv.Atoi(headers.Get("Content-length"))
 		if err == nil && cl > maxBytes {
-			_, _ = ioutil.ReadAll(ioBody)
+			_, _ = io.ReadAll(ioBody)
 			_ = ioBody.Close()
 			err = fmt.Errorf("too big Content-Length: %d > %d", cl, maxBytes)
 			return
 		}
 	}
 
-	body, err = ioutil.ReadAll(ioBody)
+	body, err = io.ReadAll(ioBody)
 	defer ioBody.Close()
 	if err != nil {
 		return body, fmt.Errorf("body read error: %s", err.Error())
