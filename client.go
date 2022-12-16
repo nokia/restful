@@ -106,6 +106,7 @@ func NewClient() *Client {
 	t.MaxIdleConns = 100
 	t.MaxConnsPerHost = 100
 	t.MaxIdleConnsPerHost = 100
+    t.DialContext = &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second}.DialContext
 
 	c := &Client{Kind: KindBasic}
 	c.Client = &http.Client{
