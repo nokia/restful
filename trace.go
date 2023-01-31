@@ -42,7 +42,7 @@ func newTrace(r *http.Request) *trace {
 func newTraceRandom() *trace {
 	if log.IsLevelEnabled(log.TraceLevel) {
 		traceID := randStr32()
-		return &trace{parent: newTraceParentWithID(traceID), b3: newTraceB3WithID(traceID)}
+		return &trace{parent: newTraceParentWithID(traceID), b3: newTraceB3WithID(traceID, true)}
 	}
 	return &trace{b3: &traceB3{spanID: randStr16()}}
 }

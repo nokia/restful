@@ -89,8 +89,12 @@ func newTraceB3(r *http.Request) *traceB3 {
 	return b3
 }
 
-func newTraceB3WithID(traceID string) *traceB3 {
-	return &traceB3{traceID: traceID}
+func newTraceB3WithID(traceID string, trace bool) *traceB3 {
+	b3 := traceB3{traceID: traceID, singleLine: true}
+	if trace {
+		b3.sampled = "d"
+	}
+	return &b3
 }
 
 func (b3 *traceB3) span(spanID string) *traceB3 {
