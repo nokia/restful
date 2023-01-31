@@ -49,6 +49,19 @@ func TestRecvdBadParent(t *testing.T) {
 	assert.Equal(55, len(span))
 }
 
+func TestB3SingleLine(t *testing.T) {
+	assert := assert.New(t)
+	r, _ := http.NewRequest("POST", "", nil)
+	traceStr := "0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1-1-deadbeef87654321"
+	r.Header.Set("b3", traceStr)
+	trace := newTrace(r)
+	assert.True(trace.received)
+	assert.Contains(trace.string(), "0af7651916cd43dd8448eb211c80319c")
+	headers := http.Header{}
+	trace.addHeader(headers)
+	assert.Equal(traceStr, headers.Get("b3"))
+}
+
 func TestTracePropagation(t *testing.T) {
 	assert := assert.New(t)
 	log.SetLevel(log.TraceLevel) // That switches on trace propagation
