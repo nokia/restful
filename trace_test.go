@@ -64,14 +64,14 @@ func TestB3SingleLine(t *testing.T) {
 
 func TestTracePropagation(t *testing.T) {
 	assert := assert.New(t)
-	log.SetLevel(log.TraceLevel) // That switches on trace propagation
+	log.SetLevel(log.TraceLevel) // That switches on trace generation and propagation
 
 	// Server
 	srvURL := ""
 	traceid := ""
 	prevSpanID := ""
 	parents := make(map[string]bool)
-	depth := int64(0)
+	depth := 0
 	const maxDepth = 5
 	srv := httptest.NewServer(Logger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := NewRequestCtx(w, r)
