@@ -45,6 +45,14 @@ func NewRequestCtx(w http.ResponseWriter, r *http.Request) context.Context {
 	return context.WithValue(r.Context(), ctxName, newLambda(w, r, mux.Vars(r)))
 }
 
+func addRequestContextIfNotExists(w http.ResponseWriter, r *http.Request) context.Context {
+	ctx := r.Context()
+	if L(ctx) == nil {
+		ctx = NewRequestCtx(w, r)
+	}
+	return ctx
+}
+
 // L returns lambda-related data from context.
 func L(ctx context.Context) *Lambda {
 	v := ctx.Value(ctxName)
@@ -104,7 +112,9 @@ func (l *Lambda) RequestBasicAuth() (username, password string, ok bool) {
 
 // ResponseStatus sets HTTP status code to be sent.
 // Use that if you want to set positive (non-error) status code.
-//    restful.L(ctx).ResponseStatus(http.StatusAccepted)
+//
+//	restful.L(ctx).ResponseStatus(http.StatusAccepted)
+//
 // Has no effect if lambda returns a non-nil error. In such case status is taken from the error (see restful.NewError), or 500 is returned.
 func (l *Lambda) ResponseStatus(status int) {
 	l.status = status

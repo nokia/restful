@@ -46,15 +46,16 @@ func loggerPre(w http.ResponseWriter, r *http.Request) *http.Request {
 		w.Header().Set("Cache-Control", "no-cache")
 		w.WriteHeader(http.StatusOK) // No logs, stop processing.
 	} else if r.URL.Path != ReadinessProbePath {
-		traceStr := newTrace(r).string()
-		r = r.WithContext(context.WithValue(r.Context(), loggerCtxName, traceStr)) // Add trace string to req context, to be retrieved at response logging.
+		ctx := addRequestContextIfNotExists(w, r)                          // Adds tracing to the context, thus enables propagation.
+		traceStr := newTraceFromCtx(ctx).string()                          // Get trace string from context.
+		r = r.WithContext(context.WithValue(ctx, loggerCtxName, traceStr)) // Add trace string to req context, to be retrieved at response logging.
 		log.Debugf("[%s] Recv req: %s %s", traceStr, r.Method, r.URL.Path)
 	}
 	return r
 }
 
 // Logger wraps original handler and returns a handler that logs.
-// Logs start with a semi-random number to be able to match requests to responses.
+// Logs start with a semi-random trace ID to be able to match requests to responses.
 // If path matches LivenessProbePath or HealthCheckPath then does not log and responds with 200 OK.
 // If path matches ReadinessProbePath then does not log, but processed as usual.
 func Logger(h http.Handler) http.Handler {

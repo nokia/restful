@@ -61,11 +61,11 @@ func (t *trace) valid() bool {
 }
 
 func (t *trace) string() string {
-	if t.parent != nil {
-		return t.parent.string()
-	}
 	if t.b3 != nil {
 		return t.b3.string()
+	}
+	if t.parent != nil {
+		return t.parent.string()
 	}
 	return ""
 }
