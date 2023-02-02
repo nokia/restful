@@ -1,4 +1,4 @@
-// Copyright 2021 Nokia
+// Copyright 2021-2023 Nokia
 // Licensed under the BSD 3-Clause License.
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -49,6 +49,17 @@ func TestRecvdBadParent(t *testing.T) {
 	assert.Equal(55, len(span))
 }
 
+func TestNoTrace(t *testing.T) {
+	assert := assert.New(t)
+	traceParent := traceParent{}
+	assert.Equal("", traceParent.traceID())
+	assert.Equal("", traceParent.spanID())
+
+	trace := trace{}
+	assert.Equal("", trace.traceID())
+	assert.Equal("", trace.spanID())
+}
+
 func TestB3SingleLine(t *testing.T) {
 	assert := assert.New(t)
 	r, _ := http.NewRequest("POST", "", nil)
@@ -78,22 +89,22 @@ func TestTracePropagation(t *testing.T) {
 		t := newTraceFromCtx(ctx)
 		assert.True(t.received)
 		if depth == 0 {
-			traceid = t.parent.parent[1]
-			prevSpanID = t.parent.parent[2]
+			traceid = t.traceID()
+			prevSpanID = t.spanID()
 			parents[t.string()] = true
 			t.b3.sampled = "1"
 			t.b3.requestID = "req"
 			t.b3.spanCtx = "ctx"
 		} else {
-			assert.Equal(traceid, t.parent.parent[1])
+			assert.Equal(traceid, t.parent.traceID())
 			assert.NotContains(parents, t.string())
-			assert.Equal(t.parent.parent[1], t.b3.traceID)
-			assert.Equal(t.parent.parent[2], t.b3.spanID)
+			assert.Equal(t.parent.traceID(), t.b3.traceID)
+			assert.Equal(t.parent.spanID(), t.b3.spanID)
 			assert.Equal(prevSpanID, t.b3.parentSpanID)
 			assert.Equal("1", t.b3.sampled)
 			assert.Equal("req", t.b3.requestID)
 			assert.Equal("ctx", t.b3.spanCtx)
-			prevSpanID = t.parent.parent[2]
+			prevSpanID = t.spanID()
 		}
 		if depth < maxDepth {
 			depth++

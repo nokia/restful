@@ -70,6 +70,26 @@ func (t *trace) string() string {
 	return ""
 }
 
+func (t *trace) traceID() string {
+	if t.b3 != nil {
+		return t.b3.traceID
+	}
+	if t.parent != nil {
+		return t.parent.traceID()
+	}
+	return ""
+}
+
+func (t *trace) spanID() string {
+	if t.b3 != nil {
+		return t.b3.spanID
+	}
+	if t.parent != nil {
+		return t.parent.spanID()
+	}
+	return ""
+}
+
 func (t *trace) span() *trace {
 	var newt trace
 	spanID := randStr16()

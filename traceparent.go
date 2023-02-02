@@ -63,3 +63,17 @@ func (p *traceParent) addHeader(headers http.Header) {
 func (p *traceParent) string() string {
 	return strings.Join(p.parent, "-")
 }
+
+func (p *traceParent) traceID() string {
+	if len(p.parent) >= 2 {
+		return p.parent[1]
+	}
+	return ""
+}
+
+func (p *traceParent) spanID() string {
+	if len(p.parent) >= 3 {
+		return p.parent[2]
+	}
+	return ""
+}
