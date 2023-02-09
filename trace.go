@@ -98,12 +98,12 @@ func (t *trace) span() *trace {
 	return &newt
 }
 
-func (t *trace) addHeader(headers http.Header) {
+func (t *trace) setHeader(headers http.Header) {
 	if t.parent != nil {
-		t.parent.addHeader(headers)
+		t.parent.setHeader(headers)
 	}
 	if t.b3 != nil {
-		t.b3.addHeader(headers)
+		t.b3.setHeader(headers)
 	}
 }
 
@@ -115,8 +115,8 @@ func randStr32() string {
 	return randStr16() + randStr16()
 }
 
-func addHeaderStr(headers http.Header, header, value string) {
+func setHeaderStr(headers http.Header, header, value string) {
 	if value != "" {
-		headers.Add(header, value)
+		headers.Set(header, value)
 	}
 }

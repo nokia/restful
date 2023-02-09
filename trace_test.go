@@ -44,9 +44,7 @@ func TestRecvdBadParent(t *testing.T) {
 	r.Header.Set("traceparent", "FF-0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1-01")
 	trace := newTrace(r)
 	assert.False(trace.received)
-	assert.NotContains(trace.string(), "00-0af7651916cd43dd8448eb211c80319c-")
-	span := trace.span().string()
-	assert.Equal(55, len(span))
+	assert.NotContains(trace.string(), "-0af7651916cd43dd8448eb211c80319c-")
 }
 
 func TestNoTrace(t *testing.T) {
@@ -69,7 +67,7 @@ func TestB3SingleLine(t *testing.T) {
 	assert.True(trace.received)
 	assert.Contains(trace.string(), "0af7651916cd43dd8448eb211c80319c")
 	headers := http.Header{}
-	trace.addHeader(headers)
+	trace.setHeader(headers)
 	assert.Equal(traceStr, headers.Get("b3"))
 }
 

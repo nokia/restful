@@ -104,7 +104,7 @@ func (b3 *traceB3) span(spanID string) *traceB3 {
 	return &newB3
 }
 
-func (b3 *traceB3) addHeaderSingleLine(headers http.Header) {
+func (b3 *traceB3) setHeaderSingleLine(headers http.Header) {
 	b3Str := b3.traceID + "-" + b3.spanID
 	if b3.sampled != "" {
 		b3Str += "-" + b3.sampled
@@ -112,30 +112,30 @@ func (b3 *traceB3) addHeaderSingleLine(headers http.Header) {
 			b3Str += "-" + b3.parentSpanID
 		}
 	}
-	headers.Add(headerB3Single, b3Str)
+	headers.Set(headerB3Single, b3Str)
 }
 
-func (b3 *traceB3) addHeaderMultiLine(headers http.Header) {
-	addHeaderStr(headers, headerB3TraceID, b3.traceID)
-	addHeaderStr(headers, headerB3ParentSpanID, b3.parentSpanID)
-	addHeaderStr(headers, headerB3SpanID, b3.spanID)
-	addHeaderStr(headers, headerB3Sampled, b3.sampled)
-	addHeaderStr(headers, headerB3Flags, b3.flags)
+func (b3 *traceB3) setHeaderMultiLine(headers http.Header) {
+	setHeaderStr(headers, headerB3TraceID, b3.traceID)
+	setHeaderStr(headers, headerB3ParentSpanID, b3.parentSpanID)
+	setHeaderStr(headers, headerB3SpanID, b3.spanID)
+	setHeaderStr(headers, headerB3Sampled, b3.sampled)
+	setHeaderStr(headers, headerB3Flags, b3.flags)
 }
 
-func (b3 *traceB3) addHeader(headers http.Header) {
+func (b3 *traceB3) setHeader(headers http.Header) {
 	if b3.traceID == "" {
 		return
 	}
 
 	if b3.singleLine {
-		b3.addHeaderSingleLine(headers)
+		b3.setHeaderSingleLine(headers)
 	} else {
-		b3.addHeaderMultiLine(headers)
+		b3.setHeaderMultiLine(headers)
 	}
 
-	addHeaderStr(headers, headerEnvoyRequestID, b3.requestID)
-	addHeaderStr(headers, headerLightStepSpanC, b3.spanCtx)
+	setHeaderStr(headers, headerEnvoyRequestID, b3.requestID)
+	setHeaderStr(headers, headerLightStepSpanC, b3.spanCtx)
 }
 
 func (b3 *traceB3) string() string {
