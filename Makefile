@@ -8,15 +8,19 @@ COV=/tmp/test.out
 all: gotools
 	$(RUN) /usr/bin/make all-go
 
-all-go:
+all-go: test lint
+
+lint:
 	go vet ./...
-	go test -race -coverprofile=$(COV) ./...
 	go list ./... | xargs -L1 golint -set_exit_status
 	staticcheck ./...
 	gosec ./...
 	govulncheck ./...
 	gocyclo -over $(MAXIMUM_COMPLEXITY) ./
 	@if [ `go tool cover -func=$(COV) | tail -n1 | rev | cut -f1 | rev | cut -d. -f1` -lt $(MINIMUM_COVERAGE) ]; then echo "Error: Coverage too low."; false; fi
+
+test:
+	go test -race -coverprofile=$(COV) ./...
 
 .PHONY: gotools
 gotools:
