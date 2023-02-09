@@ -9,14 +9,9 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 type trace struct {
 	parent   *traceParent
