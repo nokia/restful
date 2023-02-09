@@ -55,9 +55,9 @@ func (p *traceParent) span(spanID string) *traceParent {
 	return newp
 }
 
-func (p *traceParent) addHeader(headers http.Header) {
+func (p *traceParent) setHeader(headers http.Header) {
 	headers.Set(headerTraceParent, p.string())
-	addHeaderStr(headers, headerTraceState, p.state)
+	setHeaderStr(headers, headerTraceState, p.state)
 }
 
 func (p *traceParent) string() string {

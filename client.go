@@ -32,7 +32,8 @@ var defaultClient = NewClient()
 // The reason for having a separate client is that Authorization Server and Resource Server may support different transport.
 //
 // If you want to use the same client, try
-//    restful.TokenClient = myClient.Client
+//
+//	restful.TokenClient = myClient.Client
 var TokenClient *http.Client = &http.Client{Timeout: 10 * time.Second}
 
 // Kind is a string representation of what kind the client is. Depending on which New() function is called.
@@ -232,7 +233,7 @@ func doSpan(ctx context.Context, req *http.Request) string {
 	trace := newTraceFromCtx(ctx)
 	span := trace.span()
 	if trace.received || log.IsLevelEnabled(log.TraceLevel) {
-		span.addHeader(req.Header)
+		span.setHeader(req.Header)
 	}
 	return span.string()
 }
