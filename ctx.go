@@ -28,12 +28,11 @@ type Lambda struct {
 	r      *http.Request
 	w      http.ResponseWriter
 	status int
-	trace  *trace
 	vars   map[string]string
 }
 
 func newLambda(w http.ResponseWriter, r *http.Request, vars map[string]string) *Lambda {
-	return &Lambda{w: w, r: r, trace: newTrace(r), vars: vars}
+	return &Lambda{w: w, r: r, vars: vars}
 }
 
 // NewRequestCtx adds request related data to r.Context().
@@ -104,7 +103,9 @@ func (l *Lambda) RequestBasicAuth() (username, password string, ok bool) {
 
 // ResponseStatus sets HTTP status code to be sent.
 // Use that if you want to set positive (non-error) status code.
-//    restful.L(ctx).ResponseStatus(http.StatusAccepted)
+//
+//	restful.L(ctx).ResponseStatus(http.StatusAccepted)
+//
 // Has no effect if lambda returns a non-nil error. In such case status is taken from the error (see restful.NewError), or 500 is returned.
 func (l *Lambda) ResponseStatus(status int) {
 	l.status = status

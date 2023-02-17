@@ -21,6 +21,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http2"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
@@ -241,15 +242,6 @@ func errDeadlineOrCancel(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
 
-func doSpan(ctx context.Context, req *http.Request) string {
-	trace := newTraceFromCtx(ctx)
-	span := trace.span()
-	if trace.received || log.IsLevelEnabled(log.TraceLevel) {
-		span.addHeader(req.Header)
-	}
-	return span.string()
-}
-
 func (c *Client) setUA(req *http.Request) {
 	if c.userAgent != "" && req.Header.Get("User-agent") == "" {
 		req.Header.Set("User-agent", c.userAgent)
@@ -383,7 +375,7 @@ func (c *Client) doWithRetry(req *http.Request, body io.ReadCloser, spanStr, tar
 }
 
 func (c *Client) doLog(ctx context.Context, req *http.Request, body io.ReadCloser, target string) (*http.Response, error) {
-	spanStr := doSpan(ctx, req)
+	spanStr := trace.SpanContextFromContext(ctx).SpanID().String()
 	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, target)
 	resp, err := c.doWithRetry(req, body, spanStr, target)
 	if err != nil {
