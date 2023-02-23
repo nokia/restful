@@ -5,7 +5,10 @@
 package restful
 
 import (
+	"context"
+	"math/rand"
 	"net/http"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/trace"
@@ -46,9 +49,15 @@ func loggerPre(w http.ResponseWriter, r *http.Request) *http.Request {
 		w.Header().Set("Cache-Control", "no-cache")
 		w.WriteHeader(http.StatusOK) // No logs, stop processing.
 	} else if r.URL.Path != ReadinessProbePath {
-		if traceStr := trace.SpanContextFromContext(r.Context()).TraceID().String(); traceStr != "" {
-			log.Debugf("[%s] Recv req: %s %s", traceStr, r.Method, r.URL.Path)
+		var traceStr string
+		spanCtx := trace.SpanContextFromContext(r.Context())
+		if spanCtx.IsValid() {
+			traceStr = spanCtx.TraceID().String() + "-" + spanCtx.SpanID().String()
+		} else {
+			traceStr = strconv.Itoa(rand.Int())
 		}
+		log.Debugf("[%s] Recv req: %s %s", traceStr, r.Method, r.URL.Path)
+		r = r.WithContext(context.WithValue(r.Context(), loggerCtxName, traceStr)) // Add trace string to req context, to be retrieved at response logging.
 	}
 	return r
 }
