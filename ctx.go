@@ -44,6 +44,14 @@ func NewRequestCtx(w http.ResponseWriter, r *http.Request) context.Context {
 	return context.WithValue(r.Context(), ctxName, newLambda(w, r, mux.Vars(r)))
 }
 
+func addRequestContextIfNotExists(w http.ResponseWriter, r *http.Request) context.Context {
+	ctx := r.Context()
+	if L(ctx) == nil {
+		ctx = NewRequestCtx(w, r)
+	}
+	return ctx
+}
+
 // L returns lambda-related data from context.
 func L(ctx context.Context) *Lambda {
 	v := ctx.Value(ctxName)

@@ -42,7 +42,7 @@ func GetDataBytes(headers http.Header, ioBody io.ReadCloser, maxBytes int) (body
 	}
 
 	body, err = io.ReadAll(ioBody)
-	defer ioBody.Close()
+	_ = ioBody.Close()
 	if err != nil {
 		return body, fmt.Errorf("body read error: %s", err.Error())
 	}

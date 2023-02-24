@@ -112,6 +112,8 @@ func NewClient() *Client {
 	t.MaxIdleConns = 100
 	t.MaxConnsPerHost = 100
 	t.MaxIdleConnsPerHost = 100
+	dialer := &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second}
+	t.DialContext = dialer.DialContext
 
 	var rt http.RoundTripper = t
 	if isTraced {
