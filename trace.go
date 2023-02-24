@@ -1,4 +1,4 @@
-// Copyright 2021 Nokia
+// Copyright 2021-2023 Nokia
 // Licensed under the BSD 3-Clause License.
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -16,11 +16,14 @@ import (
 var isTraced bool = true
 var serverName string = ""
 
-// SetTrace can enable/disable tracing in restful. By default tracing is enabled
+// SetTrace can enable/disable HTTP tracing.
+// By default trace header generation and propagation is enabled.
 func SetTrace(b bool) {
 	isTraced = b
 }
 
+// SetServerName allows settings a server name.
+// That can be used at span name formatting.
 func SetServerName(s string) {
 	serverName = s
 }

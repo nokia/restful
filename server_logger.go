@@ -1,4 +1,4 @@
-// Copyright 2021 Nokia
+// Copyright 2021-2023 Nokia
 // Licensed under the BSD 3-Clause License.
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -54,7 +54,7 @@ func loggerPre(w http.ResponseWriter, r *http.Request) *http.Request {
 		if spanCtx.IsValid() {
 			traceStr = spanCtx.TraceID().String() + "-" + spanCtx.SpanID().String()
 		} else {
-			traceStr = strconv.Itoa(rand.Int())
+			traceStr = strconv.Itoa(rand.Int()) // #nosec - Intentionally weak and cheap
 		}
 		log.Debugf("[%s] Recv req: %s %s", traceStr, r.Method, r.URL.Path)
 		r = r.WithContext(context.WithValue(r.Context(), loggerCtxName, traceStr)) // Add trace string to req context, to be retrieved at response logging.

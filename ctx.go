@@ -1,4 +1,4 @@
-// Copyright 2021 Nokia
+// Copyright 2021-2023 Nokia
 // Licensed under the BSD 3-Clause License.
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -42,14 +42,6 @@ func newLambda(w http.ResponseWriter, r *http.Request, vars map[string]string) *
 // E.g. ctx := NewRequestCtx(w, r)
 func NewRequestCtx(w http.ResponseWriter, r *http.Request) context.Context {
 	return context.WithValue(r.Context(), ctxName, newLambda(w, r, mux.Vars(r)))
-}
-
-func addRequestContextIfNotExists(w http.ResponseWriter, r *http.Request) context.Context {
-	ctx := r.Context()
-	if L(ctx) == nil {
-		ctx = NewRequestCtx(w, r)
-	}
-	return ctx
 }
 
 // L returns lambda-related data from context.
