@@ -35,16 +35,36 @@ func TestServerHandler(t *testing.T) {
 	assert := assert.New(t)
 
 	r := NewRouter()
-	r.HandleFunc("/path", func(ctx context.Context) {
-		assert.True(trace.SpanContextFromContext(ctx).HasSpanID())
-		assert.True(trace.SpanContextFromContext(ctx).HasTraceID())
+	r.HandleFunc("/DoesNotHaveTraceID", func(ctx context.Context) {
+		spanCtx := trace.SpanContextFromContext(ctx)
+		assert.True(spanCtx.HasSpanID())
+		assert.True(spanCtx.HasTraceID())
+	})
+	r.HandleFunc("/HasTraceID", func(ctx context.Context) {
+		spanCtx := trace.SpanContextFromContext(ctx)
+		assert.True(spanCtx.HasSpanID())
+		assert.Equal("1234567890abcdef1234567890abcdef", spanCtx.TraceID().String())
+		assert.True(spanCtx.IsSampled())
+		assert.Equal("01", spanCtx.TraceFlags().String()) // 'd' = trace flag 01
+		_ = Get(ctx, "http://127.0.0.1:56789/HasTraceIDPropagated", nil)
+	})
+	r.HandleFunc("/HasTraceIDPropagated", func(ctx context.Context) {
+		spanCtx := trace.SpanContextFromContext(ctx)
+		assert.True(spanCtx.HasSpanID())
+		assert.Equal("1234567890abcdef1234567890abcdef", spanCtx.TraceID().String())
+		assert.True(spanCtx.IsSampled())
+		assert.Equal("01", spanCtx.TraceFlags().String()) // 'd' = trace flag 01
 	})
 	s := NewServer().Addr(":56789").Handler(r)
 	go s.ListenAndServe()
 	time.Sleep(time.Second)
 
 	{
-		resp, _ := http.Get("http://127.0.0.1:56789/path")
+		resp, _ := http.Get("http://127.0.0.1:56789/DoesNotHaveTraceID")
 		assert.Equal(204, resp.StatusCode)
+
+		req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1:56789/HasTraceID", nil)
+		req.Header.Set("B3", "1234567890abcdef1234567890abcdef-1234567890abcdef-d-fedcba0987654321")
+		http.DefaultClient.Do(req)
 	}
 }
