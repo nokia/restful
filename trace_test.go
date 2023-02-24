@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel/trace"
@@ -30,7 +31,7 @@ func TestClient(t *testing.T) {
 	client.Get(context.Background(), "", nil)
 }
 
-func TestHandler(t *testing.T) {
+func TestServerHandler(t *testing.T) {
 	assert := assert.New(t)
 
 	r := NewRouter()
@@ -38,9 +39,12 @@ func TestHandler(t *testing.T) {
 		assert.True(trace.SpanContextFromContext(ctx).HasSpanID())
 		assert.True(trace.SpanContextFromContext(ctx).HasTraceID())
 	})
+	s := NewServer().Addr(":56789").Handler(r)
+	go s.ListenAndServe()
+	time.Sleep(time.Second)
 
-	req, _ := http.NewRequest(http.MethodGet, "/path", nil)
-	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-	assert.Equal(http.StatusNoContent, rr.Code)
+	{
+		resp, _ := http.Get("http://127.0.0.1:56789/path")
+		assert.Equal(204, resp.StatusCode)
+	}
 }

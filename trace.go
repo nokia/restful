@@ -5,6 +5,8 @@
 package restful
 
 import (
+	"net/http"
+
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -12,10 +14,22 @@ import (
 )
 
 var isTraced bool = true
+var serverName string = ""
 
 // SetTrace can enable/disable tracing in restful. By default tracing is enabled
 func SetTrace(b bool) {
 	isTraced = b
+}
+
+func SetServerName(s string) {
+	serverName = s
+}
+
+func spanNameFormatter(operation string, req *http.Request) string {
+	if serverName != "" {
+		return serverName + ":" + req.URL.Path
+	}
+	return req.URL.Path
 }
 
 func init() {

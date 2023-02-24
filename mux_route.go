@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // Route ...
@@ -36,13 +35,6 @@ func (route *Route) Handler(handler http.Handler) *Route {
 // HandlerFunc sets a handler function or lambda for a route.
 func (route *Route) HandlerFunc(f interface{}) *Route {
 	wrapped := route.monitors.wrap(LambdaWrap(f))
-	if isTraced {
-		op, err := route.route.GetPathTemplate()
-		if err != nil {
-			op = route.route.GetName()
-		}
-		wrapped = otelhttp.NewHandler(wrapped, op)
-	}
 	route.route = route.route.Handler(wrapped)
 	return route
 }

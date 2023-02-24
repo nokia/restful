@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 var (
@@ -57,9 +56,6 @@ func (r *Router) HandleFunc(path string, f interface{}) *Route {
 // Cannot use Lambda here.
 func (r *Router) Handle(path string, handler http.Handler) *Route {
 	wrapped := r.monitors.wrap(handler)
-	if isTraced {
-		wrapped = otelhttp.NewHandler(wrapped, path)
-	}
 	return newRoute(r.router.Handle(path, wrapped), nil)
 }
 
