@@ -28,12 +28,11 @@ type Lambda struct {
 	r      *http.Request
 	w      http.ResponseWriter
 	status int
-	trace  *trace
 	vars   map[string]string
 }
 
 func newLambda(w http.ResponseWriter, r *http.Request, vars map[string]string) *Lambda {
-	return &Lambda{w: w, r: r, trace: newTrace(r), vars: vars}
+	return &Lambda{w: w, r: r, vars: vars}
 }
 
 // NewRequestCtx adds request related data to r.Context().

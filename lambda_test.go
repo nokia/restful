@@ -14,6 +14,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type strint struct {
@@ -237,7 +238,8 @@ func TestContextTracing(t *testing.T) {
 	assert.Nil(err)
 	rr := httptest.NewRecorder()
 	l := Logger(r)
-	l.ServeHTTP(rr, req)
+	tr := otelhttp.NewHandler(l, "")
+	tr.ServeHTTP(rr, req)
 	assert.Equal(204, rr.Code)
 }
 

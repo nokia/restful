@@ -34,13 +34,14 @@ func (route *Route) Handler(handler http.Handler) *Route {
 
 // HandlerFunc sets a handler function or lambda for a route.
 func (route *Route) HandlerFunc(f interface{}) *Route {
-	monitored := route.monitors.wrap(LambdaWrap(f))
-	route.route = route.route.Handler(monitored)
+	wrapped := route.monitors.wrap(LambdaWrap(f))
+	route.route = route.route.Handler(wrapped)
 	return route
 }
 
 // Methods defines on which HTTP methods to call your function.
-//  r.Methods(http.MethodPost, http.MethodPut)
+//
+//	r.Methods(http.MethodPost, http.MethodPut)
 func (route *Route) Methods(methods ...string) *Route {
 	route.route = route.route.Methods(methods...)
 	return route
@@ -53,7 +54,8 @@ func (route *Route) Name(name string) *Route {
 }
 
 // Path registers a new route with a matcher for the URL path template.
-//  r.Path("/users/{id:[0-9]+}")
+//
+//	r.Path("/users/{id:[0-9]+}")
 func (route *Route) Path(pathTemplate string) *Route {
 	route.route = route.route.Path(pathTemplate)
 	return route
@@ -66,7 +68,9 @@ func (route *Route) PathPrefix(pathTemplate string) *Route {
 }
 
 // Queries adds a matcher for URL query values.
-//     route.Queries("id", "{id:[0-9]+}")
+//
+//	route.Queries("id", "{id:[0-9]+}")
+//
 // The odd (1st, 3rd, etc) string is the query parameter.
 // The even (2nd, 4th, etc) string is the variable name and optional regex pattern.
 func (route *Route) Queries(pairs ...string) *Route {
@@ -81,9 +85,11 @@ func (route *Route) Schemes(schemes ...string) *Route {
 }
 
 // Subrouter creates a new sub-router for the route.
-//  r := restful.NewRouter()
-//  s := r.PathPrefix("/api/v1/").Subrouter()
-//  s.HandleFunc("/users", handleAllUsers)
+//
+//	r := restful.NewRouter()
+//	s := r.PathPrefix("/api/v1/").Subrouter()
+//	s.HandleFunc("/users", handleAllUsers)
+//
 // Subrouter takes the existing Monitors of the parent route and apply them to the handle functions.
 func (route *Route) Subrouter() *Router {
 	return &Router{router: route.route.Subrouter(), monitors: route.monitors}

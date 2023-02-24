@@ -20,10 +20,15 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http2"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 )
+
+var clientTracer = otel.Tracer("client")
 
 var defaultClient = NewClient()
 
@@ -107,15 +112,20 @@ func NewClient() *Client {
 	t.MaxIdleConns = 100
 	t.MaxConnsPerHost = 100
 	t.MaxIdleConnsPerHost = 100
-
 	dialer := &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second}
 	t.DialContext = dialer.DialContext
+
+	var rt http.RoundTripper = t
+	if isTraced {
+		rt = otelhttp.NewTransport(t)
+	}
 
 	c := &Client{Kind: KindBasic}
 	c.Client = &http.Client{
 		Timeout:   10 * time.Second,
-		Transport: t,
+		Transport: rt,
 	}
+
 	c.acceptProblemJSON = true /* backward compatible */
 	return c
 }
@@ -123,14 +133,22 @@ func NewClient() *Client {
 // NewH2Client creates a RESTful client instance, forced to use HTTP2 with TLS (H2) (a.k.a. prior knowledge).
 func NewH2Client() *Client {
 	c := &Client{Kind: KindH2}
-	c.Client = &http.Client{Transport: &h2Transport}
+	var rt http.RoundTripper = &h2Transport
+	if isTraced {
+		rt = otelhttp.NewTransport(rt)
+	}
+	c.Client = &http.Client{Transport: rt}
 	return c
 }
 
 // NewH2CClient creates a RESTful client instance, forced to use HTTP2 Cleartext (H2C).
 func NewH2CClient() *Client {
 	c := &Client{Kind: KindH2C}
-	c.Client = &http.Client{Transport: &h2CTransport}
+	var rt http.RoundTripper = &h2CTransport
+	if isTraced {
+		rt = otelhttp.NewTransport(rt)
+	}
+	c.Client = &http.Client{Transport: rt}
 	return c
 }
 
@@ -229,15 +247,6 @@ func errDeadlineOrCancel(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
 
-func doSpan(ctx context.Context, req *http.Request) string {
-	trace := newTraceFromCtx(ctx)
-	span := trace.span()
-	if trace.received || log.IsLevelEnabled(log.TraceLevel) {
-		span.setHeader(req.Header)
-	}
-	return span.string()
-}
-
 func (c *Client) setUA(req *http.Request) {
 	if c.userAgent != "" && req.Header.Get("User-agent") == "" {
 		req.Header.Set("User-agent", c.userAgent)
@@ -304,6 +313,8 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 	if err := ctx.Err(); err != nil { // Do not start the Dial if context cancelled/deadlined already.
 		return nil, err
 	}
+	ctx, span := ensureTraceCtx(ctx)
+	defer span.End()
 	req = req.WithContext(ctx)
 
 	if req.Header == nil {
@@ -337,7 +348,7 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		}
 	}
 
-	resp, err := c.doLog(ctx, req, body, target)
+	resp, err := c.doLog(ctx, span, req, body, target)
 
 	for i := 0; i < len(c.monitor); i++ {
 		if c.monitor[i].post != nil {
@@ -370,8 +381,9 @@ func (c *Client) doWithRetry(req *http.Request, body io.ReadCloser, spanStr, tar
 	return resp, err
 }
 
-func (c *Client) doLog(ctx context.Context, req *http.Request, body io.ReadCloser, target string) (*http.Response, error) {
-	spanStr := doSpan(ctx, req)
+func (c *Client) doLog(ctx context.Context, span trace.Span, req *http.Request, body io.ReadCloser, target string) (*http.Response, error) {
+	spanCtx := span.SpanContext()
+	spanStr := spanCtx.TraceID().String() // + "-" + spanCtx.SpanID().String()
 	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, target)
 	resp, err := c.doWithRetry(req, body, spanStr, target)
 	if err != nil {
@@ -657,4 +669,12 @@ func Delete(ctx context.Context, target string) error {
 func (c *Client) SetMaxBytesToParse(max int) *Client {
 	c.maxBytesToParse = max
 	return c
+}
+
+func ensureTraceCtx(ctx context.Context) (context.Context, trace.Span) {
+	span := trace.SpanFromContext(ctx)
+	if !span.SpanContext().IsValid() {
+		ctx, span = clientTracer.Start(ctx, "client")
+	}
+	return ctx, span
 }

@@ -55,8 +55,8 @@ func (r *Router) HandleFunc(path string, f interface{}) *Route {
 // Handle adds traditional http.Handler to route.
 // Cannot use Lambda here.
 func (r *Router) Handle(path string, handler http.Handler) *Route {
-	monitored := r.monitors.wrap(handler)
-	return newRoute(r.router.Handle(path, monitored), nil)
+	wrapped := r.monitors.wrap(handler)
+	return newRoute(r.router.Handle(path, wrapped), nil)
 }
 
 // Get returns the route registered with the given name, or nil.
@@ -94,7 +94,9 @@ func (r *Router) PathPrefix(pathTemplate string) *Route {
 }
 
 // Queries registers a new route with a matcher for URL query values.
-//     router.Queries("id", "{id:[0-9]+}")
+//
+//	router.Queries("id", "{id:[0-9]+}")
+//
 // The odd (1st, 3rd, etc) string is the query parameter.
 // The even (2nd, 4th, etc) string is the variable name and optional regex pattern.
 func (r *Router) Queries(pairs ...string) *Route {

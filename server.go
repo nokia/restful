@@ -14,6 +14,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // Server represents a server instance.
@@ -77,6 +78,9 @@ func (s *Server) Handler(handler http.Handler) *Server {
 		handler = DefaultServeMux
 	}
 	s.server.Handler = Logger(s.monitors.wrap(handler))
+	if isTraced {
+		s.server.Handler = otelhttp.NewHandler(s.server.Handler, "", otelhttp.WithSpanNameFormatter(spanNameFormatter))
+	}
 	s.monitors = nil
 	return s
 }
