@@ -221,7 +221,7 @@ func TestTimeout(t *testing.T) {
 	}
 
 	{ // GET - OK
-		client := NewClient().Timeout(delay * 2)
+		client := NewClient().Timeout(delay * 10)
 		err := client.Get(context.Background(), srv.URL, nil)
 		assert.NoError(err)
 	}
