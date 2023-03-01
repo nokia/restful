@@ -10,6 +10,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
@@ -175,6 +176,21 @@ func TestContext(t *testing.T) {
 		assert.Equal("ss", resp.S)
 		assert.Equal(4, resp.I)
 	}
+}
+
+func BenchmarkContext(b *testing.B) {
+	assert := assert.New(b)
+
+	r := NewRouter()
+	r.Methods(http.MethodPost).Name("Hello").Path("/context/{id:[0-9]+}").Schemes("http").HandlerFunc(dupCtx)
+
+	reqBody := `{"s":"s","i":2}`
+	req, err := http.NewRequest("POST", "/context/42", strings.NewReader(reqBody))
+	assert.NoError(err)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(200, rr.Code)
 }
 
 func TestContextOnly(t *testing.T) {
