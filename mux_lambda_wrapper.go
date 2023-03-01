@@ -74,21 +74,23 @@ func lambdaHandleRes(w http.ResponseWriter, r *http.Request, res []reflect.Value
 	_ = SendResp(w, r, err, data)
 }
 
+var contextType = reflect.TypeOf((*context.Context)(nil)).Elem()
+
 func lambdaGetParams(w http.ResponseWriter, r *http.Request, f interface{}) ([]reflect.Value, *http.Request, error) {
-	var params []reflect.Value
 	t := reflect.TypeOf(f)
+	params := make([]reflect.Value, t.NumIn())
 	if t.NumIn() > 0 {
 		reqDataIdx := 0
 
 		// Handle context parameter
-		if t.In(0).ConvertibleTo(reflect.TypeOf((*context.Context)(nil)).Elem()) {
+		if t.In(0).Implements(contextType) {
 			ctx := NewRequestCtx(w, r)
 			r = r.WithContext(ctx)
-			params = append(params, reflect.ValueOf(ctx))
+			params[0] = reflect.ValueOf(ctx)
 			reqDataIdx = 1
 		}
 
-		// Handle other parameter
+		// Handle body parameter
 		if reqDataIdx < t.NumIn() {
 			var err error
 			var reqData reflect.Value
@@ -104,7 +106,7 @@ func lambdaGetParams(w http.ResponseWriter, r *http.Request, f interface{}) ([]r
 			if err != nil {
 				return nil, r, err
 			}
-			params = append(params, reqData)
+			params[reqDataIdx] = reqData
 		}
 	}
 	return params, r, nil
