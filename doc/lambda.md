@@ -189,13 +189,20 @@ The following rules are applied in this order:
 
 ## Q&A
 
+**Q: Where are the out-of-the-box middlewares like authorization, serving static files, etc?**
+
+A: You are visiting the wrong project, maybe.
+   This project is about being able to build cloud-native RESTful services.
+   Leaving many things to other services, such as authorizing requests to API gateways.
+   If you need those, you may want to check out [Fiber](https://github.com/gofiber/fiber).
+
 **Q: Why is this library based on Gorilla/Mux, when there are other high-performance alternatives, such as [Gin](https://github.com/gin-gonic/gin) or [Bunrouter](https://bunrouter.uptrace.dev/)?**
 
 A: We are fortunate to have so many great routers.
-   Our aim is simple syntax similar to standard http or Gorilla/Mux packages, easing the transition.
+   Our aim is simple syntax similar to standard http or Gorilla/Mux packages.
    For a complex app with database operations, router speed difference may be negliable.
-   Gorilla project is [not in active maintenance](https://github.com/gorilla#gorilla-toolkit), anymore. But there are candidates to take it over.
-   And given its dependencies, keeping Go up-to-date leaves small room for vulnerabilities.
+   Gorilla project is [not in active maintenance](https://github.com/gorilla#gorilla-toolkit), anymore.
+   But given its dependencies, keeping Go up-to-date leaves small room for vulnerabilities.
 
 **Q: Is it possible to send alternative types in responses, decided run-time? Like `f() (T1, T2, error)`.**
 
