@@ -45,11 +45,10 @@ location, err := restful.Post(ctx, "https://example.com", &reqData, &respData)
   That is all done without any extra coding on your side.
 * [Monitor](doc/monitor.md) is a middleware that can pre-process requests and post-process responses.
   Pre and post hooks can be used for whatever you want, such as adding Prometheus counters on router level, without littering your business logic.
-* **Error** is used by Lambda, Server and Client classes. It contains HTTP status code besides traditional error.
+* [Error](doc/error.md) is a Go error object containing HTTP status code besides traditional error.
 
 Trace context and error are the glue between Lambda and Client.
 That is why they form a module together.
-Likely to transition to [OpenTelemetry](https://opentelemetry.io/), and then restful is likely to be refactored to more independent packages.
 
 ## Principles
 

@@ -1,4 +1,4 @@
-// Copyright 2021 Nokia
+// Copyright 2021-2023 Nokia
 // Licensed under the BSD 3-Clause License.
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -10,8 +10,7 @@ import (
 	"strings"
 )
 
-/* This is a small trace header tool till project OpenTracing / OpenTelemetry mature.
-Not designed to be stable, so not to be exposed outside of restful module.
+/* This is a small trace header tool till project OpenTelemetry mature.
 See https://www.w3.org/TR/trace-context
 */
 
