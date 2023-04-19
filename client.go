@@ -313,8 +313,7 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 	if err := ctx.Err(); err != nil { // Do not start the Dial if context cancelled/deadlined already.
 		return nil, err
 	}
-	ctx, span := ensureTraceCtx(ctx)
-	defer span.End()
+	ctx, span := ensureTraceCtx(ctx, req)
 	req = req.WithContext(ctx)
 
 	if req.Header == nil {
@@ -381,8 +380,7 @@ func (c *Client) doWithRetry(req *http.Request, body io.ReadCloser, spanStr, tar
 	return resp, err
 }
 
-func (c *Client) doLog(ctx context.Context, span trace.Span, req *http.Request, body io.ReadCloser, target string) (*http.Response, error) {
-	spanCtx := span.SpanContext()
+func (c *Client) doLog(ctx context.Context, spanCtx trace.SpanContext, req *http.Request, body io.ReadCloser, target string) (*http.Response, error) {
 	spanStr := spanCtx.TraceID().String() // + "-" + spanCtx.SpanID().String()
 	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, target)
 	resp, err := c.doWithRetry(req, body, spanStr, target)
@@ -669,12 +667,4 @@ func Delete(ctx context.Context, target string) error {
 func (c *Client) SetMaxBytesToParse(max int) *Client {
 	c.maxBytesToParse = max
 	return c
-}
-
-func ensureTraceCtx(ctx context.Context) (context.Context, trace.Span) {
-	span := trace.SpanFromContext(ctx)
-	if !span.SpanContext().IsValid() {
-		ctx, span = clientTracer.Start(ctx, "client")
-	}
-	return ctx, span
 }

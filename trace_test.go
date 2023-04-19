@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func TestClient(t *testing.T) {
 	client.Get(context.Background(), "", nil)
 }
 
-func TestServerHandler(t *testing.T) {
+func Test_Trace_ClientGenerates(t *testing.T) {
 	assert := assert.New(t)
 
 	r := NewRouter()
@@ -40,12 +41,13 @@ func TestServerHandler(t *testing.T) {
 		assert.True(spanCtx.HasSpanID())
 		assert.True(spanCtx.HasTraceID())
 	})
+}
+
+func Test_Trace_Propagate(t *testing.T) {
+	assert := assert.New(t)
+
+	r := NewRouter()
 	r.HandleFunc("/HasTraceID", func(ctx context.Context) {
-		spanCtx := trace.SpanContextFromContext(ctx)
-		assert.True(spanCtx.HasSpanID())
-		assert.Equal("1234567890abcdef1234567890abcdef", spanCtx.TraceID().String())
-		assert.True(spanCtx.IsSampled())
-		assert.Equal("01", spanCtx.TraceFlags().String()) // 'd' = trace flag 01
 		_ = Get(ctx, "http://127.0.0.1:56789/HasTraceIDPropagated", nil)
 	})
 	r.HandleFunc("/HasTraceIDPropagated", func(ctx context.Context) {
@@ -53,18 +55,27 @@ func TestServerHandler(t *testing.T) {
 		assert.True(spanCtx.HasSpanID())
 		assert.Equal("1234567890abcdef1234567890abcdef", spanCtx.TraceID().String())
 		assert.True(spanCtx.IsSampled())
-		assert.Equal("01", spanCtx.TraceFlags().String()) // 'd' = trace flag 01
+		assert.True(spanCtx.TraceFlags().IsSampled())
+
+		b3 := strings.Split(L(ctx).RequestHeaderGet("B3"), "-")
+		assert.Contains(b3[2], "d")
 	})
 	s := NewServer().Addr(":56789").Handler(r)
 	go s.ListenAndServe()
 	time.Sleep(time.Second)
 
-	{
-		resp, _ := http.Get("http://127.0.0.1:56789/DoesNotHaveTraceID")
-		assert.Equal(204, resp.StatusCode)
-
+	{ // B3, restful client
 		req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1:56789/HasTraceID", nil)
 		req.Header.Set("B3", "1234567890abcdef1234567890abcdef-1234567890abcdef-d-fedcba0987654321")
+		NewClient().Do(context.Background(), req)
+	}
+
+	{ // X-B3, http client
+		req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1:56789/HasTraceID", nil)
+		req.Header.Set("X-B3-TraceId", "1234567890abcdef1234567890abcdef")
+		req.Header.Set("X-B3-SpanId", "1234567890abcdef")
+		req.Header.Set("X-B3-ParentId", "fedcba0987654321")
+		req.Header.Set("X-B3-Flags", "1")
 		http.DefaultClient.Do(req)
 	}
 }
