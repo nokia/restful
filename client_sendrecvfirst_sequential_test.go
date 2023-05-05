@@ -6,6 +6,7 @@ package restful
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -22,10 +23,17 @@ func TestSendRecvFirst2xxSequentialOK(t *testing.T) {
 		ID int `json:"id"`
 	}
 
+	type reqType struct {
+		Hello string `json:"hello"`
+	}
+
 	srvs := make([]*httptest.Server, 5)
 	srvURLs := make([]string, len(srvs))
 	for i := 0; i < len(srvs); i++ {
 		srvs[i] = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			recvd, err := io.ReadAll(r.Body)
+			assert.NoError(err)
+			assert.Equal(`{"hello":"Hello"}`, string(recvd))
 			id := strings.TrimPrefix(r.URL.Path, "/")
 			if id == "3" {
 				w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
@@ -44,8 +52,9 @@ func TestSendRecvFirst2xxSequentialOK(t *testing.T) {
 
 	c := NewClient()
 	var respData respType
+	reqData := reqType{Hello: "Hello"}
 	ctx := context.Background()
-	resp, err := c.SendRecvListFirst2xxSequential(ctx, "GET", srvURLs, nil, nil, &respData)
+	resp, err := c.SendRecvListFirst2xxSequential(ctx, "POST", srvURLs, nil, &reqData, &respData)
 	assert.NoError(err)
 	assert.Equal(200, resp.StatusCode)
 	t.Log(t.Name(), ">>> Received: ", respData.ID)
