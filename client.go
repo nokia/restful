@@ -491,19 +491,23 @@ func (c *Client) SendRequest(ctx context.Context, method string, target string, 
 	if err != nil {
 		return nil, err
 	}
-	return c.sendRequestBytes(ctx, method, target, headers, body)
+	return c.sendRequestBytes(ctx, method, target, headers, &body, true)
 }
 
-func (c *Client) sendRequestBytes(ctx context.Context, method string, target string, headers http.Header, body []byte) (*http.Response, error) {
+func (c *Client) sendRequestBytes(ctx context.Context, method string, target string, headers http.Header, body *[]byte, freeBody bool) (*http.Response, error) {
 	var req *http.Request
 	var err error
-	if len(body) > 0 {
-		req, err = http.NewRequestWithContext(ctx, method, target, bytes.NewReader(body))
+	if len(*body) > 0 {
+		req, err = http.NewRequestWithContext(ctx, method, target, bytes.NewReader(*body))
 		if err != nil {
 			return nil, err
 		}
 
-		addCT(req, method, headers, body)
+		addCT(req, method, headers, *body)
+
+		if freeBody {
+			*body = nil // Set reference nil, req is the sole owner of the byte slice.
+		}
 	} else {
 		req, err = http.NewRequestWithContext(ctx, method, target, nil)
 		if err != nil {
