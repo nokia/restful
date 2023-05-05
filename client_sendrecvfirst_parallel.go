@@ -63,7 +63,7 @@ func (c *Client) SendRecvListFirst2xxParallel(ctx context.Context, method string
 	for i := range targets {
 		go func(target string, respChan chan *http.Response) {
 			defer wg.Done()
-			resp, err := c.sendRequestBytes(ctx, method, target, headers, body)
+			resp, err := c.sendRequestBytes(ctx, method, target, headers, &body, false)
 			if err != nil || resp.StatusCode >= 300 { // Errors are silently omitted
 				return
 			}
