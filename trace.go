@@ -13,41 +13,48 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var isTraced bool = true
+
+// SetTrace can enable/disable tracing in restful. By default tracing is enabled
+func SetTrace(b bool) {
+	isTraced = b
+}
+
 type trace struct {
 	parent   *traceParent
 	b3       *traceB3
 	received bool
 }
 
-// newTrace creates new trace object. Never returns nil.
-func newTrace(r *http.Request) *trace {
+// newTraceFromHeader creates new trace object. If no trace data, then create random. Never returns nil.
+func newTraceFromHeader(r *http.Request) *trace {
 	t := trace{parent: newTraceParent(r), b3: newTraceB3(r)}
 	t.received = t.valid()
 
-	if !t.received { // Create fake one. Saved to r (ctx.r), so that any client to be able to find it. Note: Logger may have created one already.
-		t.parent = newTraceParentFromFake(r)
-		if !t.valid() {
-			return newTraceRandom()
-		}
+	if !t.received {
+		return newTraceRandom()
 	}
 
 	return &t
 }
 
 func newTraceRandom() *trace {
-	if log.IsLevelEnabled(log.TraceLevel) {
-		traceID := randStr32()
-		return &trace{parent: newTraceParentWithID(traceID), b3: newTraceB3WithID(traceID, true)}
-	}
-	return &trace{b3: &traceB3{spanID: randStr16()}}
+	debug := log.IsLevelEnabled(log.TraceLevel)
+	traceID := randStr32()
+	return &trace{b3: newTraceB3WithID(traceID, debug)}
 }
 
 // newTraceFromCtx creates new trace object, preferably from context. Never returns nil.
 func newTraceFromCtx(ctx context.Context) *trace {
 	l := L(ctx)
-	if l == nil || l.trace == nil {
+	if l == nil {
 		return newTraceRandom()
 	}
+
+	if !l.trace.valid() {
+		l.trace = newTraceRandom() // Updates trace in ctx via l.trace pointer.
+	}
+
 	return l.trace
 }
 

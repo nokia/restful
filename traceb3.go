@@ -89,9 +89,9 @@ func newTraceB3(r *http.Request) *traceB3 {
 	return b3
 }
 
-func newTraceB3WithID(traceID string, trace bool) *traceB3 {
+func newTraceB3WithID(traceID string, debug bool) *traceB3 {
 	b3 := traceB3{traceID: traceID, singleLine: true}
-	if trace {
+	if debug {
 		b3.sampled = "d"
 	}
 	return &b3

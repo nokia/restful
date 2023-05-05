@@ -18,20 +18,8 @@ func TestRecvdParent(t *testing.T) {
 	assert := assert.New(t)
 	r, _ := http.NewRequest("POST", "", nil)
 	r.Header.Set("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1-01")
-	trace := newTrace(r)
+	trace := newTraceFromHeader(r)
 	assert.True(trace.received)
-	assert.Equal("00-0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1-01", trace.string())
-	span := trace.span().string()
-	assert.Contains(span, "00-0af7651916cd43dd8448eb211c80319c-")
-	assert.Equal(55, len(span))
-}
-
-func TestFakeParent(t *testing.T) {
-	assert := assert.New(t)
-	r, _ := http.NewRequest("POST", "", nil)
-	r.Header.Set("x-fake-traceparent", "00-0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1-01")
-	trace := newTrace(r)
-	assert.False(trace.received)
 	assert.Equal("00-0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1-01", trace.string())
 	span := trace.span().string()
 	assert.Contains(span, "00-0af7651916cd43dd8448eb211c80319c-")
@@ -42,7 +30,7 @@ func TestRecvdBadParent(t *testing.T) {
 	assert := assert.New(t)
 	r, _ := http.NewRequest("POST", "", nil)
 	r.Header.Set("traceparent", "FF-0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1-01")
-	trace := newTrace(r)
+	trace := newTraceFromHeader(r)
 	assert.False(trace.received)
 	assert.NotContains(trace.string(), "-0af7651916cd43dd8448eb211c80319c-")
 }
@@ -63,7 +51,7 @@ func TestB3SingleLine(t *testing.T) {
 	r, _ := http.NewRequest("POST", "", nil)
 	traceStr := "0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1-1-deadbeef87654321"
 	r.Header.Set("b3", traceStr)
-	trace := newTrace(r)
+	trace := newTraceFromHeader(r)
 	assert.True(trace.received)
 	assert.Contains(trace.string(), "0af7651916cd43dd8448eb211c80319c")
 	headers := http.Header{}
@@ -73,11 +61,10 @@ func TestB3SingleLine(t *testing.T) {
 
 func TestTracePropagation(t *testing.T) {
 	assert := assert.New(t)
-	log.SetLevel(log.TraceLevel) // That switches on trace generation and propagation
 
 	// Server
 	srvURL := ""
-	traceid := ""
+	traceID := ""
 	prevSpanID := ""
 	parents := make(map[string]bool)
 	depth := 0
@@ -87,17 +74,16 @@ func TestTracePropagation(t *testing.T) {
 		t := newTraceFromCtx(ctx)
 		assert.True(t.received)
 		if depth == 0 {
-			traceid = t.traceID()
+			traceID = t.traceID()
 			prevSpanID = t.spanID()
 			parents[t.string()] = true
 			t.b3.sampled = "1"
 			t.b3.requestID = "req"
 			t.b3.spanCtx = "ctx"
 		} else {
-			assert.Equal(traceid, t.parent.traceID())
+			assert.Equal(traceID, t.traceID())
+			assert.Equal(traceID, L(ctx).TraceID())
 			assert.NotContains(parents, t.string())
-			assert.Equal(t.parent.traceID(), t.b3.traceID)
-			assert.Equal(t.parent.spanID(), t.b3.spanID)
 			assert.Equal(prevSpanID, t.b3.parentSpanID)
 			assert.Equal("1", t.b3.sampled)
 			assert.Equal("req", t.b3.requestID)

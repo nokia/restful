@@ -5,7 +5,6 @@
 package restful
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 )
@@ -15,9 +14,8 @@ See https://www.w3.org/TR/trace-context
 */
 
 const (
-	headerTraceParent     = "traceparent"
-	headerTraceState      = "tracestate"
-	headerFakeTraceParent = "x-fake-traceparent"
+	headerTraceParent = "traceparent"
+	headerTraceState  = "tracestate"
 )
 
 type traceParent struct {
@@ -27,14 +25,6 @@ type traceParent struct {
 
 func newTraceParent(r *http.Request) *traceParent { // May return nil.
 	return newTraceParentFromHeaderValue(r.Header.Get(headerTraceParent), r.Header.Get(headerTraceState))
-}
-
-func newTraceParentFromFake(r *http.Request) *traceParent {
-	return newTraceParentFromHeaderValue(r.Header.Get(headerFakeTraceParent), "") // Our server logger may have faked one already.
-}
-
-func newTraceParentWithID(traceID string) *traceParent {
-	return &traceParent{parent: []string{"00", traceID, fmt.Sprintf("%016x", 0) /*invalid, span resolves that*/, "00"}}
 }
 
 func newTraceParentFromHeaderValue(traceparent, tracestate string) *traceParent {

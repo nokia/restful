@@ -232,7 +232,7 @@ func errDeadlineOrCancel(err error) bool {
 func doSpan(ctx context.Context, req *http.Request) string {
 	trace := newTraceFromCtx(ctx)
 	span := trace.span()
-	if trace.received || log.IsLevelEnabled(log.TraceLevel) {
+	if trace.received || isTraced {
 		span.setHeader(req.Header)
 	}
 	return span.string()

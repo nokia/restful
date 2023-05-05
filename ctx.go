@@ -33,7 +33,7 @@ type Lambda struct {
 }
 
 func newLambda(w http.ResponseWriter, r *http.Request, vars map[string]string) *Lambda {
-	return &Lambda{w: w, r: r, trace: newTrace(r), vars: vars}
+	return &Lambda{w: w, r: r, trace: newTraceFromHeader(r), vars: vars}
 }
 
 // NewRequestCtx adds request related data to r.Context().
@@ -136,4 +136,10 @@ func (l *Lambda) ResponseHeaderAdd(header, value string) {
 func (l *Lambda) ResponseHeaderAddAs(header, value string) {
 	h := l.w.Header()
 	h[header] = append(h[header], value)
+}
+
+// TraceID returns trace ID of Lambda context.
+// That trace ID is either received in request or generated when Lambda context is created.
+func (l *Lambda) TraceID() string {
+	return l.trace.traceID()
 }
