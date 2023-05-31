@@ -15,6 +15,8 @@ import (
 	"net/url"
 
 	"github.com/gorilla/mux"
+	"github.com/nokia/restful/trace/tracedata"
+	"github.com/nokia/restful/trace/tracer"
 )
 
 type ctxKey string
@@ -28,12 +30,12 @@ type Lambda struct {
 	r      *http.Request
 	w      http.ResponseWriter
 	status int
-	trace  *trace
+	trace  tracedata.TraceData
 	vars   map[string]string
 }
 
 func newLambda(w http.ResponseWriter, r *http.Request, vars map[string]string) *Lambda {
-	return &Lambda{w: w, r: r, trace: newTraceFromHeader(r), vars: vars}
+	return &Lambda{w: w, r: r, trace: tracer.NewFromHeader(r), vars: vars}
 }
 
 // NewRequestCtx adds request related data to r.Context().
@@ -141,5 +143,5 @@ func (l *Lambda) ResponseHeaderAddAs(header, value string) {
 // TraceID returns trace ID of Lambda context.
 // That trace ID is either received in request or generated when Lambda context is created.
 func (l *Lambda) TraceID() string {
-	return l.trace.traceID()
+	return l.trace.TraceID()
 }

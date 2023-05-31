@@ -10,54 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestRecvdParent(t *testing.T) {
-	assert := assert.New(t)
-	r, _ := http.NewRequest("POST", "", nil)
-	r.Header.Set("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1-01")
-	trace := newTraceFromHeader(r)
-	assert.True(trace.received)
-	assert.Equal("00-0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1-01", trace.string())
-	span := trace.span().string()
-	assert.Contains(span, "00-0af7651916cd43dd8448eb211c80319c-")
-	assert.Equal(55, len(span))
-}
-
-func TestRecvdBadParent(t *testing.T) {
-	assert := assert.New(t)
-	r, _ := http.NewRequest("POST", "", nil)
-	r.Header.Set("traceparent", "FF-0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1-01")
-	trace := newTraceFromHeader(r)
-	assert.False(trace.received)
-	assert.NotContains(trace.string(), "-0af7651916cd43dd8448eb211c80319c-")
-}
-
-func TestNoTrace(t *testing.T) {
-	assert := assert.New(t)
-	traceParent := traceParent{}
-	assert.Equal("", traceParent.traceID())
-	assert.Equal("", traceParent.spanID())
-
-	trace := trace{}
-	assert.Equal("", trace.traceID())
-	assert.Equal("", trace.spanID())
-}
-
-func TestB3SingleLine(t *testing.T) {
-	assert := assert.New(t)
-	r, _ := http.NewRequest("POST", "", nil)
-	traceStr := "0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1-1-deadbeef87654321"
-	r.Header.Set("b3", traceStr)
-	trace := newTraceFromHeader(r)
-	assert.True(trace.received)
-	assert.Contains(trace.string(), "0af7651916cd43dd8448eb211c80319c")
-	headers := http.Header{}
-	trace.setHeader(headers)
-	assert.Equal(traceStr, headers.Get("b3"))
-}
 
 func TestTracePropagation(t *testing.T) {
 	assert := assert.New(t)
@@ -72,23 +26,17 @@ func TestTracePropagation(t *testing.T) {
 	srv := httptest.NewServer(Logger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := NewRequestCtx(w, r)
 		t := newTraceFromCtx(ctx)
-		assert.True(t.received)
+		assert.True(t.IsReceived())
 		if depth == 0 {
-			traceID = t.traceID()
-			prevSpanID = t.spanID()
-			parents[t.string()] = true
-			t.b3.sampled = "1"
-			t.b3.requestID = "req"
-			t.b3.spanCtx = "ctx"
+			traceID = t.TraceID()
+			prevSpanID = t.SpanID()
+			parents[t.String()] = true
 		} else {
-			assert.Equal(traceID, t.traceID())
+			assert.Equal(traceID, t.TraceID())
 			assert.Equal(traceID, L(ctx).TraceID())
-			assert.NotContains(parents, t.string())
-			assert.Equal(prevSpanID, t.b3.parentSpanID)
-			assert.Equal("1", t.b3.sampled)
-			assert.Equal("req", t.b3.requestID)
-			assert.Equal("ctx", t.b3.spanCtx)
-			prevSpanID = t.spanID()
+			assert.NotContains(parents, t.String())
+			assert.NotEqual(prevSpanID, t.SpanID())
+			prevSpanID = t.SpanID()
 		}
 		if depth < maxDepth {
 			depth++
@@ -101,5 +49,4 @@ func TestTracePropagation(t *testing.T) {
 	srvURL = srv.URL
 
 	assert.NoError(Get(context.Background(), srv.URL, nil))
-	log.SetLevel(log.InfoLevel)
 }
