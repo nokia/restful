@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nokia/restful/trace/tracecommon"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 	"golang.org/x/oauth2"
@@ -231,11 +232,10 @@ func errDeadlineOrCancel(err error) bool {
 
 func doSpan(ctx context.Context, req *http.Request) string {
 	trace := newTraceFromCtx(ctx)
-	span := trace.span()
-	if trace.received || isTraced {
-		span.setHeader(req.Header)
+	if trace.IsReceived() || isTraced {
+		return trace.Span(req)
 	}
-	return span.string()
+	return tracecommon.NewTraceID()
 }
 
 func (c *Client) setUA(req *http.Request) {

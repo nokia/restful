@@ -47,7 +47,7 @@ func loggerPre(w http.ResponseWriter, r *http.Request) *http.Request {
 		w.WriteHeader(http.StatusOK) // No logs, stop processing.
 	} else if r.URL.Path != ReadinessProbePath {
 		ctx := addRequestContextIfNotExists(w, r)                          // Adds tracing to the context, thus enables propagation.
-		traceStr := newTraceFromCtx(ctx).string()                          // Get trace string from context.
+		traceStr := newTraceFromCtx(ctx).String()                          // Get trace string from context.
 		r = r.WithContext(context.WithValue(ctx, loggerCtxName, traceStr)) // Add trace string to req context, to be retrieved at response logging.
 		log.Debugf("[%s] Recv req: %s %s", traceStr, r.Method, r.URL.Path)
 	}
