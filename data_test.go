@@ -5,7 +5,6 @@
 package restful
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -42,7 +41,7 @@ func TestDataGetQuery(t *testing.T) {
 		assert.Nil(err)
 		q := url.Values{"a": {"a"}, "b": {"b", "B"}, "c-field": {"42"}}
 		req.URL.RawQuery = q.Encode()
-		_, err = NewClient().Do(context.Background(), req)
+		_, err = NewClient().Do(req)
 		assert.Nil(err)
 	}
 }
@@ -71,7 +70,7 @@ func TestDataGetQueryLambda(t *testing.T) {
 		assert.NoError(err)
 		q := url.Values{"a": {"a"}, "b": {"b", "B"}}
 		req.URL.RawQuery = q.Encode()
-		_, err = NewClient().Do(context.Background(), req)
+		_, err = NewClient().Do(req)
 		assert.NoError(err)
 	}
 }
@@ -96,7 +95,7 @@ func TestDataPostForm(t *testing.T) {
 		req, err := http.NewRequest("POST", srv.URL, strings.NewReader(f.Encode()))
 		assert.Nil(err)
 		req.Header.Set("content-type", "application/x-www-form-urlencoded")
-		_, err = NewClient().Do(context.Background(), req)
+		_, err = NewClient().Do(req)
 		assert.Nil(err)
 	}
 }
