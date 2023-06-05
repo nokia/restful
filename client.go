@@ -15,20 +15,21 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/nokia/restful/trace/tracecommon"
+	"github.com/nokia/restful/trace/tracedata"
+	"github.com/nokia/restful/trace/traceotel"
+	"github.com/nokia/restful/trace/tracer"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http2"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 )
-
-var clientTracer = otel.Tracer("client")
 
 var defaultClient = NewClient()
 
@@ -116,7 +117,7 @@ func NewClient() *Client {
 	t.DialContext = dialer.DialContext
 
 	var rt http.RoundTripper = t
-	if isTraced {
+	if isTraced && tracer.GetOTel() {
 		rt = otelhttp.NewTransport(t)
 	}
 
@@ -134,7 +135,7 @@ func NewClient() *Client {
 func NewH2Client() *Client {
 	c := &Client{Kind: KindH2}
 	var rt http.RoundTripper = &h2Transport
-	if isTraced {
+	if isTraced && tracer.GetOTel() {
 		rt = otelhttp.NewTransport(rt)
 	}
 	c.Client = &http.Client{Transport: rt}
@@ -145,7 +146,7 @@ func NewH2Client() *Client {
 func NewH2CClient() *Client {
 	c := &Client{Kind: KindH2C}
 	var rt http.RoundTripper = &h2CTransport
-	if isTraced {
+	if isTraced && tracer.GetOTel() {
 		rt = otelhttp.NewTransport(rt)
 	}
 	c.Client = &http.Client{Transport: rt}
@@ -247,6 +248,32 @@ func errDeadlineOrCancel(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
 
+func traceFromContext(ctx context.Context) (trace tracedata.TraceData) {
+	if l := L(ctx); l != nil {
+		trace = l.Trace
+	} else if tracer.GetOTel() {
+		trace = traceotel.NewFromContext(ctx)
+	}
+	return
+}
+
+func traceFromContextOrRequestOrRandom(req *http.Request) (trace tracedata.TraceData) {
+	trace = traceFromContext(req.Context())
+	if trace == nil || reflect.ValueOf(trace).IsNil() {
+		trace = tracer.NewFromRequestOrRandom(req)
+	}
+	return
+}
+
+func doSpan(req *http.Request) (*http.Request, string) {
+	trace := traceFromContextOrRequestOrRandom(req)
+
+	if trace.IsReceived() || isTraced {
+		return trace.Span(req)
+	}
+	return req, tracecommon.NewTraceID()
+}
+
 func (c *Client) setUA(req *http.Request) {
 	if c.userAgent != "" && req.Header.Get("User-agent") == "" {
 		req.Header.Set("User-agent", c.userAgent)
@@ -307,14 +334,12 @@ func (c *Client) setClientCredentialAuth(ctx context.Context, req *http.Request)
 // Do sends an HTTP request and returns an HTTP response.
 // All the rules of http.Client.Do() applies.
 // If URL of req is relative path then root defined at client.Root is added as prefix.
-// Do(ctx, req) is somewhat like Do(req.WithContext(ctx)) of http.Client.
-// If ctx contains tracing headers of Lambda class then adds them to the request with a new span ID.
-func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
+// If request context contains tracing headers then adds them to the request with a new span ID.
+func (c *Client) Do(req *http.Request) (*http.Response, error) {
+	ctx := req.Context()
 	if err := ctx.Err(); err != nil { // Do not start the Dial if context cancelled/deadlined already.
 		return nil, err
 	}
-	ctx, span := ensureTraceCtx(ctx, req)
-	req = req.WithContext(ctx)
 
 	if req.Header == nil {
 		req.Header = make(http.Header)
@@ -347,7 +372,8 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		}
 	}
 
-	resp, err := c.doLog(ctx, span, req, body, target)
+	req, spanStr := doSpan(req)
+	resp, err := c.doLog(spanStr, req, body, target)
 
 	for i := 0; i < len(c.monitor); i++ {
 		if c.monitor[i].post != nil {
@@ -380,8 +406,7 @@ func (c *Client) doWithRetry(req *http.Request, body io.ReadCloser, spanStr, tar
 	return resp, err
 }
 
-func (c *Client) doLog(ctx context.Context, spanCtx trace.SpanContext, req *http.Request, body io.ReadCloser, target string) (*http.Response, error) {
-	spanStr := spanCtx.TraceID().String() // + "-" + spanCtx.SpanID().String()
+func (c *Client) doLog(spanStr string, req *http.Request, body io.ReadCloser, target string) (*http.Response, error) {
 	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, target)
 	resp, err := c.doWithRetry(req, body, spanStr, target)
 	if err != nil {
@@ -497,7 +522,7 @@ func (c *Client) sendRequestBytes(ctx context.Context, method string, target str
 		}
 	}
 
-	return c.Do(ctx, req)
+	return c.Do(req)
 }
 
 // SendRecv sends request with given data and returns response data.
@@ -562,14 +587,14 @@ func (c *Client) BroadcastRequest(ctx context.Context, method string, target str
 // PostForm posts data as "application/x-www-form-urlencoded", expects response as "application/json", if any.
 // Returns Location URL, if received.
 func (c *Client) PostForm(ctx context.Context, target string, reqData url.Values, respData interface{}) (*url.URL, error) {
-	req, err := http.NewRequest(http.MethodPost, target, strings.NewReader(reqData.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, strings.NewReader(reqData.Encode()))
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header.Set("Content-Type", ContentTypeForm)
 
-	resp, err := c.Do(ctx, req)
+	resp, err := c.Do(req)
 	if err != nil {
 		return nil, err
 	}

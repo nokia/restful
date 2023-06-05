@@ -13,7 +13,7 @@ When you use RESTful, you do not need to write a single line of code for tracing
   Generates new trace ID if not received any.
 * When sending a request, Client functions read tracing information from the context and make a new span.
 * Send/receive logs contain compact tracing information. The exact behavior depends on Logrus log level.
-* Tracing is based on industry standard [OpenTelemetry](https://github.com/open-telemetry/) project.
+* If SetOTel(true) is called, tracing is based on industry standard [OpenTelemetry](https://github.com/open-telemetry/) project.
 
 An example, tracing data propagated in variable `ctx`.
 

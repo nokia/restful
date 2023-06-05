@@ -6,12 +6,9 @@ package restful
 
 import (
 	"context"
-	"math/rand"
 	"net/http"
-	"strconv"
 
 	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel/trace"
 )
 
 type loggerCtxKey string
@@ -45,19 +42,19 @@ func loggerPost(w http.ResponseWriter, r *http.Request, statusCode int) {
 }
 
 func loggerPre(w http.ResponseWriter, r *http.Request) *http.Request {
+	// If long won't be printed, then omit context and trace operations.
+	if !log.IsLevelEnabled(log.DebugLevel) {
+		return r
+	}
+
 	if r.URL.Path == LivenessProbePath || r.URL.Path == HealthCheckPath {
 		w.Header().Set("Cache-Control", "no-cache")
 		w.WriteHeader(http.StatusOK) // No logs, stop processing.
 	} else if r.URL.Path != ReadinessProbePath {
-		var traceStr string
-		spanCtx := trace.SpanContextFromContext(r.Context())
-		if spanCtx.IsValid() {
-			traceStr = spanCtx.TraceID().String() + "-" + spanCtx.SpanID().String()
-		} else {
-			traceStr = strconv.Itoa(rand.Int()) // #nosec - Intentionally weak and cheap
-		}
-		log.Debugf("[%s] Recv req: %s %s", traceStr, r.Method, r.URL.Path)
+		trace := traceFromContextOrRequestOrRandom(r)
+		traceStr := trace.String()
 		r = r.WithContext(context.WithValue(r.Context(), loggerCtxName, traceStr)) // Add trace string to req context, to be retrieved at response logging.
+		log.Debugf("[%s] Recv req: %s %s", traceStr, r.Method, r.URL.Path)
 	}
 	return r
 }

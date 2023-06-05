@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"reflect"
 	"unsafe"
+
+	"github.com/nokia/restful/lambda"
 )
 
 // LambdaMaxBytesToParse defines the maximum length of request content allowed to be parsed.
@@ -19,35 +21,35 @@ var LambdaMaxBytesToParse = 0
 // See SanitizeJSONString for details.
 var LambdaSanitizeJSON = false
 
-func lambdaHandleRes0(l *Lambda) (err error) {
-	if l != nil && l.status > 0 {
-		err = NewError(nil, l.status)
+func lambdaHandleRes0(l *lambda.Lambda) (err error) {
+	if l != nil && l.Status > 0 {
+		err = NewError(nil, l.Status)
 	}
 	return
 }
 
-func lambdaHandleRes1(l *Lambda, res reflect.Value) (interface{}, error) {
+func lambdaHandleRes1(l *lambda.Lambda, res reflect.Value) (interface{}, error) {
 	if err, ok := res.Interface().(error); ok {
 		return nil, err
 	}
 
-	if l != nil && l.status > 0 {
-		return res.Interface(), NewError(nil, l.status)
+	if l != nil && l.Status > 0 {
+		return res.Interface(), NewError(nil, l.Status)
 	}
 	return res.Interface(), nil
 }
 
-func lambdaGetStatus(l *Lambda, res reflect.Value) error {
+func lambdaGetStatus(l *lambda.Lambda, res reflect.Value) error {
 	if err, ok := res.Interface().(error); ok {
 		return err
 	}
-	if l != nil && l.status > 0 {
-		return NewError(nil, l.status)
+	if l != nil && l.Status > 0 {
+		return NewError(nil, l.Status)
 	}
 	return nil
 }
 
-func lambdaHandleRes2(l *Lambda, res []reflect.Value) (interface{}, error) {
+func lambdaHandleRes2(l *lambda.Lambda, res []reflect.Value) (interface{}, error) {
 
 	err := lambdaGetStatus(l, res[1])
 
