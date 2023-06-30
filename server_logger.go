@@ -42,15 +42,10 @@ func loggerPost(w http.ResponseWriter, r *http.Request, statusCode int) {
 }
 
 func loggerPre(w http.ResponseWriter, r *http.Request) *http.Request {
-	// If long won't be printed, then omit context and trace operations.
-	if !log.IsLevelEnabled(log.DebugLevel) {
-		return r
-	}
-
 	if r.URL.Path == LivenessProbePath || r.URL.Path == HealthCheckPath {
 		w.Header().Set("Cache-Control", "no-cache")
 		w.WriteHeader(http.StatusOK) // No logs, stop processing.
-	} else if r.URL.Path != ReadinessProbePath {
+	} else if r.URL.Path != ReadinessProbePath && log.IsLevelEnabled(log.DebugLevel) { // If log won't be printed, then omit context and trace operations.
 		trace := traceFromContextOrRequestOrRandom(r)
 		traceStr := trace.String()
 		r = r.WithContext(context.WithValue(r.Context(), loggerCtxName, traceStr)) // Add trace string to req context, to be retrieved at response logging.
