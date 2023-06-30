@@ -79,7 +79,7 @@ func main() {
 
     // You may populate DB using 2 content types:
     // As application/json:
-    //     curl -i http://localhost:8080/users -d '{"name": "Joe", "address": "Karakaari 7, 02610 Espoo, Suomi"}' -H 'Content-Type:application/json'
+    //     curl -i http://localhost:8080/users --json '{"name": "Joe", "address": "Karakaari 7, 02610 Espoo, Suomi"}'
     // As application/x-www-form-urlencoded:
     //     curl -i http://localhost:8080/users -d "name=Jane" -d "address=Bokay Janos 36, 1083 Budapest, Hungary"
     restful.HandleFunc("/users", createUser).Methods(http.MethodPost)
