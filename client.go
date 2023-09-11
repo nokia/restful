@@ -332,7 +332,7 @@ func (c *Client) setClientCredentialAuth(ctx context.Context, req *http.Request)
 }
 
 // Do sends an HTTP request and returns an HTTP response.
-// All the rules of http.Client.Do() applies.
+// All the rules of http.Client.Do() apply.
 // If URL of req is relative path then root defined at client.Root is added as prefix.
 // If request context contains tracing headers then adds them to the request with a new span ID.
 func (c *Client) Do(req *http.Request) (*http.Response, error) {

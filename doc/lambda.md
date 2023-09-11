@@ -199,10 +199,9 @@ A: You are visiting the wrong project, maybe.
 **Q: Why is this library based on Gorilla/Mux, when there are other high-performance alternatives, such as [Gin](https://github.com/gin-gonic/gin) or [Bunrouter](https://bunrouter.uptrace.dev/)?**
 
 A: We are fortunate to have so many great routers.
-   Our aim is simple syntax similar to standard http or Gorilla/Mux packages.
+   Our aim is to have a simple syntax similar to standard http package.
+   [Gorilla/Mux](https://github.com/gorilla/mux) delivers that with many great extensions.
    For a complex app with database operations, router speed difference may be negliable.
-   Gorilla project is [not in active maintenance](https://github.com/gorilla#gorilla-toolkit), anymore.
-   But given its dependencies, keeping Go up-to-date leaves small room for vulnerabilities.
 
 **Q: Is it possible to send alternative types in responses, decided run-time? Like `f() (T1, T2, error)`.**
 
