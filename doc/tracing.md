@@ -13,7 +13,9 @@ When you use RESTful, you do not need to write a single line of code for tracing
   Generates new trace ID if not received any.
 * When sending a request, Client functions read tracing information from the context and make a new span.
 * Send/receive logs contain compact tracing information. The exact behavior depends on Logrus log level.
-* If SetOTel(true) is called, tracing is based on industry standard [OpenTelemetry](https://github.com/open-telemetry/) project.
+* If `SetOTel(true, tracerProvider)` or `SetOTelGrpc("host:4317")` are called, tracing is based on industry standard [OpenTelemetry](https://github.com/open-telemetry/) project.
+  The main difference between the default and OTel is that for OTel you may define an exporter which sends traces to a collector.
+  While the default one just propagates the headers, and relies on a service mesh to report to a collector in timely manner.
 
 An example, tracing data propagated in variable `ctx`.
 

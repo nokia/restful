@@ -21,6 +21,13 @@ func SetOTel(enabled bool, tp *sdktrace.TracerProvider) {
 	defaultClient = NewClient()
 }
 
+// SetOTelGrpc enables Open Telemetry.
+// Activates trace export to the OTLP gRPC collector target address defined.
+// Port is 4317, unless defined otherwise in provided target string.
+func SetOTelGrpc(target string) error {
+	return tracer.SetOTelGrpc(target)
+}
+
 // SetTrace can enable/disable HTTP tracing.
 // By default trace header generation and propagation is enabled.
 func SetTrace(b bool) {

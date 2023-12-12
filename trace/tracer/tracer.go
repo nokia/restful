@@ -5,8 +5,13 @@
 package tracer
 
 import (
+	"context"
 	"net/http"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
+	"time"
 
 	"github.com/nokia/restful/trace/traceb3"
 	"github.com/nokia/restful/trace/tracedata"
@@ -14,8 +19,13 @@ import (
 	"github.com/nokia/restful/trace/traceparent"
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var otelEnabled = false
@@ -26,7 +36,7 @@ func GetOTel() bool {
 }
 
 // SetOTel enables/disables Open Telemetry. By default it is disabled.
-// Trace provider can be set.
+// Tracer provider can be set with an exporter and collector endpoint you need.
 func SetOTel(enabled bool, tp *sdktrace.TracerProvider) {
 	otelEnabled = enabled
 
@@ -38,6 +48,40 @@ func SetOTel(enabled bool, tp *sdktrace.TracerProvider) {
 		otel.SetTracerProvider(tp)
 		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, b3.New(), b3.New(b3.WithInjectEncoding(b3.B3MultipleHeader))))
 	}
+}
+
+// SetOTelGrpc enables Open Telemetry.
+// Activates trace export to the OTLP gRPC collector target address defined.
+// Port is 4317, unless defined otherwise in provided target string.
+func SetOTelGrpc(target string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	name := filepath.Base(os.Args[0])
+	res, err := resource.New(ctx, resource.WithAttributes(semconv.ServiceNameKey.String(name)))
+	if err != nil {
+		return err
+	}
+
+	target = strings.TrimPrefix(target, "http://")
+	target = strings.TrimPrefix(target, "https://")
+	if !strings.Contains(target, ":") {
+		target = target + ":4317"
+	}
+	grpcConn, err := grpc.DialContext(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	if err != nil {
+		return err
+	}
+
+	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(grpcConn))
+	if err != nil {
+		return err
+	}
+
+	batchSpanProcessor := sdktrace.NewBatchSpanProcessor(exporter)
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithResource(res), sdktrace.WithSpanProcessor(batchSpanProcessor))
+	SetOTel(true, tracerProvider)
+	return nil
 }
 
 // Tracer is a HTTP trace handler of various kinds.
