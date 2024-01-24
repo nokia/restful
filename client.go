@@ -68,7 +68,7 @@ type HTTPSConfig struct {
 	AllowedHTTPHosts []string
 }
 
-func (hc *HTTPSConfig) allowed(target url.URL) bool {
+func (hc *HTTPSConfig) isAllowed(target *url.URL) bool {
 	hostname := target.Hostname()
 	return hc == nil ||
 		target.Scheme == "https" ||
@@ -272,7 +272,20 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 // Either on first request to be sent or later when the obtained access token is expired.
 //
 // Make sure encrypted transport is used, e.g. the link is https.
+// If client's HTTPS() has been called earlier, then token URL is checked accordingly.
+// If token URL does not meet those requirements, then client credentials auth is not activated and error log is printed.
 func (c *Client) SetClientCredentialAuth(clientID, clientSecret, tokenURL string) *Client {
+	if c.httpsCfg != nil {
+		tokenURL, err := url.Parse(tokenURL)
+		if err == nil {
+			if !c.httpsCfg.isAllowed(tokenURL) {
+				log.Error("token URL: ", ErrNonHTTPSURL)
+				return c
+			}
+		} else {
+			log.Error("token URL is not valid: ", err)
+		}
+	}
 	c.clientCredConfig = &clientcredentials.Config{ClientID: clientID, ClientSecret: clientSecret, TokenURL: tokenURL}
 	return c
 }
@@ -476,7 +489,7 @@ func (c *Client) setReqTarget(req *http.Request) (target string, err error) {
 		req.URL, err = url.Parse(target)
 	}
 
-	if !c.httpsCfg.allowed(*req.URL) {
+	if !c.httpsCfg.isAllowed(req.URL) {
 		return target, ErrNonHTTPSURL
 	}
 	return

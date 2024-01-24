@@ -54,6 +54,19 @@ if err != nil {
 
 ## HTTPS
 
+### Check URL
+
+It is possible to disable cleartext HTTP entirely or enable toward certain targets only.
+
+```go
+clientNoHTTP := restful.NewClient().HTTPS(nil)
+clientNoHTTPUnlessTest := restful.NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"test.server"}})
+clientNoHTTPUnlessLocal := restful.NewClient().HTTPS(&HTTPSConfig{AllowLocalhostHTTP: true})
+```
+
+It is up to the design paradigm whether to allow cleartext traffic for non-test targets.
+According to service mesh pattern transport issues, including encryption algorithms, do not belong to the business logic.
+
 ### OS cert pool
 
 HTTPS works out of box. Certs are loaded from OS cert pool without further ado.
