@@ -28,7 +28,7 @@ func TestHTTPS(t *testing.T) {
 	srv.URL = strings.ReplaceAll(srv.URL, "127.0.0.1", "localhost")
 	defer srv.Close()
 
-	client := NewClient().Root(srv.URL).TLSRootCerts("test_certs")
+	client := NewClient().Root(srv.URL).TLSRootCerts("test_certs").HTTPS(nil)
 	err = client.Get(context.Background(), "/NEF", nil)
 	assert.Nil(err)
 }
