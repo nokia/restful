@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -42,12 +43,39 @@ var defaultClient = NewClient()
 //	restful.TokenClient = myClient.Client
 var TokenClient *http.Client = &http.Client{Timeout: 10 * time.Second}
 
+var (
+	// ErrNonHTTPSURL means that using non-https URL not allowed.
+	ErrNonHTTPSURL = errors.New("non-https URL not allowed")
+)
+
 // Kind is a string representation of what kind the client is. Depending on which New() function is called.
 const (
 	KindBasic = ""
 	KindH2    = "h2"
 	KindH2C   = "h2c"
 )
+
+// HTTPSConfig contains some flags that control what kind of URLs to be allowed to be used.
+// Don't confuse these with TLS config.
+type HTTPSConfig struct {
+	// AllowHTTP flag tells whether cleartext HTTP URLs are to be allowed to be used or not.
+	AllowHTTP bool
+	// AllowLocalhostHTTP flag tells whether to allow cleartext HTTP transport for localhost connections.
+	// If AllowHttp is true, then that overrides this flag.
+	AllowLocalhostHTTP bool
+	// AllowedHTTPHosts lets hostnames defined which are allowed to be accessed by cleartext HTTP.
+	// If AllowHttp is true, then this setting is not considered.
+	AllowedHTTPHosts []string
+}
+
+func (hc *HTTPSConfig) allowed(target url.URL) bool {
+	hostname := target.Hostname()
+	return hc == nil ||
+		target.Scheme == "https" ||
+		hc.AllowHTTP ||
+		slices.Contains(hc.AllowedHTTPHosts, hostname) ||
+		(hc.AllowLocalhostHTTP && isLocalhost(hostname))
+}
 
 // Client is an instance of RESTful client.
 type Client struct {
@@ -59,6 +87,7 @@ type Client struct {
 	// Changing its value does not change client kind.
 	Kind string
 
+	httpsCfg          *HTTPSConfig
 	sanitizeJSON      bool
 	rootURL           string
 	userAgent         string
@@ -153,7 +182,7 @@ func NewH2CClient() *Client {
 	return c
 }
 
-// UserAgent to be sent as User-Agent HTTP header. If not set then default Go settings are used.
+// UserAgent to be sent as User-Agent HTTP header. If not set then default Go client settings are used.
 func (c *Client) UserAgent(userAgent string) *Client {
 	c.userAgent = userAgent
 	return c
@@ -177,6 +206,21 @@ func (c *Client) AcceptProblemJSON(acceptProblemJSON bool) *Client {
 // You may use it this way: client := New().Root(...) or just client.Root(...)
 func (c *Client) Root(rootURL string) *Client {
 	c.rootURL = rootURL
+	return c
+}
+
+// HTTPS lets you set what kind of URLs are allowed to be used.
+// If HTTPS is not called, there are no restrictions applied.
+// If HTTPS is called with nil config, then cleartext HTTP is not allowed.
+//
+//	cLocal := restful.NewClient().Root(peerURL).HTTPS(restful.HTTPSConfig{AllowLocalhostHTTP: true})
+//	cTest := restful.NewClient().Root(peerURL).HTTPS(restful.HTTPSConfig{AllowedHTTPHosts: []string{"test"}})
+func (c *Client) HTTPS(config *HTTPSConfig) *Client {
+	if config == nil {
+		c.httpsCfg = &HTTPSConfig{}
+	} else {
+		c.httpsCfg = config
+	}
 	return c
 }
 
@@ -417,11 +461,23 @@ func (c *Client) doLog(spanStr string, req *http.Request, body io.ReadCloser, ta
 	return resp, err
 }
 
+func isLocalhost(hostname string) bool {
+	ip := net.ParseIP(hostname)
+	if ip == nil { // Not IP address
+		return strings.ToLower(hostname) == "localhost"
+	}
+	return ip.IsLoopback()
+}
+
 func (c *Client) setReqTarget(req *http.Request) (target string, err error) {
 	target = req.URL.String()
 	if len(target) == 0 || target[0] == '/' {
 		target = c.rootURL + target
 		req.URL, err = url.Parse(target)
+	}
+
+	if !c.httpsCfg.allowed(*req.URL) {
+		return target, ErrNonHTTPSURL
 	}
 	return
 }

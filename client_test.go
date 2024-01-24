@@ -66,7 +66,7 @@ func TestMethods(t *testing.T) {
 	reqData := strType{Str: "b"}
 	respData := strType{}
 	ctx := context.Background()
-	client := NewClient().Root(srv.URL).SanitizeJSON()
+	client := NewClient().Root(srv.URL).SanitizeJSON().HTTPS(&HTTPSConfig{AllowLocalhostHTTP: true})
 	location, err := client.Post(ctx, "/users", &reqData, &respData)
 	assert.Nil(err)
 	locationStr := location.String()
@@ -112,6 +112,14 @@ func TestMethods(t *testing.T) {
 	assert.Nil(err)
 	err = Delete(ctx, locationStr)
 	assert.Nil(err)
+}
+
+func TestHttpNotAllowed(t *testing.T) {
+	assert := assert.New(t)
+	assert.Equal(ErrNonHTTPSURL, NewClient().HTTPS(nil).Root("http://localhost").Get(context.Background(), "/", nil))
+	assert.Equal(ErrNonHTTPSURL, NewClient().HTTPS(&HTTPSConfig{}).Root("http://localhost").Get(context.Background(), "/", nil))
+	assert.Equal(ErrNonHTTPSURL, NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"remote"}}).Root("http://localhost").Get(context.Background(), "/", nil))
+	assert.Equal(ErrNonHTTPSURL, NewClient().HTTPS(&HTTPSConfig{AllowLocalhostHTTP: true}).Root("http://remote").Get(context.Background(), "/", nil))
 }
 
 func TestGetTooLongAnswer(t *testing.T) {
