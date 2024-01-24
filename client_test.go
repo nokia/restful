@@ -504,7 +504,22 @@ func TestCtxCancelBefore(t *testing.T) {
 }
 
 func TestSetClientCredentialAuthDown(t *testing.T) {
-	client := NewClient().SetClientCredentialAuth("id", "secret", "https://0.0.0.0:1")
-	err := client.Get(context.Background(), "https://127.0.0.1", nil)
+	client := NewClient().HTTPS(nil).SetClientCredentialAuth("id", "secret", "https://0.0.0.0:1")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := client.Get(ctx, "https://127.0.0.1", nil)
 	assert.Contains(t, err.Error(), "0.0.0.0:1")
+}
+
+func TestSetClientCredentialAuthDownAllowedTarget(t *testing.T) {
+	client := NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"0.0.0.0"}}).SetClientCredentialAuth("id", "secret", "http://0.0.0.0:1")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := client.Get(ctx, "https://127.0.0.1", nil)
+	assert.Contains(t, err.Error(), "0.0.0.0:1")
+}
+
+func TestSetClientCredentialNotAllowedTarget(t *testing.T) {
+	client := NewClient().HTTPS(nil).SetClientCredentialAuth("id", "secret", "http://0.0.0.0:1")
+	assert.NotNil(t, client)
 }
