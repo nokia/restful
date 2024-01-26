@@ -104,20 +104,6 @@ type Client struct {
 	oauth2TokenMutex  sync.RWMutex
 }
 
-// Oauth2Config is the generic struct to get basic information for different oauth2 flows.
-type Oauth2Config struct {
-	// ClientID identifies the client.
-	ClientID string
-	// ClientSecret is used to protect resources by only granting tokens to authorized requestors.
-	ClientSecret string
-	// TokenURL is the URL we use to get access tokens.
-	TokenURL string
-	/*	// AuthURL is used to exchange authorization code for access token.
-		AuthURL */
-	// Scopes are a way to further limit access by an application.
-	Scopes []string
-}
-
 var h2CTransport = http2.Transport{
 	AllowHTTP: true,
 	DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
@@ -288,7 +274,7 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 // Make sure encrypted transport is used, e.g. the link is https.
 // If client's HTTPS() has been called earlier, then token URL is checked accordingly.
 // If token URL does not meet those requirements, then client credentials auth is not activated and error log is printed.
-func (c *Client) SetClientCredentialAuth(config Oauth2Config) *Client {
+func (c *Client) SetClientCredentialAuth(config clientcredentials.Config) *Client {
 	if c.httpsCfg != nil {
 		tokenURL, err := url.Parse(config.TokenURL)
 		if err == nil {
