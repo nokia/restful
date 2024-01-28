@@ -274,9 +274,8 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 // Make sure encrypted transport is used, e.g. the link is https.
 // If client's HTTPS() has been called earlier, then token URL is checked accordingly.
 // If token URL does not meet those requirements, then client credentials auth is not activated and error log is printed.
-func (c *Client) SetClientCredentialAuth(config clientcredentials.Config) *Client {
+func (c *Client) SetClientCredentialAuth(config oauth2.Config) *Client {
 	if c.httpsCfg != nil {
-		tokenURL, err := url.Parse(config.TokenURL)
 		if err == nil {
 			if !c.httpsCfg.isAllowed(tokenURL) {
 				log.Error("token URL: ", ErrNonHTTPSURL)
