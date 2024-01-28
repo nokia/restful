@@ -505,8 +505,8 @@ func TestCtxCancelBefore(t *testing.T) {
 }
 
 func TestSetClientCredentialAuthDown(t *testing.T) {
-	client := NewClient().HTTPS(nil).SetClientCredentialAuth(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "https://0.0.0.0:1"}})
-	assert.Equal(t, len(client.clientCredConfig.Scopes), 0)
+	client := NewClient().HTTPS(nil).SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "https://0.0.0.0:1"}}, GrantClientCredentials)
+	assert.Equal(t, len(client.oauth2Config.Scopes), 0)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	err := client.Get(ctx, "https://127.0.0.1", nil)
@@ -514,8 +514,8 @@ func TestSetClientCredentialAuthDown(t *testing.T) {
 }
 
 func TestSetClientCredentialAuthDownAllowedTarget(t *testing.T) {
-	client := NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"0.0.0.0"}}).SetClientCredentialAuth(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "https://0.0.0.0:1"}, Scopes: []string{"openid", "profile"}})
-	assert.Equal(t, len(client.clientCredConfig.Scopes), 2)
+	client := NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"0.0.0.0"}}).SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "https://0.0.0.0:1"}, Scopes: []string{"openid", "profile"}}, GrantClientCredentials)
+	assert.Equal(t, len(client.oauth2Config.Scopes), 2)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	err := client.Get(ctx, "https://127.0.0.1", nil)
@@ -523,7 +523,7 @@ func TestSetClientCredentialAuthDownAllowedTarget(t *testing.T) {
 }
 
 func TestSetClientCredentialNotAllowedTarget(t *testing.T) {
-	client := NewClient().HTTPS(nil).SetClientCredentialAuth(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "http://0.0.0.0:1"}})
-	assert.Nil(t, client.clientCredConfig)
+	client := NewClient().HTTPS(nil).SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "http://0.0.0.0:1"}}, GrantClientCredentials)
+	assert.Nil(t, client.oauth2Config)
 	assert.NotNil(t, client)
 }
