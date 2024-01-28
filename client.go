@@ -276,6 +276,7 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 // If token URL does not meet those requirements, then client credentials auth is not activated and error log is printed.
 func (c *Client) SetClientCredentialAuth(config oauth2.Config) *Client {
 	if c.httpsCfg != nil {
+		tokenURL, err := url.Parse(config.Endpoint.TokenURL)
 		if err == nil {
 			if !c.httpsCfg.isAllowed(tokenURL) {
 				log.Error("token URL: ", ErrNonHTTPSURL)
@@ -285,7 +286,7 @@ func (c *Client) SetClientCredentialAuth(config oauth2.Config) *Client {
 			log.Error("token URL is not valid: ", err)
 		}
 	}
-	c.clientCredConfig = &clientcredentials.Config{ClientID: config.ClientID, ClientSecret: config.ClientSecret, TokenURL: config.TokenURL}
+	c.clientCredConfig = &clientcredentials.Config{ClientID: config.ClientID, ClientSecret: config.ClientSecret, TokenURL: config.Endpoint.TokenURL}
 	if len(config.Scopes) > 0 {
 		c.clientCredConfig.Scopes = config.Scopes
 	}

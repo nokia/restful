@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/oauth2/clientcredentials"
+	"golang.org/x/oauth2"
 )
 
 type strType struct {
@@ -505,7 +505,7 @@ func TestCtxCancelBefore(t *testing.T) {
 }
 
 func TestSetClientCredentialAuthDown(t *testing.T) {
-	client := NewClient().HTTPS(nil).SetClientCredentialAuth(clientcredentials.Config{ClientID: "id", ClientSecret: "secret", TokenURL: "https://0.0.0.0:1"})
+	client := NewClient().HTTPS(nil).SetClientCredentialAuth(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "https://0.0.0.0:1"}})
 	assert.Equal(t, len(client.clientCredConfig.Scopes), 0)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -514,7 +514,7 @@ func TestSetClientCredentialAuthDown(t *testing.T) {
 }
 
 func TestSetClientCredentialAuthDownAllowedTarget(t *testing.T) {
-	client := NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"0.0.0.0"}}).SetClientCredentialAuth(clientcredentials.Config{ClientID: "id", ClientSecret: "secret", TokenURL: "https://0.0.0.0:1", Scopes: []string{"openid", "profile"}})
+	client := NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"0.0.0.0"}}).SetClientCredentialAuth(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "https://0.0.0.0:1"}, Scopes: []string{"openid", "profile"}})
 	assert.Equal(t, len(client.clientCredConfig.Scopes), 2)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -523,7 +523,7 @@ func TestSetClientCredentialAuthDownAllowedTarget(t *testing.T) {
 }
 
 func TestSetClientCredentialNotAllowedTarget(t *testing.T) {
-	client := NewClient().HTTPS(nil).SetClientCredentialAuth(clientcredentials.Config{ClientID: "id", ClientSecret: "secret", TokenURL: "http://0.0.0.0:1"})
+	client := NewClient().HTTPS(nil).SetClientCredentialAuth(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "http://0.0.0.0:1"}})
 	assert.Nil(t, client.clientCredConfig)
 	assert.NotNil(t, client)
 }
