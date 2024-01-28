@@ -440,7 +440,7 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 
 	body := c.cloneBody(req)
 
-	if c.username != "" && (c.grantType == "" || c.grantType == BasicAuth) {
+	if c.username != "" && c.oauth2Config == nil {
 		req.SetBasicAuth(c.username, c.password)
 	}
 	if c.oauth2Config != nil {
