@@ -58,9 +58,7 @@ const (
 const (
 	GrantClientCredentials   = "client_credentials"
 	GrantRefreshToken        = "refresh_token"
-	GrantThreeLegged         = "three_legged"
 	GrantPasswordCredentials = "password"
-	BasicAuth                = "basic"
 )
 
 // HTTPSConfig contains some flags that control what kind of URLs to be allowed to be used.
@@ -277,13 +275,13 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 	return c
 }
 
-// SetOauth2Conf makes client obtain OAuth2 access token for given client credentials.
+// SetOauth2Conf makes client obtain OAuth2 access token for given grant.
 // Either on first request to be sent or later when the obtained access token is expired.
 //
 // Make sure encrypted transport is used, e.g. the link is https.
 // If client's HTTPS() has been called earlier, then token URL is checked accordingly.
 // If token URL does not meet those requirements, then client credentials auth is not activated and error log is printed.
-func (c *Client) SetOauth2Conf(config oauth2.Config, grant string) *Client {
+func (c *Client) SetOauth2Conf(config oauth2.Config, grant ...string) *Client {
 	if c.httpsCfg != nil {
 		tokenURL, err := url.Parse(config.Endpoint.TokenURL)
 		if err == nil {
@@ -295,7 +293,9 @@ func (c *Client) SetOauth2Conf(config oauth2.Config, grant string) *Client {
 			log.Error("token URL is not valid: ", err)
 		}
 	}
-	c.grantType = grant
+	if len(grant) > 0 {
+		c.grantType = grant[0]
+	}
 	c.oauth2Config = &config
 	return c
 }
@@ -363,7 +363,7 @@ func retryResp(resp *http.Response) bool {
 	return resp == nil || retryStatus(resp.StatusCode)
 }
 
-func (c *Client) obtainOauth2Token(ctx context.Context, req *http.Request) error {
+func (c *Client) obtainOauth2Token(ctx context.Context) error {
 	// Release reader lock, obtain writer lock instead. Revert to reader lock when finished.
 	c.oauth2TokenMutex.RUnlock()
 	c.oauth2TokenMutex.Lock()
@@ -378,25 +378,21 @@ func (c *Client) obtainOauth2Token(ctx context.Context, req *http.Request) error
 		var token *oauth2.Token
 		var err error
 		switch c.grantType {
-		case GrantClientCredentials:
-			conf := clientcredentials.Config{ClientID: c.oauth2Config.ClientID, ClientSecret: c.oauth2Config.ClientSecret, TokenURL: c.oauth2Config.Endpoint.TokenURL, Scopes: c.oauth2Config.Scopes}
-			token, err = conf.TokenSource(oauthCtx).Token()
-			if err != nil {
-				return err
-			}
+		case GrantPasswordCredentials:
+			token, err = c.oauth2Config.PasswordCredentialsToken(ctx, c.username, c.password)
 		case GrantRefreshToken:
 			if c.oauth2Token.RefreshToken == "" {
-				t, err := c.oauth2Config.PasswordCredentialsToken(ctx, c.username, c.password)
-				if err != nil {
-					log.Panic(err)
-				}
-				c.oauth2Token = *t
-				return nil
+				token, err = c.oauth2Config.PasswordCredentialsToken(ctx, c.username, c.password)
+				break
 			}
 			token, err = c.oauth2Config.TokenSource(oauthCtx, &c.oauth2Token).Token()
-			if err != nil {
-				return err
-			}
+		default:
+			conf := clientcredentials.Config{ClientID: c.oauth2Config.ClientID, ClientSecret: c.oauth2Config.ClientSecret, TokenURL: c.oauth2Config.Endpoint.TokenURL, Scopes: c.oauth2Config.Scopes}
+			token, err = conf.TokenSource(oauthCtx).Token()
+		}
+		if err != nil {
+			log.Error(err)
+			return err
 		}
 		c.oauth2Token = *token
 	}
@@ -409,7 +405,7 @@ func (c *Client) setOauth2Auth(ctx context.Context, req *http.Request) error {
 	defer c.oauth2TokenMutex.RUnlock()
 
 	if !c.oauth2Token.Valid() { // Valid adds some extra time for client (10s)
-		if err := c.obtainOauth2Token(ctx, req); err != nil {
+		if err := c.obtainOauth2Token(ctx); err != nil {
 			return err
 		}
 	}
