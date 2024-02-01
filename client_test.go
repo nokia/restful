@@ -528,13 +528,13 @@ func TestSetClientCredentialNotAllowedTarget(t *testing.T) {
 }
 
 func TestOauth2AccessTokenReqs(t *testing.T) {
-	acces_token := "your_access_token"
+	accesToken := "yourAccessToken"
+	refreshToken := "yourRefreshToken"
 	authSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		refresh_token := "your_refresh_token"
 		assert.NoError(t, r.ParseForm())
 		switch strings.ToLower(r.Form.Get("grant_type")) {
-		case "refresh_token":
-			assert.NotEqual(t, r.Form.Get("refresh_token"), "")
+		case "refreshToken":
+			assert.NotEqual(t, r.Form.Get("refreshToken"), "")
 			assert.True(t, strings.HasPrefix(r.Header.Get("Authorization"), "Basic"))
 		case "password":
 			assert.NotEqual(t, r.Form.Get("username"), "")
@@ -543,32 +543,42 @@ func TestOauth2AccessTokenReqs(t *testing.T) {
 			assert.True(t, strings.HasPrefix(r.Header.Get("Authorization"), "Basic"))
 		}
 		w.Header().Set("Content-type", "application/json")
-		w.Write([]byte(`{"access_token" : "` + acces_token + `", "expires_in": 60, "refresh_token": "` + refresh_token + `"}`))
+		w.Write([]byte(`{"access_token" : "` + accesToken + `", "expires_in": 60, "refresh_Token": "` + refreshToken + `"}`))
 	}))
 	defer authSrv.Close()
 	ctx := context.Background()
 	req, _ := http.NewRequest("GET", "http://127.0.0.1", nil)
-	// Test client with password credentials grant
-	client := NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"127.0.0.1"}}).SetOauth2Conf(oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}}, GrantPasswordCredentials)
-	assert.Equal(t, len(client.oauth2Config.Scopes), 0)
-	client.SetBasicAuth("user", "pass")
+
+	// Test client with invalid grant, defaulting to client credentials
+	client := NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"127.0.0.1"}}).SetOauth2Conf(oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}}, "garbage")
 	err := client.setOauth2Auth(ctx, req)
 	assert.NoError(t, err)
-	assert.Equal(t, req.Header.Get("Authorization"), "Bearer "+acces_token)
+	assert.Equal(t, client.oauth2Token.AccessToken, accesToken)
+
+	// Test client with password credentials grant
+	client = NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"127.0.0.1"}}).SetOauth2Conf(oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}}, GrantPasswordCredentials)
+	assert.Equal(t, len(client.oauth2Config.Scopes), 0)
+	client.SetBasicAuth("user", "pass")
+	err = client.setOauth2Auth(ctx, req)
+	assert.NoError(t, err)
+	assert.Equal(t, client.oauth2Token.AccessToken, accesToken)
+	assert.Equal(t, client.oauth2Token.RefreshToken, refreshToken)
 	req.Header.Del("Authorization")
 
 	// Test client with refresh token grant
 	client = NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"127.0.0.1"}}).SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}, Scopes: []string{"openid", "profile"}}, GrantRefreshToken)
 	assert.Equal(t, len(client.oauth2Config.Scopes), 2)
 	client.SetBasicAuth("user", "pass")
+	assert.Equal(t, client.oauth2Token.RefreshToken, "")
 	err = client.setOauth2Auth(ctx, req) // First try with password credentials grant without refresh_token
 	assert.NoError(t, err)
-	assert.Equal(t, req.Header.Get("Authorization"), "Bearer "+acces_token)
+	assert.Equal(t, client.oauth2Token.AccessToken, accesToken)
+	assert.Equal(t, client.oauth2Token.RefreshToken, refreshToken)
 	req.Header.Del("Authorization")
 	client.oauth2Token.AccessToken = ""  // Let's make the access token invalid before attempting a second request
 	err = client.setOauth2Auth(ctx, req) // Second try with refresh_token grant with refresh_token included
 	assert.NoError(t, err)
-	assert.Equal(t, req.Header.Get("Authorization"), "Bearer "+acces_token)
+	assert.Equal(t, client.oauth2Token.AccessToken, accesToken)
 	req.Header.Del("Authorization")
 
 	// Test client with default client credentials grant
@@ -576,5 +586,5 @@ func TestOauth2AccessTokenReqs(t *testing.T) {
 	assert.Equal(t, len(client.oauth2Config.Scopes), 2)
 	err = client.setOauth2Auth(ctx, req)
 	assert.NoError(t, err)
-	assert.Equal(t, req.Header.Get("Authorization"), "Bearer "+acces_token)
+	assert.Equal(t, client.oauth2Token.AccessToken, accesToken)
 }

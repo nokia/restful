@@ -55,11 +55,23 @@ const (
 	KindH2C   = "h2c"
 )
 
+// Grant represents the flow how oauth2 access tokens are retreived.
+type Grant string
+
 const (
-	GrantClientCredentials   = "client_credentials"
-	GrantRefreshToken        = "refresh_token"
-	GrantPasswordCredentials = "password"
+	// GrantClientCredentials represents oauth2 client credentials grant
+	GrantClientCredentials Grant = "client_credentials"
+	// GrantRefreshToken represents oauth2 refresh token grant
+	GrantRefreshToken Grant = "refresh_token"
+	// GrantPasswordCredentials represents oauth2 password credentials grant
+	GrantPasswordCredentials Grant = "password"
 )
+
+var supportedGrant = map[Grant]bool{
+	GrantClientCredentials:   true,
+	GrantPasswordCredentials: true,
+	GrantRefreshToken:        true,
+}
 
 // HTTPSConfig contains some flags that control what kind of URLs to be allowed to be used.
 // Don't confuse these with TLS config.
@@ -91,8 +103,7 @@ type Client struct {
 
 	// Kind is a string representation of what kind the client is. Depending on which New() function is called.
 	// Changing its value does not change client kind.
-	Kind string
-
+	Kind              string
 	httpsCfg          *HTTPSConfig
 	sanitizeJSON      bool
 	rootURL           string
@@ -106,7 +117,7 @@ type Client struct {
 	acceptProblemJSON bool
 	monitor           clientMonitors
 	oauth2Config      *oauth2.Config
-	grantType         string
+	grantType         Grant
 	oauth2Token       oauth2.Token
 	oauth2TokenMutex  sync.RWMutex
 }
@@ -275,13 +286,13 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 	return c
 }
 
-// SetOauth2Conf makes client obtain OAuth2 access token for given grant.
+// SetOauth2Conf makes client obtain OAuth2 access token with given grant.
 // Either on first request to be sent or later when the obtained access token is expired.
 //
 // Make sure encrypted transport is used, e.g. the link is https.
 // If client's HTTPS() has been called earlier, then token URL is checked accordingly.
 // If token URL does not meet those requirements, then client credentials auth is not activated and error log is printed.
-func (c *Client) SetOauth2Conf(config oauth2.Config, grant ...string) *Client {
+func (c *Client) SetOauth2Conf(config oauth2.Config, grant ...Grant) *Client {
 	if c.httpsCfg != nil {
 		tokenURL, err := url.Parse(config.Endpoint.TokenURL)
 		if err == nil {
@@ -294,7 +305,9 @@ func (c *Client) SetOauth2Conf(config oauth2.Config, grant ...string) *Client {
 		}
 	}
 	if len(grant) > 0 {
-		c.grantType = grant[0]
+		if supportedGrant[grant[0]] {
+			c.grantType = grant[0]
+		}
 	}
 	c.oauth2Config = &config
 	return c
