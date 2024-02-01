@@ -6,6 +6,7 @@ package restful
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -68,7 +69,7 @@ func GetDataBytesForContentType(headers http.Header, ioBody io.ReadCloser, maxBy
 
 	recvdContentType := GetBaseContentType(headers)
 	if recvdContentType != expectedContentType {
-		err = fmt.Errorf("unexpected Content-Type: '%s'; Expected: %s", recvdContentType, expectedContentType)
+		err = errors.Join(ErrUnexpectedContentType, fmt.Errorf("received: '%s'; expected: %s", recvdContentType, expectedContentType))
 		return
 	}
 	return
