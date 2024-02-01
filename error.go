@@ -11,10 +11,23 @@ import (
 	"strings"
 )
 
+const maxErrBodyLen = 4096
+
+var (
+	// ErrNonHTTPSURL means that using non-https URL not allowed.
+	ErrNonHTTPSURL = errors.New("non-https URL not allowed")
+
+	// ErrUnexpectedContentType is returned if content-type is unexpected.
+	// It may be wrapped, so use errors.Is() for checking.
+	ErrUnexpectedContentType = errors.New("unexpected Content-Type")
+)
+
 type restError struct {
 	err            error
 	statusCode     int
 	problemDetails ProblemDetails
+	contentType    string
+	body           []byte
 }
 
 // InvalidParam is the common InvalidParam object defined in 3GPP TS 29.571
@@ -84,6 +97,13 @@ func NewError(err error, statusCode int, description ...string) error {
 	return &restError{err: err, statusCode: statusCode, problemDetails: ProblemDetails{Detail: strings.Join(description, " ")}}
 }
 
+func newErrorWithBody(err error, statusCode int, contentType string, body []byte) error {
+	if len(body) > maxErrBodyLen {
+		return &restError{err: err, statusCode: statusCode}
+	}
+	return &restError{err: err, statusCode: statusCode, contentType: contentType, body: body}
+}
+
 // NewDetailedError creates a new error with specified problem details JSON structure (RFC7807)
 func NewDetailedError(err error, status int, pd ProblemDetails) error {
 	return &restError{err: err, statusCode: status, problemDetails: pd}
@@ -126,4 +146,24 @@ func GetErrStatusCodeElse(err error, elseStatusCode int) int {
 func IsConnectError(err error) bool {
 	status := GetErrStatusCodeElse(err, 502)
 	return status >= 502 && status <= 504
+}
+
+// GetErrBody returns unprocessed body of a response with error status.
+//
+//	err := restful.Get()
+//	contentType, Body := restful.GetErrBody(err)
+//	if body != nil {fmt.Print(string(body))}
+func GetErrBody(err error) (string, []byte) {
+	if err != nil {
+		var e *restError
+		if errors.As(err, &e) {
+			if e.body != nil {
+				return e.contentType, e.body
+			}
+			if e.problemDetails.Detail != "" {
+				return ContentTypeProblemJSON, []byte(e.problemDetails.Detail)
+			}
+		}
+	}
+	return "", nil
 }

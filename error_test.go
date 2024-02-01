@@ -5,7 +5,10 @@
 package restful
 
 import (
+	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,4 +66,63 @@ func TestErrConnect(t *testing.T) {
 func TestErrNoBase(t *testing.T) {
 	err := NewError(nil, 404, "hello")
 	assert.Equal(t, "hello", err.Error())
+}
+
+func Test_GetErrBody_Text(t *testing.T) {
+	assert := assert.New(t)
+
+	sentBody := []byte("hello")
+
+	// Server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(500)
+		w.Write(sentBody)
+	}))
+	defer srv.Close()
+
+	c := NewClient()
+	err := c.Get(context.Background(), srv.URL, nil)
+	assert.Error(err)
+	ct, recvdBody := GetErrBody(err)
+	assert.Equal("text/plain", ct)
+	assert.Equal(sentBody, recvdBody)
+}
+
+func Test_GetErrBody_Problem(t *testing.T) {
+	assert := assert.New(t)
+
+	sentBody := []byte(`{"hello":"world"}`)
+
+	// Server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", ContentTypeProblemJSON)
+		w.WriteHeader(500)
+		w.Write(sentBody)
+	}))
+	defer srv.Close()
+
+	c := NewClient()
+	err := c.Get(context.Background(), srv.URL, nil)
+	assert.Error(err)
+	ct, recvdBody := GetErrBody(err)
+	assert.Contains(ct, "application/problem+json")
+	assert.Equal(sentBody, recvdBody)
+}
+
+func Test_GetErrBody_None(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer srv.Close()
+
+	c := NewClient()
+	err := c.Get(context.Background(), srv.URL, nil)
+	assert.Error(err)
+	ct, body := GetErrBody(err)
+	assert.Empty(ct)
+	assert.Empty(body)
 }

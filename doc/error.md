@@ -40,6 +40,11 @@ func handlerZ(ctx context.Context) (*myStruct, error) {
             fmt.Print("Connection failed")
         } else if restful.GetErrStatusCode(err) == http.StatusUnauthorized {
             fmt.Print("We should have got authorized, first.")
+        } else {
+            contentType, body := restful.GetErrBody(err)
+            if len(body) != 0 {
+                fmt.Printf("received error content-type=%s, body=%v", contentType, body)
+            }
         }
         return nil, err
     }
