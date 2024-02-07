@@ -50,6 +50,24 @@ const (
 	KindH2C   = "h2c"
 )
 
+// Grant represents the flow how oauth2 access tokens are retreived.
+type Grant string
+
+const (
+	// GrantClientCredentials represents oauth2 client credentials grant
+	GrantClientCredentials Grant = "client_credentials"
+	// GrantRefreshToken represents oauth2 refresh token grant
+	GrantRefreshToken Grant = "refresh_token"
+	// GrantPasswordCredentials represents oauth2 password credentials grant
+	GrantPasswordCredentials Grant = "password"
+)
+
+var supportedGrant = map[Grant]bool{
+	GrantClientCredentials:   true,
+	GrantPasswordCredentials: true,
+	GrantRefreshToken:        true,
+}
+
 // HTTPSConfig contains some flags that control what kind of URLs to be allowed to be used.
 // Don't confuse these with TLS config.
 type HTTPSConfig struct {
@@ -80,8 +98,7 @@ type Client struct {
 
 	// Kind is a string representation of what kind the client is. Depending on which New() function is called.
 	// Changing its value does not change client kind.
-	Kind string
-
+	Kind              string
 	httpsCfg          *HTTPSConfig
 	sanitizeJSON      bool
 	rootURL           string
@@ -94,7 +111,8 @@ type Client struct {
 	retryBackoffMax   time.Duration
 	acceptProblemJSON bool
 	monitor           clientMonitors
-	clientCredConfig  *clientcredentials.Config
+	oauth2Config      *oauth2.Config
+	grantType         Grant
 	oauth2Token       oauth2.Token
 	oauth2TokenMutex  sync.RWMutex
 }
@@ -263,15 +281,15 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 	return c
 }
 
-// SetClientCredentialAuth makes client obtain OAuth2 access token for given client credentials.
+// SetOauth2Conf makes client obtain OAuth2 access token with given grant.
 // Either on first request to be sent or later when the obtained access token is expired.
 //
 // Make sure encrypted transport is used, e.g. the link is https.
 // If client's HTTPS() has been called earlier, then token URL is checked accordingly.
 // If token URL does not meet those requirements, then client credentials auth is not activated and error log is printed.
-func (c *Client) SetClientCredentialAuth(clientID, clientSecret, tokenURL string) *Client {
+func (c *Client) SetOauth2Conf(config oauth2.Config, grant ...Grant) *Client {
 	if c.httpsCfg != nil {
-		tokenURL, err := url.Parse(tokenURL)
+		tokenURL, err := url.Parse(config.Endpoint.TokenURL)
 		if err == nil {
 			if !c.httpsCfg.isAllowed(tokenURL) {
 				log.Error("token URL: ", ErrNonHTTPSURL)
@@ -281,7 +299,12 @@ func (c *Client) SetClientCredentialAuth(clientID, clientSecret, tokenURL string
 			log.Error("token URL is not valid: ", err)
 		}
 	}
-	c.clientCredConfig = &clientcredentials.Config{ClientID: clientID, ClientSecret: clientSecret, TokenURL: tokenURL}
+	if len(grant) > 0 {
+		if supportedGrant[grant[0]] {
+			c.grantType = grant[0]
+		}
+	}
+	c.oauth2Config = &config
 	return c
 }
 
@@ -348,7 +371,7 @@ func retryResp(resp *http.Response) bool {
 	return resp == nil || retryStatus(resp.StatusCode)
 }
 
-func (c *Client) obtainClientCredentialToken(ctx context.Context, req *http.Request) error {
+func (c *Client) obtainOauth2Token(ctx context.Context) error {
 	// Release reader lock, obtain writer lock instead. Revert to reader lock when finished.
 	c.oauth2TokenMutex.RUnlock()
 	c.oauth2TokenMutex.Lock()
@@ -360,8 +383,23 @@ func (c *Client) obtainClientCredentialToken(ctx context.Context, req *http.Requ
 	// Check if token has been obtained by another instance while waiting for writer lock.
 	if !c.oauth2Token.Valid() {
 		oauthCtx := context.WithValue(ctx, oauth2.HTTPClient, TokenClient)
-		token, err := c.clientCredConfig.Token(oauthCtx)
+		var token *oauth2.Token
+		var err error
+		switch c.grantType {
+		case GrantPasswordCredentials:
+			token, err = c.oauth2Config.PasswordCredentialsToken(ctx, c.username, c.password)
+		case GrantRefreshToken:
+			if c.oauth2Token.RefreshToken == "" {
+				token, err = c.oauth2Config.PasswordCredentialsToken(ctx, c.username, c.password)
+				break
+			}
+			token, err = c.oauth2Config.TokenSource(oauthCtx, &c.oauth2Token).Token()
+		default:
+			conf := clientcredentials.Config{ClientID: c.oauth2Config.ClientID, ClientSecret: c.oauth2Config.ClientSecret, TokenURL: c.oauth2Config.Endpoint.TokenURL, Scopes: c.oauth2Config.Scopes}
+			token, err = conf.TokenSource(oauthCtx).Token()
+		}
 		if err != nil {
+			log.Error(err)
 			return err
 		}
 		c.oauth2Token = *token
@@ -369,13 +407,13 @@ func (c *Client) obtainClientCredentialToken(ctx context.Context, req *http.Requ
 	return nil
 }
 
-func (c *Client) setClientCredentialAuth(ctx context.Context, req *http.Request) error {
+func (c *Client) setOauth2Auth(ctx context.Context, req *http.Request) error {
 	// Reader lock
 	c.oauth2TokenMutex.RLock()
 	defer c.oauth2TokenMutex.RUnlock()
 
 	if !c.oauth2Token.Valid() { // Valid adds some extra time for client (10s)
-		if err := c.obtainClientCredentialToken(ctx, req); err != nil {
+		if err := c.obtainOauth2Token(ctx); err != nil {
 			return err
 		}
 	}
@@ -406,11 +444,11 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 
 	body := c.cloneBody(req)
 
-	if c.username != "" {
+	if c.username != "" && c.oauth2Config == nil {
 		req.SetBasicAuth(c.username, c.password)
 	}
-	if c.clientCredConfig != nil {
-		if err := c.setClientCredentialAuth(ctx, req); err != nil {
+	if c.oauth2Config != nil {
+		if err := c.setOauth2Auth(ctx, req); err != nil {
 			return nil, err
 		}
 	}
