@@ -8,7 +8,6 @@ import (
 	"context"
 	"net/http"
 	"reflect"
-	"unsafe"
 
 	"github.com/nokia/restful/lambda"
 )
@@ -54,8 +53,7 @@ func lambdaHandleRes2(l *lambda.Lambda, res []reflect.Value) (interface{}, error
 	err := lambdaGetStatus(l, res[1])
 
 	if res[0].Kind() == reflect.Ptr {
-		/* #nosec G103 */
-		if unsafe.Pointer(res[0].Pointer()) == nil {
+		if res[0].IsNil() {
 			return nil, err
 		}
 		res[0] = res[0].Elem()

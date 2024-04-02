@@ -84,8 +84,8 @@ func TestNonContext(t *testing.T) {
 
 	{ // Scalar
 		req, err := http.NewRequest("POST", "/dup", bytes.NewReader(reqBody))
+		assert.NoError(err)
 		req.Header.Set("Content-Type", "application/json")
-		assert.Nil(err)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		respBody := rr.Body.String()
@@ -94,8 +94,8 @@ func TestNonContext(t *testing.T) {
 	}
 	{ // Scalar bad method
 		req, err := http.NewRequest("GET", "/dup", bytes.NewReader(reqBody))
+		assert.NoError(err)
 		req.Header.Set("Content-Type", "application/json")
-		assert.Nil(err)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		respBody := rr.Body.String()
@@ -104,8 +104,8 @@ func TestNonContext(t *testing.T) {
 	}
 	{ // Pointer
 		req, err := http.NewRequest("GET", "/ptr", bytes.NewReader(reqBody))
+		assert.NoError(err)
 		req.Header.Set("Content-Type", "application/json")
-		assert.Nil(err)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		respBody := rr.Body.String()
@@ -114,8 +114,8 @@ func TestNonContext(t *testing.T) {
 	}
 	{ // Error
 		req, err := http.NewRequest("POST", "/err", bytes.NewReader(reqBody))
+		assert.NoError(err)
 		req.Header.Set("Content-Type", "application/json")
-		assert.Nil(err)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		respBody := rr.Body.String()
@@ -124,14 +124,14 @@ func TestNonContext(t *testing.T) {
 	}
 	{ // Nop
 		req, err := http.NewRequest("GET", "/nop", nil)
-		assert.Nil(err)
+		assert.NoError(err)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		assert.Equal(204, rr.Code)
 	}
 	{ // HTTP, not lambda
 		req, err := http.NewRequest("GET", "/htp", nil)
-		assert.Nil(err)
+		assert.NoError(err)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		assert.Equal(204, rr.Code)
@@ -251,7 +251,7 @@ func TestContextTracing(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("traceparent", traceparent)
 	req.Header.Set("tracestate", "margit=neni")
-	assert.Nil(err)
+	assert.NoError(err)
 	rr := httptest.NewRecorder()
 	l := Logger(r)
 	tr := otelhttp.NewHandler(l, "")
@@ -289,7 +289,7 @@ func TestDefaultRouter(t *testing.T) {
 	reqBody := []byte(`{"s":"s","i":2}`)
 	req, err := http.NewRequest("POST", "/dup", bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
-	assert.Nil(err)
+	assert.NoError(err)
 	rr := httptest.NewRecorder()
 	DefaultServeMux.router.ServeHTTP(rr, req)
 	respBody := rr.Body.String()
@@ -309,7 +309,7 @@ func TestBadCT(t *testing.T) {
 	req.Header.Set("Accept", "application/funny")
 	req.Header.Add("Accept", "application/problem+json")
 	req.Header.Add("Accept", "application/json")
-	assert.Nil(err)
+	assert.NoError(err)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	respBody := rr.Body.String()
