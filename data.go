@@ -13,6 +13,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/schema"
+	"github.com/nokia/restful/messagepack"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -75,7 +76,7 @@ func GetDataBytesForContentType(headers http.Header, ioBody io.ReadCloser, maxBy
 	return
 }
 
-func getJSONData(headers http.Header, ioBody io.ReadCloser, maxBytes int, data interface{}, request bool) error {
+func getData(headers http.Header, ioBody io.ReadCloser, maxBytes int, data interface{}, request bool) error {
 	if data == nil {
 		_ = ioBody.Close()
 		return nil
@@ -96,6 +97,14 @@ func getJSONData(headers http.Header, ioBody io.ReadCloser, maxBytes int, data i
 	}
 
 	recvdContentType := GetBaseContentType(headers)
+	if isMsgPackContentType(recvdContentType) {
+		err = messagepack.Unmarshal(body, data)
+		if err != nil && request {
+			return NewError(err, http.StatusBadRequest, "Invalid msgpack content")
+		}
+		return err
+	}
+
 	if !isJSONContentType(recvdContentType) {
 		err := fmt.Errorf("unexpected Content-Type: '%s'; not JSON", recvdContentType)
 		if request {
@@ -138,11 +147,11 @@ func GetRequestData(req *http.Request, maxBytes int, data interface{}) error {
 		}
 		return formDecoder.Decode(data, req.PostForm)
 	}
-	return getJSONData(req.Header, req.Body, maxBytes, data, true)
+	return getData(req.Header, req.Body, maxBytes, data, true)
 }
 
 // GetResponseData returns response data from JSON body of HTTP response.
 // If maxBytes > 0 it blocks parsing exceedingly huge JSON data, which could be used for DoS or memory overflow attacks.
 func GetResponseData(resp *http.Response, maxBytes int, data interface{}) error {
-	return getJSONData(resp.Header, resp.Body, maxBytes, data, false)
+	return getData(resp.Header, resp.Body, maxBytes, data, false)
 }

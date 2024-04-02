@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/nokia/restful/messagepack"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -45,6 +46,37 @@ func SendJSONResponse(w http.ResponseWriter, statusCode int, data interface{}, s
 	return err
 }
 
+func sendResponse(w http.ResponseWriter, r *http.Request, data interface{}, sanitizeJSON bool) (err error) {
+	okStatus := getOkStatus(w, r, data)
+
+	if data == nil {
+		w.WriteHeader(okStatus)
+		return nil
+	}
+
+	useMsgPack := false
+	writeHeaders := w.Header()
+	if writeHeaders == nil || writeHeaders.Get(ContentTypeHeader) == "" {
+		useMsgPack = acceptsMsgPack(r)
+	} else if isMsgPackContentType(GetBaseContentType(writeHeaders)) {
+		useMsgPack = true
+	}
+
+	if useMsgPack {
+		b, err := messagepack.Marshal(data)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return err
+		}
+		w.Header().Set(ContentTypeHeader, ContentTypeMsgPack)
+		w.WriteHeader(okStatus)
+		_, err = w.Write(b)
+		return err
+	}
+
+	return SendJSONResponse(w, okStatus, data, sanitizeJSON)
+}
+
 // SendResponse sends an HTTP response with a JSON data.
 // Caller may set additional headers like `w.Header().Set("Location", "https://me")` before calling this function.
 func SendResponse(w http.ResponseWriter, statusCode int, data interface{}) error {
@@ -68,7 +100,7 @@ func getOkStatus(w http.ResponseWriter, r *http.Request, data interface{}) int {
 // Caller may set additional headers like `w.Header().Set("Location", "https://me")` before calling this function.
 func SendResp(w http.ResponseWriter, r *http.Request, err error, data interface{}) error {
 	if err == nil {
-		return SendJSONResponse(w, getOkStatus(w, r, data), data, LambdaSanitizeJSON)
+		return sendResponse(w, r, data, LambdaSanitizeJSON)
 	}
 
 	if errStr := err.Error(); errStr != "" { // In some cases status like 404 does not indicate error, just a plain result. E.g. on a distributed cache query.
@@ -108,6 +140,17 @@ func getProblemContentType(r *http.Request) string {
 		}
 	}
 	return ct
+}
+
+func acceptsMsgPack(r *http.Request) bool {
+	accepts := r.Header.Values(AcceptHeader)
+	for i := range accepts {
+		baseCT := BaseContentType(accepts[i])
+		if isMsgPackContentType(baseCT) {
+			return true
+		}
+	}
+	return false
 }
 
 // SendProblemResponse sends response with problem text, and extends it to problem+json format if it is a plain string.

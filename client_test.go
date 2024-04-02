@@ -6,6 +6,7 @@ package restful
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -21,7 +22,7 @@ import (
 )
 
 type strType struct {
-	Str string
+	Str string `json:"str,omitempty"`
 }
 
 type structType struct {
@@ -31,6 +32,84 @@ type structType struct {
 		A []byte            `json:"a"`
 		M map[string]string `json:"m"`
 	}
+}
+
+func Test_MsgPack_DiscoveryAccepted(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data strType
+		err := GetRequestData(r, 0, &data)
+		assert.Nil(err)
+
+		if r.Method == "POST" {
+			assert.Equal("application/json", r.Header.Get("content-type"))
+			assert.Equal("a", data.Str)
+		} else if r.Method == "PUT" {
+			assert.Equal("application/msgpack", r.Header.Get("content-type")) // In use
+			assert.Equal("b", data.Str)
+		}
+		assert.True(acceptsMsgPack(r))
+
+		// Answer
+		sendResponse(w, r, data, false)
+	}))
+	defer srv.Close()
+
+	respData := strType{}
+	ctx := context.Background()
+	client := NewClient().Root(srv.URL).MsgPack(true)
+
+	reqData := strType{Str: "a"}
+	_, err := client.Post(ctx, "/", &reqData, &respData)
+	assert.Nil(err)
+	assert.Equal(reqData, respData)
+
+	reqData = strType{Str: "b"}
+	_, err = client.Put(ctx, "/", &reqData, &respData)
+	assert.Nil(err)
+	assert.Equal(reqData, respData)
+}
+
+func Test_MsgPack_DiscoveryRejected(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data strType
+		err := GetRequestData(r, 0, &data)
+		assert.Nil(err)
+
+		assert.Equal("application/json", r.Header.Get("content-type")) // JSON is used all the time.
+		if r.Method == "POST" {
+			assert.True(acceptsMsgPack(r)) // Discovery
+			assert.Equal("a", data.Str)
+		} else if r.Method == "PUT" {
+			assert.False(acceptsMsgPack(r)) // Gave up
+			assert.Equal("b", data.Str)
+		}
+
+		// Answer
+		w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
+		b, _ := json.Marshal(&data)
+		w.Write(b)
+	}))
+	defer srv.Close()
+
+	respData := strType{}
+	ctx := context.Background()
+	client := NewClient().Root(srv.URL).MsgPack(true)
+
+	reqData := strType{Str: "a"}
+	_, err := client.Post(ctx, "/", &reqData, &respData)
+	assert.Nil(err)
+	assert.Equal(reqData, respData)
+
+	reqData = strType{Str: "b"}
+	_, err = client.Put(ctx, "/", &reqData, &respData)
+	assert.Nil(err)
+	assert.Equal(reqData, respData)
 }
 
 func TestMethods(t *testing.T) {
@@ -151,11 +230,12 @@ func TestRetry(t *testing.T) {
 	retries := 4
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal("hello", r.Header.Get("User-Agent"))
+		assert.False(acceptsMsgPack(r))
 
 		if r.Method == "POST" {
 			body, err := io.ReadAll(r.Body)
 			assert.NoError(err)
-			assert.Equal(`{"Str":"hello"}`, string(body))
+			assert.Equal(`{"str":"hello"}`, string(body))
 		}
 
 		if reqCount < retries { // r * fail

@@ -3,7 +3,8 @@
 ## Introduction
 
 Client class is designed to send HTTP requests and receive their response.
-Similar to `http.Client` class, with the difference of strong JSON support.
+Similar to `http.Client` class, with the difference of strong data structure support.
+Doing Marshal/Unmarshal automatically to send/receive JSON (or MessagePack).
 
 Functions have context parameters. That is used for generic purposes, such as cancelling a request or defining a timeout.
 Furthermore RESTful's Server and Lambda class may add tracing information which is then propagated by this client.
@@ -100,6 +101,24 @@ client.TLSOwnCerts("/etc/own_tls")
 ❗ Note that once the client loaded the key + cert that is in the memory.
 Any update (e.g. cert-manager.io) will not affect that client.
 You may restart your app, or in the cloud you may issue `kubectl rollout restart deploy/xxx`.
+
+## MessagePack
+
+MessagePack is substantially cheaper to parse compared to JSON.
+Otherwise equivalent.
+If `client.MsgPack(true)` is called, the client discovers if the server supports MessagePack.
+
+```mermaid
+sequenceDiagram
+note over C: MessagePack discovery phase
+C->>S: POST: CT:application/json, Accept:application/msgpack,application/json, body=JSON
+S->>C: 201: CT=application/msgpack, body=msgpack
+note over C: MessagePack is known to be supported
+C->>S: PUT: CT:application/msgpack, Accept:application/msgpack,application/json, body=msgpack
+S->>C: 200: CT=application/msgpack, body=msgpack
+```
+
+MessagePack (msgpack) is an experimental. We are happy to get any feedback.
 
 ## Broadcast goodies
 
