@@ -36,12 +36,11 @@ func Marshal(v interface{}) ([]byte, error) {
 	enc.ResetWriter(&buf)
 
 	err := enc.Encode(v)
-	b := buf.Bytes()
 
 	putEncoder(enc)
 
 	if err != nil {
 		return nil, err
 	}
-	return b, err
+	return buf.Bytes(), nil
 }
