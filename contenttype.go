@@ -25,11 +25,9 @@ const (
 )
 
 // BaseContentType returns the MIME type of the Content-Type header as lower-case string
-// E.g.: "Content-Type: application/JSON; charset=ISO-8859-1" --> "application/json"
+// E.g.: "application/JSON; charset=ISO-8859-1" --> "application/json"
 func BaseContentType(contentType string) string {
-	ct := strings.TrimSpace(contentType)
-	ct = strings.ToLower(ct)
-	return strings.Split(ct, ";")[0]
+	return strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
 }
 
 // GetBaseContentType returns base content type from HTTP header.
@@ -39,12 +37,12 @@ func GetBaseContentType(headers http.Header) string {
 }
 
 func isMsgPackContentType(ct string) bool {
-	return ct == ContentTypeMsgPack
+	if len(ct) < len(ContentTypeMsgPack) {
+		return false
+	}
+	return ct[11:19] == "/msgpack"
 }
 
-func isJSONContentType(ct string) bool {
-	return ct == ContentTypeApplicationJSON ||
-		ct == ContentTypePatchJSON ||
-		ct == ContentTypeMergeJSON ||
-		ct == ContentTypeProblemJSON
+func isJSONContentType(baseCT string) bool {
+	return strings.HasSuffix(baseCT, "json")
 }
