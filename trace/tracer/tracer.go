@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/nokia/restful/trace/traceb3"
@@ -24,8 +23,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 var otelEnabled = false
@@ -63,17 +60,7 @@ func SetOTelGrpc(target string) error {
 		return err
 	}
 
-	target = strings.TrimPrefix(target, "http://")
-	target = strings.TrimPrefix(target, "https://")
-	if !strings.Contains(target, ":") {
-		target = target + ":4317"
-	}
-	grpcConn, err := grpc.DialContext(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
-	if err != nil {
-		return err
-	}
-
-	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(grpcConn))
+	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithEndpointURL(target))
 	if err != nil {
 		return err
 	}
