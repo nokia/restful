@@ -145,8 +145,7 @@ func getProblemContentType(r *http.Request) string {
 func acceptsMsgPack(r *http.Request) bool {
 	accepts := r.Header.Values(AcceptHeader)
 	for i := range accepts {
-		baseCT := BaseContentType(accepts[i])
-		if isMsgPackContentType(baseCT) {
+		if isMsgPackContentType(accepts[i]) {
 			return true
 		}
 	}
