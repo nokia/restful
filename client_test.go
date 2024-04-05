@@ -6,7 +6,6 @@ package restful
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -114,10 +113,7 @@ func testMsgPackDiscoveryRejected(t testing.TB, iters int) {
 		}
 
 		// Answer
-		//sendResponse(w, r, data, false)
-		w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
-		b, _ := json.Marshal(&data)
-		w.Write(b)
+		sendResponse(w, r, data, false)
 		requestCount++
 	}))
 	defer srv.Close()
