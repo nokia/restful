@@ -69,6 +69,11 @@ var supportedGrant = map[Grant]bool{
 	GrantRefreshToken:        true,
 }
 
+var (
+	netInterfaces     = net.Interfaces
+	netInterfaceAddrs = (*net.Interface).Addrs
+)
+
 // HTTPSConfig contains some flags that control what kind of URLs to be allowed to be used.
 // Don't confuse these with TLS config.
 type HTTPSConfig struct {
@@ -162,11 +167,20 @@ var h2Transport = http2.Transport{
 // NewClient creates a RESTful client instance.
 // The instance has a semi-permanent transport TCP connection.
 func NewClient() *Client {
+	return NewClientWInterface("")
+}
+
+// NewClientWInterface creates a RESTful client instance with binded to that interface.
+// The instance has a semi-permanent transport TCP connection.
+func NewClientWInterface(theInterface string) *Client {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.MaxIdleConns = 100
 	t.MaxConnsPerHost = 100
 	t.MaxIdleConnsPerHost = 100
 	dialer := &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second}
+	if IP := getIpFromInterface(theInterface); IP != nil {
+		dialer = &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second, LocalAddr: *IP}
+	}
 	t.DialContext = dialer.DialContext
 
 	var rt http.RoundTripper = t
@@ -857,4 +871,34 @@ func Delete(ctx context.Context, target string) error {
 func (c *Client) SetMaxBytesToParse(max int) *Client {
 	c.maxBytesToParse = max
 	return c
+}
+
+func getIpFromInterface(theInterface string) *net.Addr {
+	if theInterface == "" {
+		return nil
+	}
+	ifaces, err := netInterfaces()
+	if err != nil {
+		log.Errorf("getIpFromInterface: %+v\n", err.Error())
+		return nil
+	}
+	for _, i := range ifaces {
+		if i.Name != theInterface {
+			continue
+		}
+		addrs, err := netInterfaceAddrs(&i)
+		if err != nil {
+			log.Errorf("getIpFromInterface: %+v\n", err.Error())
+			continue
+		}
+		for _, a := range addrs {
+			switch v := a.(type) {
+			case *net.IPAddr:
+				log.Debugf("%v : %s (%s)\n", i.Name, v, v.IP.DefaultMask())
+				return &a
+			}
+
+		}
+	}
+	return nil
 }

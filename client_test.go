@@ -6,6 +6,7 @@ package restful
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -698,4 +699,102 @@ func TestOauth2AccessTokenReqs(t *testing.T) {
 	err = client.setOauth2Auth(ctx, req)
 	assert.NoError(t, err)
 	assert.Equal(t, client.oauth2Token.AccessToken, accesToken)
+}
+
+func TestGetIpFromInterface(t *testing.T) {
+	theUsedInterface := "eth1"
+	netInterfaces = func() ([]net.Interface, error) {
+		r := []net.Interface{net.Interface{Name: "eth0"}, net.Interface{Name: "eth1"}, net.Interface{Name: "eth2"}}
+		return r, nil
+	}
+	Addr := []net.Addr{&net.IPAddr{IP: net.IPv4(byte(1), byte(1), byte(1), byte(1))}}
+	Addr2 := []net.Addr{&net.IPAddr{IP: net.IPv4(byte(2), byte(2), byte(2), byte(2))}}
+
+	netInterfaceAddrs = func(i *net.Interface) ([]net.Addr, error) {
+		if i.Name == theUsedInterface {
+			return Addr2, nil
+		}
+		return Addr, nil
+	}
+
+	ip := getIpFromInterface("eth1")
+	theIP := *ip
+	theIP.String()
+	assert.Equal(t, Addr2[0].String(), theIP.String())
+}
+
+func TestGetIpFromInterfaceNoName(t *testing.T) {
+	theUsedInterface := ""
+	netInterfaces = func() ([]net.Interface, error) {
+		r := []net.Interface{net.Interface{Name: "eth0"}, net.Interface{Name: "eth1"}, net.Interface{Name: "eth2"}}
+		return r, nil
+	}
+	Addr := []net.Addr{&net.IPAddr{IP: net.IPv4(byte(1), byte(1), byte(1), byte(1))}}
+	Addr2 := []net.Addr{&net.IPAddr{IP: net.IPv4(byte(2), byte(2), byte(2), byte(2))}}
+
+	netInterfaceAddrs = func(i *net.Interface) ([]net.Addr, error) {
+		if i.Name == theUsedInterface {
+			return Addr2, nil
+		}
+		return Addr, nil
+	}
+
+	ip := getIpFromInterface(theUsedInterface)
+	assert.Nil(t, ip)
+}
+
+func TestGetIpFromInterfaceErrorAddr(t *testing.T) {
+	theUsedInterface := "eth0"
+	netInterfaces = func() ([]net.Interface, error) {
+		r := []net.Interface{net.Interface{Name: "eth0"}, net.Interface{Name: "eth1"}, net.Interface{Name: "eth2"}}
+		return r, nil
+	}
+
+	netInterfaceAddrs = func(i *net.Interface) ([]net.Addr, error) {
+		return nil, errors.New("new error")
+	}
+
+	ip := getIpFromInterface(theUsedInterface)
+	assert.Nil(t, ip)
+}
+
+func TestGetIpFromInterfaceError(t *testing.T) {
+	theUsedInterface := "eth0"
+	netInterfaces = func() ([]net.Interface, error) {
+		return nil, errors.New("new error")
+	}
+
+	ip := getIpFromInterface(theUsedInterface)
+	assert.Nil(t, ip)
+}
+
+func TestGetIpFromInterfaceNoInt(t *testing.T) {
+	theUsedInterface := "eth0"
+	netInterfaces = func() ([]net.Interface, error) {
+		r := []net.Interface{}
+		return r, nil
+	}
+
+	ip := getIpFromInterface(theUsedInterface)
+	assert.Nil(t, ip)
+}
+
+func TestCientInterface(t *testing.T) {
+	theUsedInterface := "eth2"
+	netInterfaces = func() ([]net.Interface, error) {
+		r := []net.Interface{net.Interface{Name: "eth0"}, net.Interface{Name: "eth1"}, net.Interface{Name: "eth2"}}
+		return r, nil
+	}
+	Addr := []net.Addr{&net.IPAddr{IP: net.IPv4(byte(1), byte(1), byte(1), byte(1))}}
+	Addr2 := []net.Addr{&net.IPAddr{IP: net.IPv4(byte(2), byte(2), byte(2), byte(2))}}
+
+	netInterfaceAddrs = func(i *net.Interface) ([]net.Addr, error) {
+		if i.Name == theUsedInterface {
+			return Addr2, nil
+		}
+		return Addr, nil
+	}
+
+	c := NewClientWInterface(theUsedInterface)
+	assert.NotNil(t, c)
 }
