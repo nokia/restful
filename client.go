@@ -893,14 +893,13 @@ func getIpFromInterface(theInterface string) *net.Addr {
 			continue
 		}
 		for _, a := range addrs {
+			log.Debugf("Addr : %+v\n", a)
 			switch v := a.(type) {
 			case *net.IPAddr:
 				log.Debugf("%v : %s (%s)\n", i.Name, v, v.IP.DefaultMask())
 				return &a
 			}
 		}
-		log.Error("No Address")
 	}
-	log.Error("No interfaces")
 	return nil
 }
