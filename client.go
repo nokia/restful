@@ -898,6 +898,8 @@ func getIpFromInterface(theInterface string) *net.Addr {
 			case *net.IPAddr:
 				log.Debugf("%v : %s (%s)\n", i.Name, v, v.IP.DefaultMask())
 				return &a
+			default:
+				log.Debugf("%s : %+v\n", v, a)
 			}
 		}
 	}
