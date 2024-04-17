@@ -882,6 +882,7 @@ func getIpFromInterface(theInterface string) *net.Addr {
 		log.Errorf("getIpFromInterface: %+v\n", err.Error())
 		return nil
 	}
+	log.Debugf("netInterfaces: %+v\n", ifaces)
 	for _, i := range ifaces {
 		if i.Name != theInterface {
 			continue
@@ -897,8 +898,9 @@ func getIpFromInterface(theInterface string) *net.Addr {
 				log.Debugf("%v : %s (%s)\n", i.Name, v, v.IP.DefaultMask())
 				return &a
 			}
-
 		}
+		log.Error("No Address")
 	}
+	log.Error("No interfaces")
 	return nil
 }
