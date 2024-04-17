@@ -177,10 +177,8 @@ func NewClientWInterface(theInterface string) *Client {
 	t.MaxIdleConns = 100
 	t.MaxConnsPerHost = 100
 	t.MaxIdleConnsPerHost = 100
-	dialer := &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second}
-	if IP := getIpFromInterface(theInterface); IP != nil {
-		dialer = &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second, LocalAddr: *IP}
-	}
+	IP := getIpFromInterface(theInterface)
+	dialer := &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second, LocalAddr: IP}
 	t.DialContext = dialer.DialContext
 
 	var rt http.RoundTripper = t
@@ -873,7 +871,7 @@ func (c *Client) SetMaxBytesToParse(max int) *Client {
 	return c
 }
 
-func getIpFromInterface(theInterface string) *net.Addr {
+func getIpFromInterface(theInterface string) *net.TCPAddr {
 	if theInterface == "" {
 		return nil
 	}
@@ -897,12 +895,20 @@ func getIpFromInterface(theInterface string) *net.Addr {
 			switch v := a.(type) {
 			case *net.IPAddr:
 				log.Debugf("%v : %s (%s)\n", i.Name, v, v.IP.DefaultMask())
-				return &a
-			default:
-				log.Debugf("%s : %+v\n", v, a)
+				tcpAddr, err := net.ResolveTCPAddr("tcp", v.IP.String()+":0")
+				if err != nil {
+					log.Errorf("IPAddr: %+v\n", err.Error())
+					continue
+				}
+				return tcpAddr
 			case *net.IPNet:
 				log.Debugf("IPNET %v : %s (%s)\n", i.Name, v, v.IP.DefaultMask())
-				return &a
+				tcpAddr, err := net.ResolveTCPAddr("tcp", v.IP.String()+":0")
+				if err != nil {
+					log.Errorf("IPNet: %+v\n", err.Error())
+					continue
+				}
+				return tcpAddr
 			}
 		}
 	}
