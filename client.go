@@ -900,6 +900,9 @@ func getIpFromInterface(theInterface string) *net.Addr {
 				return &a
 			default:
 				log.Debugf("%s : %+v\n", v, a)
+			case *net.IPNet:
+				log.Debugf("IPNET %v : %s (%s)\n", i.Name, v, v.IP.DefaultMask())
+				return &a
 			}
 		}
 	}
