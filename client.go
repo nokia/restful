@@ -189,6 +189,8 @@ func NewClientWInterface(theInterface string) *Client {
 			dialer.LocalAddr = IPs.IPv4
 			conn, err := dialer.DialContext(ctx, network, addr)
 			// if there is IPv6 address and err and error is no suitable address found than try it with IPv6
+			log.Debugf("dialContext err: %+v", err)
+			log.Debugf("dialContext err2: %s", err.Error())
 			if IPs.IPv6 != nil && err != nil && errors.Is(err, &net.OpError{Op: "dial", Net: network, Source: nil, Addr: nil, Err: &net.AddrError{Err: "no suitable address found", Addr: IPs.IPv4.String()}}) {
 				dialer.LocalAddr = IPs.IPv6
 				return dialer.DialContext(ctx, network, addr)
