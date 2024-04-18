@@ -719,9 +719,8 @@ func TestGetIpFromInterface(t *testing.T) {
 	}
 
 	ip := getIpFromInterface("eth1")
-	theIP := *ip
-	theIP.String()
-	assert.Equal(t, AddrTCP[0].String(), theIP.String())
+	theIP := ip
+	assert.Equal(t, AddrTCP[0].String(), theIP.IPv4.String())
 }
 
 func TestGetIpFromInterfaceNoName(t *testing.T) {
@@ -741,7 +740,8 @@ func TestGetIpFromInterfaceNoName(t *testing.T) {
 	}
 
 	ip := getIpFromInterface(theUsedInterface)
-	assert.Nil(t, ip)
+	assert.Nil(t, ip.IPv4)
+	assert.Nil(t, ip.IPv6)
 }
 
 func TestGetIpFromInterfaceErrorAddr(t *testing.T) {
@@ -756,7 +756,8 @@ func TestGetIpFromInterfaceErrorAddr(t *testing.T) {
 	}
 
 	ip := getIpFromInterface(theUsedInterface)
-	assert.Nil(t, ip)
+	assert.Nil(t, ip.IPv4)
+	assert.Nil(t, ip.IPv6)
 }
 
 func TestGetIpFromInterfaceError(t *testing.T) {
@@ -766,7 +767,8 @@ func TestGetIpFromInterfaceError(t *testing.T) {
 	}
 
 	ip := getIpFromInterface(theUsedInterface)
-	assert.Nil(t, ip)
+	assert.Nil(t, ip.IPv4)
+	assert.Nil(t, ip.IPv6)
 }
 
 func TestGetIpFromInterfaceNoInt(t *testing.T) {
@@ -777,7 +779,8 @@ func TestGetIpFromInterfaceNoInt(t *testing.T) {
 	}
 
 	ip := getIpFromInterface(theUsedInterface)
-	assert.Nil(t, ip)
+	assert.Nil(t, ip.IPv4)
+	assert.Nil(t, ip.IPv6)
 }
 
 func TestCientInterface(t *testing.T) {
