@@ -182,10 +182,11 @@ func NewClientWInterface(theInterface string) *Client {
 	t.MaxIdleConns = 100
 	t.MaxConnsPerHost = 100
 	t.MaxIdleConnsPerHost = 10
+	dialer := &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second}
 	if theInterface != "" {
 		IPs := getIpFromInterface(theInterface)
 		t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			dialer := &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second, LocalAddr: IPs.IPv4}
+			dialer.LocalAddr = IPs.IPv4
 			conn, err := dialer.DialContext(ctx, network, addr)
 			// if there is IPv6 address and err and error is no suitable address found than try it with IPv6
 			if IPs.IPv6 != nil && err != nil && errors.Is(err, &net.OpError{Op: "dial", Net: network, Source: nil, Addr: nil, Err: &net.AddrError{Err: "no suitable address found", Addr: IPs.IPv4.String()}}) {
@@ -195,7 +196,6 @@ func NewClientWInterface(theInterface string) *Client {
 			return conn, err
 		}
 	} else { // if no interface than use simpler DialContext
-		dialer := &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second}
 		t.DialContext = dialer.DialContext
 	}
 
