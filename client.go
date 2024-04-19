@@ -189,8 +189,7 @@ func NewClientWInterface(theInterface string) *Client {
 			dialer.LocalAddr = IPs.IPv4
 			conn, err := dialer.DialContext(ctx, network, addr)
 			// if there is IPv6 address and err and error is no suitable address found than try it with IPv6
-			log.Debugf("dialContext err: %+v", err)
-			if IPs.IPv6 != nil && err != nil && errors.Is(err, &net.OpError{Op: "dial", Net: network, Source: nil, Addr: nil, Err: &net.AddrError{Err: "no suitable address found", Addr: IPs.IPv4.String()}}) {
+			if IPs.IPv6 != nil && err != nil && reflect.DeepEqual(err, &net.OpError{Op: "dial", Net: network, Source: nil, Addr: nil, Err: &net.AddrError{Err: "no suitable address found", Addr: IPs.IPv4.String()}}) {
 				dialer.LocalAddr = IPs.IPv6
 				return dialer.DialContext(ctx, network, addr)
 			}
@@ -893,7 +892,6 @@ func (c *Client) SetMaxBytesToParse(max int) *Client {
 // getIpFromInterface return a IPv4 and IPv6 address from the interface.
 // if there is no address than that IPfamily is nil.
 func getIpFromInterface(theInterface string) (theIPs localTCPIP) {
-
 	if theInterface == "" {
 		return
 	}
@@ -917,12 +915,7 @@ func getIpFromInterface(theInterface string) (theIPs localTCPIP) {
 			switch v := a.(type) {
 			case *net.IPAddr:
 				log.Debugf("%v : %s (%s)\n", i.Name, v, v.IP.DefaultMask())
-				tcpAddr, err := net.ResolveTCPAddr("tcp", v.IP.String()+":0")
-				if err != nil {
-					log.Errorf("IPAddr: %+v\n", err.Error())
-					continue
-				}
-				if version4 := isIPv4(v.IP.String()); version4 != nil {
+				if version4, tcpAddr := isIPv4(v.IP.String()); version4 != nil {
 					if *version4 {
 						theIPs.IPv4 = tcpAddr
 					} else {
@@ -931,12 +924,7 @@ func getIpFromInterface(theInterface string) (theIPs localTCPIP) {
 				}
 			case *net.IPNet:
 				log.Debugf("IPNET %v : %s (%s)\n", i.Name, v, v.IP.DefaultMask())
-				tcpAddr, err := net.ResolveTCPAddr("tcp", v.IP.String()+":0")
-				if err != nil {
-					log.Errorf("IPNet: %+v\n", err.Error())
-					continue
-				}
-				if version4 := isIPv4(v.IP.String()); version4 != nil {
+				if version4, tcpAddr := isIPv4(v.IP.String()); version4 != nil {
 					if *version4 {
 						theIPs.IPv4 = tcpAddr
 					} else {
@@ -949,18 +937,28 @@ func getIpFromInterface(theInterface string) (theIPs localTCPIP) {
 	return
 }
 
-func isIPv4(ip string) *bool {
+func isIPv4(ip string) (*bool, *net.TCPAddr) {
 	parsedIP := net.ParseIP(ip)
 	if parsedIP == nil {
 		fmt.Println("IP address is not valid")
-		return nil
+		return nil, nil
 	}
 
 	if parsedIP.To4() != nil {
 		theTrue := true
-		return &theTrue
+		tcpAddr, err := net.ResolveTCPAddr("tcp", ip+":0")
+		if err != nil {
+			log.Errorf("isIPv4: %+v\n", err.Error())
+			return nil, nil
+		}
+		return &theTrue, tcpAddr
 	} else {
 		theFalse := false
-		return &theFalse
+		tcpAddr, err := net.ResolveTCPAddr("tcp", "["+ip+"]:0")
+		if err != nil {
+			log.Errorf("isIPv6: %+v\n", err.Error())
+			return nil, nil
+		}
+		return &theFalse, tcpAddr
 	}
 }
