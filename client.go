@@ -181,7 +181,7 @@ func NewClientWInterface(theInterface string) *Client {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.MaxIdleConns = 100
 	t.MaxConnsPerHost = 100
-	t.MaxIdleConnsPerHost = 10
+	t.MaxIdleConnsPerHost = 100
 	dialer := &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second}
 	if theInterface != "" {
 		IPs := getIpFromInterface(theInterface)
