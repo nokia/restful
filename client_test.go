@@ -806,7 +806,6 @@ func TestCientInterface(t *testing.T) {
 func TestIsIpv4(t *testing.T) {
 	ip := "2001:db8:3333:4444:5555:6666:7777:8888"
 	isipv4, tcp := isIPv4(ip)
-	assert.NotNil(t, isipv4)
-	assert.False(t, *isipv4)
+	assert.False(t, isipv4)
 	assert.Equal(t, "["+ip+"]:0", tcp.String())
 }

@@ -175,16 +175,16 @@ func NewClient() *Client {
 	return NewClientWInterface("")
 }
 
-// NewClientWInterface creates a RESTful client instance with binded to that interface.
+// NewClientWInterface creates a RESTful client instance bound to that network interface.
 // The instance has a semi-permanent transport TCP connection.
-func NewClientWInterface(theInterface string) *Client {
+func NewClientWInterface(networkInterface string) *Client {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.MaxIdleConns = 100
 	t.MaxConnsPerHost = 100
 	t.MaxIdleConnsPerHost = 100
 	dialer := &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second}
-	if theInterface != "" {
-		IPs := getIpFromInterface(theInterface)
+	if networkInterface != "" {
+		IPs := getIpFromInterface(networkInterface)
 		t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			dialer.LocalAddr = IPs.IPv4
 			conn, err := dialer.DialContext(ctx, network, addr)
@@ -891,8 +891,8 @@ func (c *Client) SetMaxBytesToParse(max int) *Client {
 
 // getIpFromInterface return a IPv4 and IPv6 address from the interface.
 // if there is no address than that IPfamily is nil.
-func getIpFromInterface(theInterface string) (theIPs localTCPIP) {
-	if theInterface == "" {
+func getIpFromInterface(networkInterface string) (theIPs localTCPIP) {
+	if networkInterface == "" {
 		return
 	}
 	ifaces, err := netInterfaces()
@@ -902,7 +902,7 @@ func getIpFromInterface(theInterface string) (theIPs localTCPIP) {
 	}
 	log.Debugf("netInterfaces: %+v\n", ifaces)
 	for _, i := range ifaces {
-		if i.Name != theInterface {
+		if i.Name != networkInterface {
 			continue
 		}
 		addrs, err := netInterfaceAddrs(&i)
@@ -914,18 +914,18 @@ func getIpFromInterface(theInterface string) (theIPs localTCPIP) {
 			log.Debugf("Addr : %+v\n", a)
 			switch v := a.(type) {
 			case *net.IPAddr:
-				log.Debugf("%v : %s (%s)\n", i.Name, v, v.IP.DefaultMask())
-				if version4, tcpAddr := isIPv4(v.IP.String()); version4 != nil {
-					if *version4 {
+				log.Debugf("%v : %s (%s)", i.Name, v, v.IP.DefaultMask())
+				if version4, tcpAddr := isIPv4(v.IP.String()); tcpAddr != nil {
+					if version4 {
 						theIPs.IPv4 = tcpAddr
 					} else {
 						theIPs.IPv6 = tcpAddr
 					}
 				}
 			case *net.IPNet:
-				log.Debugf("IPNET %v : %s (%s)\n", i.Name, v, v.IP.DefaultMask())
-				if version4, tcpAddr := isIPv4(v.IP.String()); version4 != nil {
-					if *version4 {
+				log.Debugf("IPNET %v : %s (%s)", i.Name, v, v.IP.DefaultMask())
+				if version4, tcpAddr := isIPv4(v.IP.String()); tcpAddr != nil {
+					if version4 {
 						theIPs.IPv4 = tcpAddr
 					} else {
 						theIPs.IPv6 = tcpAddr
@@ -937,28 +937,26 @@ func getIpFromInterface(theInterface string) (theIPs localTCPIP) {
 	return
 }
 
-func isIPv4(ip string) (*bool, *net.TCPAddr) {
+func isIPv4(ip string) (bool, *net.TCPAddr) {
 	parsedIP := net.ParseIP(ip)
 	if parsedIP == nil {
 		fmt.Println("IP address is not valid")
-		return nil, nil
+		return false, nil
 	}
 
 	if parsedIP.To4() != nil {
-		theTrue := true
 		tcpAddr, err := net.ResolveTCPAddr("tcp", ip+":0")
 		if err != nil {
 			log.Errorf("isIPv4: %+v\n", err.Error())
-			return nil, nil
+			return false, nil
 		}
-		return &theTrue, tcpAddr
+		return true, tcpAddr
 	} else {
-		theFalse := false
 		tcpAddr, err := net.ResolveTCPAddr("tcp", "["+ip+"]:0")
 		if err != nil {
 			log.Errorf("isIPv6: %+v\n", err.Error())
-			return nil, nil
+			return false, nil
 		}
-		return &theFalse, tcpAddr
+		return false, tcpAddr
 	}
 }
