@@ -897,21 +897,21 @@ func getIpFromInterface(networkInterface string) (theIPs localTCPIP) {
 	}
 	ifaces, err := netInterfaces()
 	if err != nil {
-		log.Errorf("getIpFromInterface: %+v\n", err.Error())
+		log.Errorf("getIpFromInterface: %+v", err.Error())
 		return
 	}
-	log.Debugf("netInterfaces: %+v\n", ifaces)
+	log.Debugf("netInterfaces: %+v", ifaces)
 	for _, i := range ifaces {
 		if i.Name != networkInterface {
 			continue
 		}
 		addrs, err := netInterfaceAddrs(&i)
 		if err != nil {
-			log.Errorf("getIpFromInterface: %+v\n", err.Error())
+			log.Errorf("getIpFromInterface: %+v", err.Error())
 			continue
 		}
 		for _, a := range addrs {
-			log.Debugf("Addr : %+v\n", a)
+			log.Debugf("Addr : %+v", a)
 			switch v := a.(type) {
 			case *net.IPAddr:
 				log.Debugf("%v : %s (%s)", i.Name, v, v.IP.DefaultMask())
@@ -947,14 +947,14 @@ func isIPv4(ip string) (bool, *net.TCPAddr) {
 	if parsedIP.To4() != nil {
 		tcpAddr, err := net.ResolveTCPAddr("tcp", ip+":0")
 		if err != nil {
-			log.Errorf("isIPv4: %+v\n", err.Error())
+			log.Errorf("isIPv4: %+v", err.Error())
 			return false, nil
 		}
 		return true, tcpAddr
 	} else {
 		tcpAddr, err := net.ResolveTCPAddr("tcp", "["+ip+"]:0")
 		if err != nil {
-			log.Errorf("isIPv6: %+v\n", err.Error())
+			log.Errorf("isIPv6: %+v", err.Error())
 			return false, nil
 		}
 		return false, tcpAddr
