@@ -142,3 +142,8 @@ func (l *Lambda) ResponseHeaderAddAs(header, value string) {
 func (l *Lambda) TraceID() string {
 	return l.Trace.TraceID()
 }
+
+// AddLambdaToContext will return the context with value of Lambda
+func AddLambdaToContext(ctx context.Context, l *Lambda) context.Context {
+	return context.WithValue(ctx, ctxName, l)
+}

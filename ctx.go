@@ -29,3 +29,8 @@ func NewRequestCtx(w http.ResponseWriter, r *http.Request) context.Context {
 func L(ctx context.Context) *lambda.Lambda {
 	return lambda.L(ctx)
 }
+
+// AddLambdaToContext will return the context with value of Lambda
+func AddLambda(ctx context.Context, l *lambda.Lambda) context.Context {
+	return lambda.AddLambdaToContext(ctx, l)
+}
