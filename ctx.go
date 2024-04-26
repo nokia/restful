@@ -31,6 +31,7 @@ func L(ctx context.Context) *lambda.Lambda {
 }
 
 // AddLambdaToContext will return the context with value of Lambda
+// Useful if a new goroutine is created with new context, but it is related to the original Context.
 func AddLambda(ctx context.Context, l *lambda.Lambda) context.Context {
 	return lambda.AddLambdaToContext(ctx, l)
 }

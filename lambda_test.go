@@ -175,6 +175,8 @@ func TestContext(t *testing.T) {
 		assert.Equal("42", L(ctx).ResponseHeader().Get("Request-Path-Id"))
 		assert.Equal("ss", resp.S)
 		assert.Equal(4, resp.I)
+		otherCtx := AddLambda(context.Background(), L(ctx))
+		assert.Equal(L(ctx), L(otherCtx))
 	}
 }
 
