@@ -96,11 +96,11 @@ func NewFromRequest(r *http.Request) *Tracer {
 	return &t
 }
 
-// NewFromRequestWContext creates new tracer object from request derived from parentCtx if otel. Returns nil if not found.
-func NewFromRequestWContext(parentCtx context.Context, r *http.Request) *Tracer {
+// NewFromRequestWithContext creates new tracer object from request derived from parentCtx if otel. Returns nil if not found.
+func NewFromRequestWithContext(parentCtx context.Context, r *http.Request) *Tracer {
 	var traceData tracedata.TraceData
 	if otelEnabled {
-		traceData = traceotel.NewFromRequestWContext(parentCtx, r)
+		traceData = traceotel.NewFromRequestWithContext(parentCtx, r)
 	} else {
 		traceData = traceb3.NewFromRequest(r)
 		if reflect.ValueOf(traceData).IsNil() {

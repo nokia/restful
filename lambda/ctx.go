@@ -16,6 +16,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/nokia/restful/trace/tracedata"
+	"github.com/nokia/restful/trace/traceotel"
 	"github.com/nokia/restful/trace/tracer"
 )
 
@@ -144,7 +145,10 @@ func (l *Lambda) TraceID() string {
 }
 
 // AddLambdaToContext will return the context with value of Lambda
-func AddLambdaToContext(ctx context.Context, l *Lambda) context.Context {
-	newLambda := &Lambda{w: l.w, r: l.r, Trace: tracer.NewFromRequestWContext(ctx, l.r), vars: l.vars}
-	return context.WithValue(ctx, ctxName, newLambda)
+func AddLambdaToContext(parentCtx context.Context, l *Lambda) context.Context {
+	ctx := context.WithValue(parentCtx, ctxName, l)
+	if tracer.GetOTel() {
+		ctx, _ = traceotel.TraceHeadersToContext(ctx, l.r)
+	}
+	return ctx
 }
