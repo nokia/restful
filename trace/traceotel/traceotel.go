@@ -32,7 +32,18 @@ type TraceOTel struct {
 //
 // Warning: Does not return trace from request context.
 func NewFromRequest(r *http.Request) *TraceOTel {
-	ctx, spanCtx := traceHeadersToContext(r)
+	ctx, spanCtx := traceHeadersToContext(r.Context(), r)
+	if spanCtx.IsValid() {
+		return &TraceOTel{ctx: ctx}
+	}
+	return nil
+}
+
+// NewFromRequestWContext creates new TraceOTel object derived from parentCtx. Returns nil if tracer not found in request.
+//
+// Warning: Does not return trace from request context.
+func NewFromRequestWContext(parentCtx context.Context, r *http.Request) *TraceOTel {
+	ctx, spanCtx := traceHeadersToContext(parentCtx, r)
 	if spanCtx.IsValid() {
 		return &TraceOTel{ctx: ctx}
 	}
@@ -58,9 +69,9 @@ func NewRandom() *TraceOTel {
 
 // traceHeadersToContext maps trace headers in request to context.
 // Currently spanContext fails to include debug flag, but propagator sets that to ctx.
-func traceHeadersToContext(r *http.Request) (context.Context, trace.SpanContext) {
+func traceHeadersToContext(parentCtx context.Context, r *http.Request) (context.Context, trace.SpanContext) {
 	prop := b3.New()
-	ctx := prop.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+	ctx := prop.Extract(parentCtx, propagation.HeaderCarrier(r.Header))
 	spanCtx := trace.SpanContextFromContext(ctx)
 	return ctx, spanCtx
 }
@@ -84,7 +95,7 @@ func (t *TraceOTel) Span(r *http.Request) (*http.Request, string) {
 	} else {
 		// Check if req has tracing headers
 		var newCtx context.Context
-		newCtx, spanCtx = traceHeadersToContext(r)
+		newCtx, spanCtx = traceHeadersToContext(r.Context(), r)
 		if !spanCtx.IsValid() {
 			newCtx = NewRandom().ctx
 		}
