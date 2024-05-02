@@ -74,9 +74,9 @@ var (
 	netInterfaceAddrs = (*net.Interface).Addrs
 )
 
-type localTCPIP struct {
-	IPv4 *net.TCPAddr
-	IPv6 *net.TCPAddr
+type localIPs struct {
+	IPv4 net.Addr
+	IPv6 net.Addr
 }
 
 // HTTPSConfig contains some flags that control what kind of URLs to be allowed to be used.
@@ -184,7 +184,7 @@ func NewClientWInterface(networkInterface string) *Client {
 	t.MaxIdleConnsPerHost = 100
 	dialer := &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second}
 	if networkInterface != "" {
-		IPs := getIpFromInterface(networkInterface)
+		IPs := getIPFromInterface(networkInterface)
 		t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			var conn net.Conn
 			var err error
@@ -893,9 +893,9 @@ func (c *Client) SetMaxBytesToParse(max int) *Client {
 	return c
 }
 
-// getIpFromInterface return a IPv4 and IPv6 address from the interface.
-// if there is no address than that IPfamily is nil.
-func getIpFromInterface(networkInterface string) (theIPs localTCPIP) {
+// getIPFromInterface return IPv4 and IPv6 addresses of the network interface.
+// If there is no address than that IPfamily is nil.
+func getIPFromInterface(networkInterface string) (theIPs localIPs) {
 	if networkInterface == "" {
 		return
 	}
@@ -909,58 +909,20 @@ func getIpFromInterface(networkInterface string) (theIPs localTCPIP) {
 		if i.Name != networkInterface {
 			continue
 		}
-		addrs, err := netInterfaceAddrs(&i)
+		addrs, err := netInterfaceAddrs(&i) // #nosec G601
 		if err != nil {
 			log.Errorf("getIpFromInterface: %+v", err.Error())
 			continue
 		}
 		for _, a := range addrs {
-			log.Debugf("Addr : %+v", a)
-			switch v := a.(type) {
-			case *net.IPAddr:
-				log.Debugf("%v : %s (%s)", i.Name, v, v.IP.DefaultMask())
-				if version4, tcpAddr := isIPv4(v.IP.String()); tcpAddr != nil {
-					if version4 {
-						theIPs.IPv4 = tcpAddr
-					} else {
-						theIPs.IPv6 = tcpAddr
-					}
-				}
-			case *net.IPNet:
-				log.Debugf("IPNET %v : %s (%s)", i.Name, v, v.IP.DefaultMask())
-				if version4, tcpAddr := isIPv4(v.IP.String()); tcpAddr != nil {
-					if version4 {
-						theIPs.IPv4 = tcpAddr
-					} else {
-						theIPs.IPv6 = tcpAddr
-					}
-				}
+			ipv4 := strings.Count(a.String(), ":") < 2 // 1 semicolon might be present as port separator. But we always get IPNet which does not have port.
+
+			if ipv4 {
+				theIPs.IPv4 = a
+			} else {
+				theIPs.IPv6 = a
 			}
 		}
 	}
 	return
-}
-
-func isIPv4(ip string) (bool, *net.TCPAddr) {
-	parsedIP := net.ParseIP(ip)
-	if parsedIP == nil {
-		fmt.Println("IP address is not valid")
-		return false, nil
-	}
-
-	if parsedIP.To4() != nil {
-		tcpAddr, err := net.ResolveTCPAddr("tcp", ip+":0")
-		if err != nil {
-			log.Errorf("isIPv4: %+v", err.Error())
-			return false, nil
-		}
-		return true, tcpAddr
-	} else {
-		tcpAddr, err := net.ResolveTCPAddr("tcp", "["+ip+"]:0")
-		if err != nil {
-			log.Errorf("isIPv6: %+v", err.Error())
-			return false, nil
-		}
-		return false, tcpAddr
-	}
 }
