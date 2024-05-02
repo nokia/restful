@@ -919,7 +919,7 @@ func getIPFromInterface(networkInterface string) (theIPs localIPs) {
 
 			if ipAddr, ok := a.(*net.IPNet); ok {
 				if ipv4 {
-					theIPs.IPv4 = &net.TCPAddr{IP: ipAddr.IP}
+					theIPs.IPv4 = &net.TCPAddr{IP: ipAddr.IP.To4()}
 				} else {
 					theIPs.IPv6 = &net.TCPAddr{IP: ipAddr.IP}
 				}
