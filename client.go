@@ -75,8 +75,8 @@ var (
 )
 
 type localIPs struct {
-	IPv4 net.Addr
-	IPv6 net.Addr
+	IPv4 *net.TCPAddr
+	IPv6 *net.TCPAddr
 }
 
 // HTTPSConfig contains some flags that control what kind of URLs to be allowed to be used.
@@ -917,10 +917,12 @@ func getIPFromInterface(networkInterface string) (theIPs localIPs) {
 		for _, a := range addrs {
 			ipv4 := strings.Count(a.String(), ":") < 2 // 1 semicolon might be present as port separator. But we always get IPNet which does not have port.
 
-			if ipv4 {
-				theIPs.IPv4 = a
-			} else {
-				theIPs.IPv6 = a
+			if ipAddr, ok := a.(*net.IPNet); ok {
+				if ipv4 {
+					theIPs.IPv4 = &net.TCPAddr{IP: ipAddr.IP}
+				} else {
+					theIPs.IPv6 = &net.TCPAddr{IP: ipAddr.IP}
+				}
 			}
 		}
 	}

@@ -707,19 +707,23 @@ func TestGetIpFromInterface(t *testing.T) {
 		r := []net.Interface{{Name: "eth0"}, {Name: "eth1"}, {Name: "eth2"}}
 		return r, nil
 	}
-	Addr := []net.Addr{&net.IPAddr{IP: net.IPv4(byte(1), byte(1), byte(1), byte(1))}}
-	Addr2 := []net.Addr{&net.IPNet{IP: net.IPv4(byte(2), byte(2), byte(2), byte(2))}}
+
+	AddrOther := []net.Addr{&net.IPAddr{IP: net.IPv4(byte(1), byte(1), byte(1), byte(1))}}
+
+	AddrIP := net.IPv4(byte(2), byte(2), byte(2), byte(2))
+	AddrIf := []net.Addr{&net.IPNet{IP: AddrIP}}
+	AddrTCP := net.TCPAddr{IP: AddrIP}
 
 	netInterfaceAddrs = func(i *net.Interface) ([]net.Addr, error) {
 		if i.Name == theUsedInterface {
-			return Addr2, nil
+			return AddrIf, nil
 		}
-		return Addr, nil
+		return AddrOther, nil
 	}
 
 	ip := getIPFromInterface(theUsedInterface)
 	theIP := ip
-	assert.Equal(t, Addr2[0].String(), theIP.IPv4.String())
+	assert.Equal(t, AddrTCP.String(), theIP.IPv4.String())
 }
 
 func TestGetIpFromInterfaceNoName(t *testing.T) {
