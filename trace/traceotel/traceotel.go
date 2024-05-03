@@ -32,8 +32,15 @@ type TraceOTel struct {
 //
 // Warning: Does not return trace from request context.
 func NewFromRequest(r *http.Request) *TraceOTel {
-	ctx, spanCtx := traceHeadersToContext(r)
-	if spanCtx.IsValid() {
+	return NewFromRequestWithContext(r.Context(), r)
+}
+
+// NewFromRequestWithContext creates new TraceOTel object derived from parentCtx. Returns nil if tracer not found in request.
+//
+// Warning: Does not return trace from request context.
+func NewFromRequestWithContext(parentCtx context.Context, r *http.Request) *TraceOTel {
+	ctx, ok := TraceHeadersToContext(parentCtx, r)
+	if ok {
 		return &TraceOTel{ctx: ctx}
 	}
 	return nil
@@ -56,13 +63,17 @@ func NewRandom() *TraceOTel {
 	return &TraceOTel{ctx: ctx}
 }
 
-// traceHeadersToContext maps trace headers in request to context.
-// Currently spanContext fails to include debug flag, but propagator sets that to ctx.
-func traceHeadersToContext(r *http.Request) (context.Context, trace.SpanContext) {
+// TraceHeadersToContext maps trace headers in request to context.
+// If there were no tracing headers to be propagated, the original context is returned.
+// The returned bool indicates if the original and the new contexts are the same.
+func TraceHeadersToContext(parentCtx context.Context, r *http.Request) (context.Context, bool) {
 	prop := b3.New()
-	ctx := prop.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+	ctx := prop.Extract(parentCtx, propagation.HeaderCarrier(r.Header))
 	spanCtx := trace.SpanContextFromContext(ctx)
-	return ctx, spanCtx
+	if spanCtx.IsValid() {
+		return ctx, true
+	}
+	return parentCtx, false
 }
 
 // Span spans the existing trace data and puts that into the request.
@@ -83,15 +94,15 @@ func (t *TraceOTel) Span(r *http.Request) (*http.Request, string) {
 		r = r.WithContext(ctx)
 	} else {
 		// Check if req has tracing headers
-		var newCtx context.Context
-		newCtx, spanCtx = traceHeadersToContext(r)
-		if !spanCtx.IsValid() {
+		newCtx, ok := TraceHeadersToContext(r.Context(), r)
+		if !ok {
 			newCtx = NewRandom().ctx
 		}
+		spanCtx = trace.SpanContextFromContext(newCtx)
 		r = r.WithContext(newCtx)
 	}
 
-	return r, spanCtx.TraceID().String() // Client transport overrides spanID created here, hence not to be logged.
+	return r, spanCtx.TraceID().String()
 }
 
 // SetHeader sets request headers according to the trace data.
