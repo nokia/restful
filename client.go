@@ -69,6 +69,16 @@ var supportedGrant = map[Grant]bool{
 	GrantRefreshToken:        true,
 }
 
+var (
+	netInterfaces     = net.Interfaces
+	netInterfaceAddrs = (*net.Interface).Addrs
+)
+
+type localIPs struct {
+	IPv4 *net.TCPAddr
+	IPv6 *net.TCPAddr
+}
+
 // HTTPSConfig contains some flags that control what kind of URLs to be allowed to be used.
 // Don't confuse these with TLS config.
 type HTTPSConfig struct {
@@ -162,12 +172,36 @@ var h2Transport = http2.Transport{
 // NewClient creates a RESTful client instance.
 // The instance has a semi-permanent transport TCP connection.
 func NewClient() *Client {
+	return NewClientWInterface("")
+}
+
+// NewClientWInterface creates a RESTful client instance bound to that network interface.
+// The instance has a semi-permanent transport TCP connection.
+func NewClientWInterface(networkInterface string) *Client {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.MaxIdleConns = 100
 	t.MaxConnsPerHost = 100
 	t.MaxIdleConnsPerHost = 100
 	dialer := &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second}
-	t.DialContext = dialer.DialContext
+	if networkInterface != "" {
+		IPs := getIPFromInterface(networkInterface)
+		t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			var conn net.Conn
+			var err error
+			if IPs.IPv4 != nil {
+				dialer.LocalAddr = IPs.IPv4
+				conn, err = dialer.DialContext(ctx, network, addr)
+			}
+			// if IPv6-only or IPv4 failed then try IPv6
+			if IPs.IPv4 == nil || (IPs.IPv6 != nil && err != nil && !errDeadlineOrCancel(err)) {
+				dialer.LocalAddr = IPs.IPv6
+				return dialer.DialContext(ctx, network, addr)
+			}
+			return conn, err
+		}
+	} else { // if no interface than use simpler DialContext
+		t.DialContext = dialer.DialContext
+	}
 
 	var rt http.RoundTripper = t
 	if isTraced && tracer.GetOTel() {
@@ -857,4 +891,40 @@ func Delete(ctx context.Context, target string) error {
 func (c *Client) SetMaxBytesToParse(max int) *Client {
 	c.maxBytesToParse = max
 	return c
+}
+
+// getIPFromInterface return IPv4 and IPv6 addresses of the network interface.
+// If there is no address than that IPfamily is nil.
+func getIPFromInterface(networkInterface string) (theIPs localIPs) {
+	if networkInterface == "" {
+		return
+	}
+	ifaces, err := netInterfaces()
+	if err != nil {
+		log.Errorf("getIpFromInterface: %+v", err.Error())
+		return
+	}
+	log.Debugf("netInterfaces: %+v", ifaces)
+	for _, i := range ifaces {
+		if i.Name != networkInterface {
+			continue
+		}
+		addrs, err := netInterfaceAddrs(&i) // #nosec G601
+		if err != nil {
+			log.Errorf("getIpFromInterface: %+v", err.Error())
+			continue
+		}
+		for _, a := range addrs {
+			ipv4 := strings.Count(a.String(), ":") < 2 // 1 semicolon might be present as port separator. But we always get IPNet which does not have port.
+
+			if ipAddr, ok := a.(*net.IPNet); ok {
+				if ipv4 {
+					theIPs.IPv4 = &net.TCPAddr{IP: ipAddr.IP.To4()}
+				} else {
+					theIPs.IPv6 = &net.TCPAddr{IP: ipAddr.IP}
+				}
+			}
+		}
+	}
+	return
 }
