@@ -635,7 +635,7 @@ func TestSetClientCredentialAuthDownAllowedTarget(t *testing.T) {
 
 func TestSetClientCredentialNotAllowedTarget(t *testing.T) {
 	client := NewClient().HTTPS(nil).SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "http://0.0.0.0:1"}})
-	assert.Nil(t, client.oauth2Config)
+	assert.Nil(t, client.oauth2.config)
 	assert.NotNil(t, client)
 }
 
@@ -665,40 +665,40 @@ func TestOauth2AccessTokenReqs(t *testing.T) {
 	client := NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"127.0.0.1"}}).SetOauth2Conf(oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}}, "garbage")
 	err := client.setOauth2Auth(ctx, req)
 	assert.NoError(t, err)
-	assert.Equal(t, client.oauth2Token.AccessToken, accesToken)
+	assert.Equal(t, client.oauth2.token.AccessToken, accesToken)
 
 	// Test client with password credentials grant
 	client = NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"127.0.0.1"}}).SetOauth2Conf(oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}}, GrantPasswordCredentials)
-	assert.Equal(t, len(client.oauth2Config.Scopes), 0)
+	assert.Equal(t, len(client.oauth2.config.Scopes), 0)
 	client.SetBasicAuth("user", "pass")
 	err = client.setOauth2Auth(ctx, req)
 	assert.NoError(t, err)
-	assert.Equal(t, client.oauth2Token.AccessToken, accesToken)
-	assert.Equal(t, client.oauth2Token.RefreshToken, refreshToken)
+	assert.Equal(t, client.oauth2.token.AccessToken, accesToken)
+	assert.Equal(t, client.oauth2.token.RefreshToken, refreshToken)
 	req.Header.Del("Authorization")
 
 	// Test client with refresh token grant
 	client = NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"127.0.0.1"}}).SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}, Scopes: []string{"openid", "profile"}}, GrantRefreshToken)
-	assert.Equal(t, len(client.oauth2Config.Scopes), 2)
+	assert.Equal(t, len(client.oauth2.config.Scopes), 2)
 	client.SetBasicAuth("user", "pass")
-	assert.Equal(t, client.oauth2Token.RefreshToken, "")
+	assert.Equal(t, client.oauth2.token.RefreshToken, "")
 	err = client.setOauth2Auth(ctx, req) // First try with password credentials grant without refresh_token
 	assert.NoError(t, err)
-	assert.Equal(t, client.oauth2Token.AccessToken, accesToken)
-	assert.Equal(t, client.oauth2Token.RefreshToken, refreshToken)
+	assert.Equal(t, client.oauth2.token.AccessToken, accesToken)
+	assert.Equal(t, client.oauth2.token.RefreshToken, refreshToken)
 	req.Header.Del("Authorization")
-	client.oauth2Token.AccessToken = ""  // Let's make the access token invalid before attempting a second request
+	client.oauth2.token.AccessToken = "" // Let's make the access token invalid before attempting a second request
 	err = client.setOauth2Auth(ctx, req) // Second try with refresh_token grant with refresh_token included
 	assert.NoError(t, err)
-	assert.Equal(t, client.oauth2Token.AccessToken, accesToken)
+	assert.Equal(t, client.oauth2.token.AccessToken, accesToken)
 	req.Header.Del("Authorization")
 
 	// Test client with default client credentials grant
 	client = NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"127.0.0.1"}}).SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}, Scopes: []string{"openid", "profile"}})
-	assert.Equal(t, len(client.oauth2Config.Scopes), 2)
+	assert.Equal(t, len(client.oauth2.config.Scopes), 2)
 	err = client.setOauth2Auth(ctx, req)
 	assert.NoError(t, err)
-	assert.Equal(t, client.oauth2Token.AccessToken, accesToken)
+	assert.Equal(t, client.oauth2.token.AccessToken, accesToken)
 }
 
 func TestGetIpFromInterface(t *testing.T) {
