@@ -131,11 +131,13 @@ type Client struct {
 	retryBackoffMax   time.Duration
 	acceptProblemJSON bool
 	monitor           clientMonitors
-	oauth2Config      *oauth2.Config
-	grantType         Grant
-	oauth2Token       oauth2.Token
-	oauth2TokenMutex  sync.RWMutex
-	msgpackUsage      msgpackUsage
+	oauth2            struct {
+		config     *oauth2.Config
+		grantType  Grant
+		token      oauth2.Token
+		tokenMutex sync.RWMutex
+	}
+	msgpackUsage msgpackUsage
 }
 
 var h2CTransport = http2.Transport{
@@ -361,10 +363,10 @@ func (c *Client) SetOauth2Conf(config oauth2.Config, grant ...Grant) *Client {
 	}
 	if len(grant) > 0 {
 		if supportedGrant[grant[0]] {
-			c.grantType = grant[0]
+			c.oauth2.grantType = grant[0]
 		}
 	}
-	c.oauth2Config = &config
+	c.oauth2.config = &config
 	return c
 }
 
@@ -433,51 +435,51 @@ func retryResp(resp *http.Response) bool {
 
 func (c *Client) obtainOauth2Token(ctx context.Context) error {
 	// Release reader lock, obtain writer lock instead. Revert to reader lock when finished.
-	c.oauth2TokenMutex.RUnlock()
-	c.oauth2TokenMutex.Lock()
+	c.oauth2.tokenMutex.RUnlock()
+	c.oauth2.tokenMutex.Lock()
 	defer func() {
-		c.oauth2TokenMutex.Unlock()
-		c.oauth2TokenMutex.RLock()
+		c.oauth2.tokenMutex.Unlock()
+		c.oauth2.tokenMutex.RLock()
 	}()
 
 	// Check if token has been obtained by another instance while waiting for writer lock.
-	if !c.oauth2Token.Valid() {
+	if !c.oauth2.token.Valid() {
 		oauthCtx := context.WithValue(ctx, oauth2.HTTPClient, TokenClient)
 		var token *oauth2.Token
 		var err error
-		switch c.grantType {
+		switch c.oauth2.grantType {
 		case GrantPasswordCredentials:
-			token, err = c.oauth2Config.PasswordCredentialsToken(ctx, c.username, c.password)
+			token, err = c.oauth2.config.PasswordCredentialsToken(ctx, c.username, c.password)
 		case GrantRefreshToken:
-			if c.oauth2Token.RefreshToken == "" {
-				token, err = c.oauth2Config.PasswordCredentialsToken(ctx, c.username, c.password)
+			if c.oauth2.token.RefreshToken == "" {
+				token, err = c.oauth2.config.PasswordCredentialsToken(ctx, c.username, c.password)
 				break
 			}
-			token, err = c.oauth2Config.TokenSource(oauthCtx, &c.oauth2Token).Token()
+			token, err = c.oauth2.config.TokenSource(oauthCtx, &c.oauth2.token).Token()
 		default:
-			conf := clientcredentials.Config{ClientID: c.oauth2Config.ClientID, ClientSecret: c.oauth2Config.ClientSecret, TokenURL: c.oauth2Config.Endpoint.TokenURL, Scopes: c.oauth2Config.Scopes}
+			conf := clientcredentials.Config{ClientID: c.oauth2.config.ClientID, ClientSecret: c.oauth2.config.ClientSecret, TokenURL: c.oauth2.config.Endpoint.TokenURL, Scopes: c.oauth2.config.Scopes}
 			token, err = conf.TokenSource(oauthCtx).Token()
 		}
 		if err != nil {
 			log.Error(err)
 			return err
 		}
-		c.oauth2Token = *token
+		c.oauth2.token = *token
 	}
 	return nil
 }
 
 func (c *Client) setOauth2Auth(ctx context.Context, req *http.Request) error {
 	// Reader lock
-	c.oauth2TokenMutex.RLock()
-	defer c.oauth2TokenMutex.RUnlock()
+	c.oauth2.tokenMutex.RLock()
+	defer c.oauth2.tokenMutex.RUnlock()
 
-	if !c.oauth2Token.Valid() { // Valid adds some extra time for client (10s)
+	if !c.oauth2.token.Valid() { // Valid adds some extra time for client (10s)
 		if err := c.obtainOauth2Token(ctx); err != nil {
 			return err
 		}
 	}
-	c.oauth2Token.SetAuthHeader(req)
+	c.oauth2.token.SetAuthHeader(req)
 	return nil
 }
 
@@ -504,10 +506,10 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 
 	body := c.cloneBody(req)
 
-	if c.username != "" && c.oauth2Config == nil {
+	if c.username != "" && c.oauth2.config == nil {
 		req.SetBasicAuth(c.username, c.password)
 	}
-	if c.oauth2Config != nil {
+	if c.oauth2.config != nil {
 		if err := c.setOauth2Auth(ctx, req); err != nil {
 			return nil, err
 		}
