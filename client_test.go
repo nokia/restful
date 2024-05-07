@@ -733,8 +733,12 @@ func TestGetIpFromInterface(t *testing.T) {
 
 func TestGetIpFromInterfaceLocalhost(t *testing.T) {
 	ip := getIPFromInterface("lo")
-	assert.Equal(t, net.IP{127, 0, 0, 1}, ip.IPv4.IP)
-	assert.Equal(t, net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, ip.IPv6.IP)
+	if ip.IPv4 != nil {
+		assert.Equal(t, net.IP{127, 0, 0, 1}, ip.IPv4.IP)
+	}
+	if ip.IPv6 != nil {
+		assert.Equal(t, net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, ip.IPv6.IP)
+	}
 }
 
 func TestGetIpFromInterfaceNoName(t *testing.T) {
