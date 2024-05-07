@@ -35,14 +35,10 @@ import (
 
 var defaultClient = NewClient()
 
-// TokenClient is an http.Client used to obtain OAuth2 token.
+// DefaultTokenClient is an http.Client used to obtain OAuth2 token.
 // If not set, a default client is used with 10s timeout.
 // The reason for having a separate client is that Authorization Server and Resource Server may support different transport.
-//
-// If you want to use the same client, try
-//
-//	restful.TokenClient = myClient.Client
-var TokenClient *http.Client = &http.Client{Timeout: 10 * time.Second}
+var DefaultTokenClient *http.Client = &http.Client{Timeout: 10 * time.Second}
 
 // Kind is a string representation of what kind the client is. Depending on which New() function is called.
 const (
@@ -136,6 +132,7 @@ type Client struct {
 		grantType  Grant
 		token      oauth2.Token
 		tokenMutex sync.RWMutex
+		client     *http.Client
 	}
 	msgpackUsage msgpackUsage
 }
@@ -370,6 +367,12 @@ func (c *Client) SetOauth2Conf(config oauth2.Config, grant ...Grant) *Client {
 	return c
 }
 
+// SetOauth2H2 makes OAuth2 token client communicate using h2 transport with Authorization Server.
+func (c *Client) SetOauth2H2() *Client {
+	c.oauth2.client = &http.Client{Timeout: 10 * time.Second, Transport: &h2Transport}
+	return c
+}
+
 // SetJar sets cookie jar for the client.
 func (c *Client) SetJar(jar http.CookieJar) *Client {
 	c.Client.Jar = jar
@@ -444,7 +447,10 @@ func (c *Client) obtainOauth2Token(ctx context.Context) error {
 
 	// Check if token has been obtained by another instance while waiting for writer lock.
 	if !c.oauth2.token.Valid() {
-		oauthCtx := context.WithValue(ctx, oauth2.HTTPClient, TokenClient)
+		if c.oauth2.client == nil {
+			c.oauth2.client = DefaultTokenClient
+		}
+		oauthCtx := context.WithValue(ctx, oauth2.HTTPClient, c.oauth2.client)
 		var token *oauth2.Token
 		var err error
 		switch c.oauth2.grantType {
