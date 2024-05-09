@@ -89,6 +89,10 @@ type HTTPSConfig struct {
 }
 
 func (hc *HTTPSConfig) isAllowed(target *url.URL) bool {
+	if target == nil {
+		return false
+	}
+
 	hostname := target.Hostname()
 	return hc == nil ||
 		target.Scheme == "https" ||
