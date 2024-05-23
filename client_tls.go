@@ -45,7 +45,7 @@ func appendCert(path string, pool *x509.CertPool) {
 	log.Debugf("Appended cert from '%s'", path)
 }
 
-// NewCertPool initiates system's cert pool then loads PEM certificates from given path and returns them in a way that is usable at TLS() as RootCAs.
+// NewCertPool adds PEM certificates from given path to system cert pool and returns them in a way that is usable at TLS() as RootCAs.
 // If path is a directory then scans for files recursively. If path is not set then defaults to /etc.
 // File name should match *.crt or *.pem.
 func NewCertPool(path string) *x509.CertPool {
