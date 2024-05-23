@@ -45,37 +45,43 @@ func appendCert(path string, pool *x509.CertPool) {
 	log.Debugf("Appended cert from '%s'", path)
 }
 
-// NewCertPool may add PEM certificates from given path to system cert pool and returns them in a way that is usable at TLS() as RootCAs.
+// NewCertPool adds PEM certificates from given path in a way that is usable at TLS() as RootCAs.
 // If path is a directory then scans for files recursively. If path is not set then defaults to /etc.
-// If loadSelfSigned is true, the function tries to add PEM certificates to system cert pool. If loadSelfSigned is false, function returns only the system cert pool.
+// If loadSystemCerts is true, the given client certificates are complemented with system root certificates.
 // File name should match *.crt or *.pem.
-func NewCertPool(path string, loadSelfSigned bool) *x509.CertPool {
-	pool, err := x509.SystemCertPool()
+func NewCertPool(path string, loadSystemCerts bool) *x509.CertPool {
+	pool, err := getCertPool(loadSystemCerts)
 	if err != nil {
-		log.Fatalf("Failed to load system root CAs: %v", err)
+		log.Fatalf("Failed to init certificate pool: %v", err)
 	}
-	if loadSelfSigned {
 
-		if path == "" {
-			path = "/etc"
-		}
+	if path == "" {
+		path = "/etc"
+	}
 
-		walkFn := func(path string, info os.FileInfo, err error) error {
-			if err == nil && !info.IsDir() {
-				ext := strings.ToLower(filepath.Ext(info.Name()))
-				if ext == ".pem" || ext == ".crt" {
-					appendCert(path, pool)
-				}
+	walkFn := func(path string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() {
+			ext := strings.ToLower(filepath.Ext(info.Name()))
+			if ext == ".pem" || ext == ".crt" {
+				appendCert(path, pool)
 			}
-			return err
 		}
-
-		err = filepath.Walk(path, walkFn)
-		if err != nil {
-			log.Errorf("Error finding CA files at '%s': %v", path, err)
-		}
+		return err
 	}
+
+	err = filepath.Walk(path, walkFn)
+	if err != nil {
+		log.Errorf("Error finding CA files at '%s': %v", path, err)
+	}
+
 	return pool
+}
+
+func getCertPool(loadSystemCerts bool) (*x509.CertPool, error) {
+	if loadSystemCerts {
+		return x509.SystemCertPool()
+	}
+	return x509.NewCertPool(), nil
 }
 
 func (c *Client) haveTLSClientConfig() *tls.Config {
