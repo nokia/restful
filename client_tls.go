@@ -45,34 +45,36 @@ func appendCert(path string, pool *x509.CertPool) {
 	log.Debugf("Appended cert from '%s'", path)
 }
 
-// NewCertPool adds PEM certificates from given path to system cert pool and returns them in a way that is usable at TLS() as RootCAs.
+// NewCertPool may add PEM certificates from given path to system cert pool and returns them in a way that is usable at TLS() as RootCAs.
 // If path is a directory then scans for files recursively. If path is not set then defaults to /etc.
+// If loadSelfSigned is true, the function tries to add PEM certificates to system cert pool. If loadSelfSigned is false, function returns only the system cert pool.
 // File name should match *.crt or *.pem.
-func NewCertPool(path string) *x509.CertPool {
+func NewCertPool(path string, loadSelfSigned bool) *x509.CertPool {
 	pool, err := x509.SystemCertPool()
 	if err != nil {
 		log.Fatalf("Failed to load system root CAs: %v", err)
 	}
+	if loadSelfSigned {
 
-	if path == "" {
-		path = "/etc"
-	}
-
-	walkFn := func(path string, info os.FileInfo, err error) error {
-		if err == nil && !info.IsDir() {
-			ext := strings.ToLower(filepath.Ext(info.Name()))
-			if ext == ".pem" || ext == ".crt" {
-				appendCert(path, pool)
-			}
+		if path == "" {
+			path = "/etc"
 		}
-		return err
-	}
 
-	err = filepath.Walk(path, walkFn)
-	if err != nil {
-		log.Errorf("Error finding CA files at '%s': %v", path, err)
-	}
+		walkFn := func(path string, info os.FileInfo, err error) error {
+			if err == nil && !info.IsDir() {
+				ext := strings.ToLower(filepath.Ext(info.Name()))
+				if ext == ".pem" || ext == ".crt" {
+					appendCert(path, pool)
+				}
+			}
+			return err
+		}
 
+		err = filepath.Walk(path, walkFn)
+		if err != nil {
+			log.Errorf("Error finding CA files at '%s': %v", path, err)
+		}
+	}
 	return pool
 }
 
@@ -106,7 +108,7 @@ func (c *Client) haveTLSClientConfig() *tls.Config {
 // If path is a directory then scans for files recursively. If path is not set then defaults to /etc.
 // File name should match *.crt or *.pem.
 func (c *Client) TLSRootCerts(path string) *Client {
-	c.haveTLSClientConfig().RootCAs = NewCertPool(path)
+	c.haveTLSClientConfig().RootCAs = NewCertPool(path, true)
 	return c
 }
 

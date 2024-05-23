@@ -42,7 +42,7 @@ func TestHTTPSMTLS(t *testing.T) {
 	cert, err := tls.LoadX509KeyPair("test_certs/tls.crt", "test_certs/tls.key")
 	assert.Nil(err)
 	srv.TLS.Certificates = []tls.Certificate{cert}
-	srv.TLS.ClientCAs = NewCertPool("test_certs")
+	srv.TLS.ClientCAs = NewCertPool("test_certs", true)
 	srv.TLS.ClientAuth = tls.RequireAndVerifyClientCert
 	srv.URL = strings.ReplaceAll(srv.URL, "127.0.0.1", "localhost")
 	defer srv.Close()
