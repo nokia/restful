@@ -114,7 +114,7 @@ func (c *Client) haveTLSClientConfig() *tls.Config {
 // If path is a directory then scans for files recursively. If path is not set then defaults to /etc.
 // File name should match *.crt or *.pem.
 func (c *Client) TLSRootCerts(path string) *Client {
-	c.haveTLSClientConfig().RootCAs = NewCertPool(path, true)
+	c.haveTLSClientConfig().RootCAs = NewCertPool(path, false)
 	return c
 }
 
