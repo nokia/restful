@@ -50,7 +50,7 @@ func appendCert(path string, pool *x509.CertPool) {
 // If loadSystemCerts is true, the given client certificates are complemented with system root certificates.
 // File name should match *.crt or *.pem.
 func NewCertPool(path string, loadSystemCerts bool) *x509.CertPool {
-	pool, err := getCertPool(loadSystemCerts)
+	pool, err := initialCertPool(loadSystemCerts)
 	if err != nil {
 		log.Fatalf("Failed to init certificate pool: %v", err)
 	}
@@ -77,7 +77,7 @@ func NewCertPool(path string, loadSystemCerts bool) *x509.CertPool {
 	return pool
 }
 
-func getCertPool(loadSystemCerts bool) (*x509.CertPool, error) {
+func initialCertPool(loadSystemCerts bool) (*x509.CertPool, error) {
 	if loadSystemCerts {
 		return x509.SystemCertPool()
 	}
@@ -111,7 +111,7 @@ func (c *Client) haveTLSClientConfig() *tls.Config {
 
 // TLSRootCerts loads PEM certificates from given path and sets TLS config accordingly.
 // Cert can be Root CA or self-signed server cert, so that client can authenticate servers.
-// If loadSystemCerts is true, the given client certificates are complemented with system root certificates.
+// If loadSystemCerts is true, the client accepts server CAs from system settings, too.
 // If path is a directory then scans for files recursively. If path is not set then defaults to /etc.
 // File name should match *.crt or *.pem.
 func (c *Client) TLSRootCerts(path string, loadSystemCerts bool) *Client {

@@ -84,10 +84,10 @@ Client CA can be PEM file or a directory containing PEM files case insensitively
 
 ```go
 // MTLS non-OOP way
-restful.ListenAndServeMTLS(":8443", "/etc/own-tls/tls.crt", "/etc/own-tls/tls.crt", "/etc/clientcas", nil)
+restful.ListenAndServeMTLS(":8443", "/etc/own-tls/tls.crt", "/etc/own-tls/tls.crt", "/etc/clientcas", false, nil)
 
 // MTLS OOP way
-srv := restful.NewServer().Addr(":8443").Handler(handler).TLSServerCert("/etc/own-tls/tls.crt", "/etc/own-tls/tls.crt").TLSClientCert("/etc/clientcas")
+srv := restful.NewServer().Addr(":8443").Handler(handler).TLSServerCert("/etc/own-tls/tls.crt", "/etc/own-tls/tls.crt").TLSClientCert("/etc/clientcas", false)
 srv.ListenAndServe()
 ```
 

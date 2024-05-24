@@ -82,7 +82,7 @@ Load CA certs from a directory. Looks for `*.crt` and `*.pem` files.
 That is often needed when private CA is used.
 
 ```go
-client := restful.NewClient().TLSRootCerts("/etc/cacerts")
+client := restful.NewClient().TLSRootCerts("/etc/cacerts", false)
 ```
 
 ### Mutual TLS
@@ -94,7 +94,7 @@ File naming follows Kubernetes TLS secret solution, e.g. used at `kubectl create
 
 ```go
 client := restful.NewClient()
-client.TLSRootCerts("/etc/cacerts")
+client.TLSRootCerts("/etc/cacerts", false)
 client.TLSOwnCerts("/etc/own_tls")
 ```
 
