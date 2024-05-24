@@ -22,7 +22,8 @@ func Start() error {
 // StartTLS starts serving for TLS on port 8443 (AddrHTTPS) and for cleartext on port 8080 (AddrHTTP), if allowed.
 // TLS cert must be at OwnTLSCert and key at OwnTLSKey.
 // If mutualTLS=true, then client certs must be provided; see variable ClientCAs.
-// If loadSystemCerts=true, then client certs will be complemented with system root certificates.
+// If loadSystemCerts is true, clients with CA from system CA pool are accepted, too.
+// As the role of mTLS is to authorize certain clients to connect, enable system CAs only if those are reasonable for auth.
 // Logs, except for automatically served LivenessProbePath and HealthCheckPath.
 // Handles connections gracefully on TERM/INT signals.
 func StartTLS(cleartext, mutualTLS bool, loadSystemCerts bool) error {
