@@ -111,10 +111,11 @@ func (c *Client) haveTLSClientConfig() *tls.Config {
 
 // TLSRootCerts loads PEM certificates from given path and sets TLS config accordingly.
 // Cert can be Root CA or self-signed server cert, so that client can authenticate servers.
+// If loadSystemCerts is true, the given client certificates are complemented with system root certificates.
 // If path is a directory then scans for files recursively. If path is not set then defaults to /etc.
 // File name should match *.crt or *.pem.
-func (c *Client) TLSRootCerts(path string) *Client {
-	c.haveTLSClientConfig().RootCAs = NewCertPool(path, false)
+func (c *Client) TLSRootCerts(path string, loadSystemCerts bool) *Client {
+	c.haveTLSClientConfig().RootCAs = NewCertPool(path, loadSystemCerts)
 	return c
 }
 

@@ -19,10 +19,10 @@ func TestHTTPSServer(t *testing.T) {
 	addr := ":18443"
 	server := NewServer().Addr(addr)
 	server.TLSServerCert("test_certs/tls.crt", "test_certs/tls.key")
-	server.TLSClientCert("test_certs")
+	server.TLSClientCert("test_certs", false)
 	go server.ListenAndServe()
 
-	c := NewClient().TLSRootCerts("test_certs")
+	c := NewClient().TLSRootCerts("test_certs", false)
 	err := c.Get(context.Background(), "https://localhost"+addr, nil)
 	assert.Equal(t, 500, GetErrStatusCode(err))
 
@@ -34,5 +34,5 @@ func TestHTTPSServer(t *testing.T) {
 
 func TestHTTPSServerNoOOP(t *testing.T) {
 	ListenAndServeTLS(":-1", "test_certs/tls.crt", "test_certs/tls.key", nil)
-	ListenAndServeMTLS(":-1", "test_certs/tls.crt", "test_certs/tls.key", "test_certs", nil)
+	ListenAndServeMTLS(":-1", "test_certs/tls.crt", "test_certs/tls.key", "test_certs", false, nil)
 }

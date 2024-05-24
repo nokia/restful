@@ -28,7 +28,7 @@ func TestHTTPS(t *testing.T) {
 	srv.URL = strings.ReplaceAll(srv.URL, "127.0.0.1", "localhost")
 	defer srv.Close()
 
-	client := NewClient().Root(srv.URL).TLSRootCerts("test_certs").HTTPS(nil)
+	client := NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).HTTPS(nil)
 	err = client.Get(context.Background(), "/NEF", nil)
 	assert.Nil(err)
 }
@@ -47,8 +47,8 @@ func TestHTTPSMTLS(t *testing.T) {
 	srv.URL = strings.ReplaceAll(srv.URL, "127.0.0.1", "localhost")
 	defer srv.Close()
 
-	assert.NoError(NewClient().Root(srv.URL).TLSRootCerts("test_certs").TLSOwnCerts("test_certs").Get(context.Background(), "/NEF", nil)) // Own cert set
-	assert.Error(NewClient().Root(srv.URL).TLSRootCerts("test_certs").Get(context.Background(), "/NEF", nil))                             // Own cert not set
+	assert.NoError(NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs").Get(context.Background(), "/NEF", nil)) // Own cert set
+	assert.Error(NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).Get(context.Background(), "/NEF", nil))                             // Own cert not set
 }
 
 func TestHTTPSMTLSServer(t *testing.T) {
@@ -58,11 +58,11 @@ func TestHTTPSMTLSServer(t *testing.T) {
 	OwnTLSKey = "test_certs/tls.key"
 	ClientCAs = "test_certs"
 	HandleFunc("/NEF", func() {})
-	go StartTLS(false, true)
+	go StartTLS(false, true, false)
 	time.Sleep(10 * time.Millisecond)
 
-	assert.NoError(NewClient().Root("https://127.0.0.1:8443").TLSRootCerts("test_certs").TLSOwnCerts("test_certs").Get(context.Background(), "/NEF", nil)) // Own cert set
-	assert.Error(NewClient().Root("https://127.0.0.1:8443").TLSRootCerts("test_certs").Get(context.Background(), "/NEF", nil))                             // Own cert not set
+	assert.NoError(NewClient().Root("https://127.0.0.1:8443").TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs").Get(context.Background(), "/NEF", nil)) // Own cert set
+	assert.Error(NewClient().Root("https://127.0.0.1:8443").TLSRootCerts("test_certs", false).Get(context.Background(), "/NEF", nil))                             // Own cert not set
 }
 
 func TestHTTPSInsecure(t *testing.T) {
@@ -93,9 +93,9 @@ func TestHTTPSCertFail(t *testing.T) {
 	assert.Equal("h2", client.Kind)
 	client.TLS(nil)
 	client.TLS(&tls.Config{})
-	client.TLSRootCerts("")
-	client.TLSRootCerts("/nonexisting")
-	client.TLSRootCerts(".") // finds ./test_certs/
+	client.TLSRootCerts("", false)
+	client.TLSRootCerts("/nonexisting", false)
+	client.TLSRootCerts(".", false) // finds ./test_certs/
 	client.TLSOwnCerts("/nonexisting")
 	client.TLSOwnCerts("./test_certs")
 	err := client.Get(context.Background(), "/NEF", nil)
