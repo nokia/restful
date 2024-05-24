@@ -118,16 +118,17 @@ func (r *Router) Start() error {
 // StartTLS starts router for TLS on port 8443 (AddrHTTPS) and for cleartext on port 8080 (AddrHTTP), if allowed.
 // TLS cert must be at OwnTLSCert and key at OwnTLSKey.
 // If mutualTLS=true, then client certs must be provided; see variable ClientCAs.
+// If loadSystemCerts=true, then client certs will be complemented with system root certificates.
 // Logs, except for automatically served LivenessProbePath and HealthCheckPath.
 // Handles connections gracefully on TERM/INT signals.
-func (r *Router) StartTLS(cleartext, mutualTLS bool) error {
+func (r *Router) StartTLS(cleartext, mutualTLS bool, loadSystemCerts bool) error {
 	if cleartext {
 		go r.Start()
 	}
 
 	s := NewServer().Addr(AddrHTTPS).Handler(r).Graceful(0).TLSServerCert(OwnTLSCert, OwnTLSKey)
 	if mutualTLS {
-		s = s.TLSClientCert(ClientCAs)
+		s = s.TLSClientCert(ClientCAs, loadSystemCerts)
 	}
 	return s.ListenAndServe()
 }
@@ -146,9 +147,10 @@ func (r *Router) ListenAndServeTLS(addr, certFile, keyFile string) error {
 
 // ListenAndServeMTLS starts router listening on given address.
 // Parameter clientCerts is a PEM cert file or a directory of PEM cert files case insensitively matching *.pem or *.crt.
+// If loadSystemCerts is true, the given client certificates are complemented with system root certificates.
 // Logs, except for automatically served LivenessProbePath and HealthCheckPath.
-func (r *Router) ListenAndServeMTLS(addr, certFile, keyFile, clientCerts string) error {
-	return ListenAndServeMTLS(addr, certFile, keyFile, clientCerts, r)
+func (r *Router) ListenAndServeMTLS(addr, certFile, keyFile, clientCerts string, loadSystemCerts bool) error {
+	return ListenAndServeMTLS(addr, certFile, keyFile, clientCerts, loadSystemCerts, r)
 }
 
 // ServeHTTP serves HTTP request with matching handler.
