@@ -350,7 +350,7 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 // Make sure encrypted transport is used, e.g. the link is https.
 // If client's HTTPS() has been called earlier, then token URL is checked accordingly.
 // If token URL does not meet those requirements, then client credentials auth is not activated and error log is printed.
-func (c *Client) SetOauth2Conf(config oauth2.Config, grant ...Grant) *Client {
+func (c *Client) SetOauth2Conf(config oauth2.Config, tokenClient *http.Client, grant ...Grant) *Client {
 	if c.httpsCfg != nil {
 		tokenURL, err := url.Parse(config.Endpoint.TokenURL)
 		if err == nil {
@@ -368,12 +368,19 @@ func (c *Client) SetOauth2Conf(config oauth2.Config, grant ...Grant) *Client {
 		}
 	}
 	c.oauth2.config = &config
+	if tokenClient != nil {
+		c.oauth2.client = tokenClient
+	}
 	return c
 }
 
 // SetOauth2H2 makes OAuth2 token client communicate using h2 transport with Authorization Server.
 func (c *Client) SetOauth2H2() *Client {
-	c.oauth2.client = &http.Client{Timeout: 10 * time.Second, Transport: &h2Transport}
+	if c.oauth2.client != nil {
+		c.oauth2.client.Transport = &h2Transport
+	} else {
+		c.oauth2.client = &http.Client{Timeout: 10 * time.Second, Transport: &h2Transport}
+	}
 	return c
 }
 
