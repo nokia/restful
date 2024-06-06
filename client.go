@@ -375,6 +375,12 @@ func (c *Client) SetOauth2Conf(config oauth2.Config, tokenClient *http.Client, g
 	return c
 }
 
+// SetOauth2H2 makes OAuth2 token client communicate using h2 transport with Authorization Server.
+func (c *Client) SetOauth2H2() *Client {
+	c.oauth2.client = &http.Client{Timeout: 10 * time.Second, Transport: &h2Transport}
+	return c
+}
+
 // SetJar sets cookie jar for the client.
 func (c *Client) SetJar(jar http.CookieJar) *Client {
 	c.Client.Jar = jar
@@ -384,12 +390,6 @@ func (c *Client) SetJar(jar http.CookieJar) *Client {
 // Jar gets cookie jar of the client.
 func (c *Client) Jar() http.CookieJar {
 	return c.Client.Jar
-}
-
-// SetOauth2H2 makes OAuth2 token client communicate using h2 transport with Authorization Server.
-func (c *Client) SetOauth2H2() *Client {
-	c.oauth2.client = &http.Client{Timeout: 10 * time.Second, Transport: &h2Transport}
-	return c
 }
 
 func errDeadlineOrCancel(err error) bool {
