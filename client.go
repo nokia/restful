@@ -344,13 +344,14 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 	return c
 }
 
-// SetOauth2Conf makes client obtain OAuth2 access token with given grant.
+// SetOauth2Conf initializes OAuth2 configuration with given grant.
+// Depending on specific setup, custom http.Client can be added to obtain access tokens.
 // Either on first request to be sent or later when the obtained access token is expired.
 //
 // Make sure encrypted transport is used, e.g. the link is https.
 // If client's HTTPS() has been called earlier, then token URL is checked accordingly.
 // If token URL does not meet those requirements, then client credentials auth is not activated and error log is printed.
-func (c *Client) SetOauth2Conf(config oauth2.Config, grant ...Grant) *Client {
+func (c *Client) SetOauth2Conf(config oauth2.Config, tokenClient *http.Client, grant ...Grant) *Client {
 	if c.httpsCfg != nil {
 		tokenURL, err := url.Parse(config.Endpoint.TokenURL)
 		if err == nil {
@@ -368,12 +369,9 @@ func (c *Client) SetOauth2Conf(config oauth2.Config, grant ...Grant) *Client {
 		}
 	}
 	c.oauth2.config = &config
-	return c
-}
-
-// SetOauth2H2 makes OAuth2 token client communicate using h2 transport with Authorization Server.
-func (c *Client) SetOauth2H2() *Client {
-	c.oauth2.client = &http.Client{Timeout: 10 * time.Second, Transport: &h2Transport}
+	if c.oauth2.client == nil && tokenClient != nil {
+		c.oauth2.client = tokenClient
+	}
 	return c
 }
 
@@ -386,6 +384,12 @@ func (c *Client) SetJar(jar http.CookieJar) *Client {
 // Jar gets cookie jar of the client.
 func (c *Client) Jar() http.CookieJar {
 	return c.Client.Jar
+}
+
+// SetOauth2H2 makes OAuth2 token client communicate using h2 transport with Authorization Server.
+func (c *Client) SetOauth2H2() *Client {
+	c.oauth2.client = &http.Client{Timeout: 10 * time.Second, Transport: &h2Transport}
+	return c
 }
 
 func errDeadlineOrCancel(err error) bool {
@@ -452,9 +456,7 @@ func (c *Client) obtainOauth2Token(ctx context.Context) error {
 	// Check if token has been obtained by another instance while waiting for writer lock.
 	if !c.oauth2.token.Valid() {
 		if c.oauth2.client == nil {
-			oauth2Client := NewClient().Timeout(10 * time.Second)
-			oauth2Client.Client.Transport = c.Client.Transport
-			c.oauth2.client = oauth2Client.Client
+			c.oauth2.client = DefaultTokenClient
 		}
 		oauthCtx := context.WithValue(ctx, oauth2.HTTPClient, c.oauth2.client)
 		var token *oauth2.Token
