@@ -344,13 +344,14 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 	return c
 }
 
-// SetOauth2Conf makes client obtain OAuth2 access token with given grant.
+// SetOauth2Conf initializes OAuth2 configuration with given grant.
+// Depending on specific setup, custom http.Client can be added to obtain access tokens.
 // Either on first request to be sent or later when the obtained access token is expired.
 //
 // Make sure encrypted transport is used, e.g. the link is https.
 // If client's HTTPS() has been called earlier, then token URL is checked accordingly.
 // If token URL does not meet those requirements, then client credentials auth is not activated and error log is printed.
-func (c *Client) SetOauth2Conf(config oauth2.Config, grant ...Grant) *Client {
+func (c *Client) SetOauth2Conf(config oauth2.Config, tokenClient *http.Client, grant ...Grant) *Client {
 	if c.httpsCfg != nil {
 		tokenURL, err := url.Parse(config.Endpoint.TokenURL)
 		if err == nil {
@@ -368,6 +369,9 @@ func (c *Client) SetOauth2Conf(config oauth2.Config, grant ...Grant) *Client {
 		}
 	}
 	c.oauth2.config = &config
+	if c.oauth2.client == nil && tokenClient != nil {
+		c.oauth2.client = tokenClient
+	}
 	return c
 }
 
