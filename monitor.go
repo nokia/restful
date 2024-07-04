@@ -57,6 +57,13 @@ func (w monitorWriter) WriteHeader(statusCode int) {
 	w.writer.WriteHeader(statusCode)
 }
 
+// Flush sends any buffered data to the client.
+func (w monitorWriter) Flush() {
+	if f, ok := w.writer.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 type monitorHandler struct {
 	origHandler http.Handler
 	pre         MonitorFuncPre
