@@ -9,10 +9,10 @@ import (
 )
 
 type innerStruct struct {
-	String string            `json:"string,omitempty"`
-	Array  []byte            `json:"array"`
+	String string            `json:"str,omitempty"`
+	Array  []byte            `json:"arr"`
 	Map    map[string]string `json:"map"`
-	Number int               `json:"number,omitempty"`
+	Number int               `json:"num,omitempty"`
 }
 
 type structType struct {
@@ -22,11 +22,12 @@ type structType struct {
 
 var src = structType{Str: "hello", Struct: innerStruct{Number: 1, Array: []byte{1, 2, 3}}}
 
-const parallelItes = 1000
+const parallelIters = 1000
 
 func Test_MsgPack(t *testing.T) {
 	bytes, err := Marshal(&src)
 	assert.NoError(t, err)
+	assert.Equal(t, 38, len(bytes))
 	var dst structType
 	assert.NoError(t, Unmarshal(bytes, &dst))
 	assert.Equal(t, src, dst)
@@ -34,9 +35,9 @@ func Test_MsgPack(t *testing.T) {
 
 func Benchmark_MsgPack_Parallel(b *testing.B) {
 	var wg sync.WaitGroup
-	wg.Add(parallelItes)
+	wg.Add(parallelIters)
 
-	for i := 0; i < parallelItes; i++ {
+	for i := 0; i < parallelIters; i++ {
 		go func() {
 			bytes, _ := Marshal(&src)
 			var dst structType
@@ -50,9 +51,9 @@ func Benchmark_MsgPack_Parallel(b *testing.B) {
 
 func Benchmark_Json(b *testing.B) {
 	var wg sync.WaitGroup
-	wg.Add(parallelItes)
+	wg.Add(parallelIters)
 
-	for i := 0; i < parallelItes; i++ {
+	for i := 0; i < parallelIters; i++ {
 		go func() {
 			bytes, _ := json.Marshal(&src)
 			var dst structType
