@@ -33,7 +33,7 @@ func (route *Route) Handler(handler http.Handler) *Route {
 }
 
 // HandlerFunc sets a handler function or lambda for a route.
-func (route *Route) HandlerFunc(f interface{}) *Route {
+func (route *Route) HandlerFunc(f any) *Route {
 	wrapped := route.monitors.wrap(LambdaWrap(f))
 	route.route = route.route.Handler(wrapped)
 	return route

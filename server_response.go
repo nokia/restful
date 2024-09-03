@@ -13,7 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func getJSONBody(data interface{}, sanitizeJSON bool) ([]byte, error) {
+func getJSONBody(data any, sanitizeJSON bool) ([]byte, error) {
 	if data == nil {
 		return nil, nil // Otherwise "null" (4 bytes) would be returned.
 	}
@@ -34,7 +34,7 @@ func getJSONBody(data interface{}, sanitizeJSON bool) ([]byte, error) {
 
 // SendJSONResponse sends an HTTP response with an optionally sanitized JSON data.
 // Caller may set additional headers like `w.Header().Set("Location", "https://me")` before calling this function.
-func SendJSONResponse(w http.ResponseWriter, statusCode int, data interface{}, sanitizeJSON bool) (err error) {
+func SendJSONResponse(w http.ResponseWriter, statusCode int, data any, sanitizeJSON bool) (err error) {
 	body, err := getJSONBody(data, sanitizeJSON)
 	if body != nil {
 		w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
@@ -46,7 +46,7 @@ func SendJSONResponse(w http.ResponseWriter, statusCode int, data interface{}, s
 	return err
 }
 
-func sendResponse(w http.ResponseWriter, r *http.Request, data interface{}, sanitizeJSON bool) (err error) {
+func sendResponse(w http.ResponseWriter, r *http.Request, data any, sanitizeJSON bool) (err error) {
 	okStatus := getOkStatus(w, r, data)
 
 	if data == nil {
@@ -79,11 +79,11 @@ func sendResponse(w http.ResponseWriter, r *http.Request, data interface{}, sani
 
 // SendResponse sends an HTTP response with a JSON data.
 // Caller may set additional headers like `w.Header().Set("Location", "https://me")` before calling this function.
-func SendResponse(w http.ResponseWriter, statusCode int, data interface{}) error {
+func SendResponse(w http.ResponseWriter, statusCode int, data any) error {
 	return SendJSONResponse(w, statusCode, data, false)
 }
 
-func getOkStatus(w http.ResponseWriter, r *http.Request, data interface{}) int {
+func getOkStatus(w http.ResponseWriter, r *http.Request, data any) int {
 	status := http.StatusOK
 	if data == nil {
 		status = http.StatusNoContent
@@ -98,7 +98,7 @@ func getOkStatus(w http.ResponseWriter, r *http.Request, data interface{}) int {
 // On no error 200/201/204 sent according to the request.
 // On error send response depending on whether the error is created by NewError and the client supports RFC 7807.
 // Caller may set additional headers like `w.Header().Set("Location", "https://me")` before calling this function.
-func SendResp(w http.ResponseWriter, r *http.Request, err error, data interface{}) error {
+func SendResp(w http.ResponseWriter, r *http.Request, err error, data any) error {
 	if err == nil {
 		return sendResponse(w, r, data, LambdaSanitizeJSON)
 	}

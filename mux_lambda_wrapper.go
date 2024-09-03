@@ -27,7 +27,7 @@ func lambdaHandleRes0(l *lambda.Lambda) (err error) {
 	return
 }
 
-func lambdaHandleRes1(l *lambda.Lambda, res reflect.Value) (interface{}, error) {
+func lambdaHandleRes1(l *lambda.Lambda, res reflect.Value) (any, error) {
 	if err, ok := res.Interface().(error); ok {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func lambdaGetStatus(l *lambda.Lambda, res reflect.Value) error {
 	return nil
 }
 
-func lambdaHandleRes2(l *lambda.Lambda, res []reflect.Value) (interface{}, error) {
+func lambdaHandleRes2(l *lambda.Lambda, res []reflect.Value) (any, error) {
 
 	err := lambdaGetStatus(l, res[1])
 
@@ -62,7 +62,7 @@ func lambdaHandleRes2(l *lambda.Lambda, res []reflect.Value) (interface{}, error
 }
 
 func lambdaHandleRes(w http.ResponseWriter, r *http.Request, res []reflect.Value) {
-	var data interface{}
+	var data any
 	var err error
 	if len(res) <= 0 {
 		err = lambdaHandleRes0(L(r.Context()))
@@ -76,7 +76,7 @@ func lambdaHandleRes(w http.ResponseWriter, r *http.Request, res []reflect.Value
 
 var contextType = reflect.TypeOf((*context.Context)(nil)).Elem()
 
-func lambdaGetParams(w http.ResponseWriter, r *http.Request, f interface{}) ([]reflect.Value, *http.Request, error) {
+func lambdaGetParams(w http.ResponseWriter, r *http.Request, f any) ([]reflect.Value, *http.Request, error) {
 	t := reflect.TypeOf(f)
 	params := make([]reflect.Value, t.NumIn())
 	if t.NumIn() > 0 {
@@ -115,7 +115,7 @@ func lambdaGetParams(w http.ResponseWriter, r *http.Request, f interface{}) ([]r
 // LambdaWrap wraps a Lambda function and makes it a http.HandlerFunc.
 // This function is rarely needed, as restful's Router wraps handler functions automatically.
 // You might need it if you want to wrap a standard http.HandlerFunc.
-func LambdaWrap(f interface{}) http.HandlerFunc {
+func LambdaWrap(f any) http.HandlerFunc {
 	if httpHandler, ok := f.(func(w http.ResponseWriter, r *http.Request)); ok {
 		return httpHandler
 	}

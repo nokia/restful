@@ -45,7 +45,7 @@ func (c *Client) target2URLs(target string) ([]string, error) {
 // SendRecvListFirst2xxParallel acts similarly to SendRecv2xx, but broadcasts the request to all targets defined.
 // The first positive (2xx) response is processed, the rest are cancelled.
 // If all the responses are negative, then error is returned.
-func (c *Client) SendRecvListFirst2xxParallel(ctx context.Context, method string, targets []string, headers http.Header, reqData, respData interface{}) (*http.Response, error) {
+func (c *Client) SendRecvListFirst2xxParallel(ctx context.Context, method string, targets []string, headers http.Header, reqData, respData any) (*http.Response, error) {
 	body, err := c.makeBodyBytes(reqData)
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ func (c *Client) SendRecvListFirst2xxParallel(ctx context.Context, method string
 	wg.Add(len(targets))
 
 	respChan := make(chan *http.Response)
-	waitChan := make(chan interface{})
+	waitChan := make(chan any)
 
 	for i := range targets {
 		go func(target string, respChan chan *http.Response) {
@@ -71,7 +71,7 @@ func (c *Client) SendRecvListFirst2xxParallel(ctx context.Context, method string
 		}(targets[i], respChan)
 	}
 
-	go func(chan interface{}) {
+	go func(chan any) {
 		wg.Wait()
 		waitChan <- nil
 	}(waitChan)
@@ -89,7 +89,7 @@ func (c *Client) SendRecvListFirst2xxParallel(ctx context.Context, method string
 // SendRecvResolveFirst2xxParallel acts similarly to SendRecv2xx, but broadcasts the request to all resolved servers of the target.
 // The first positive (2xx) response is processed, the rest are cancelled.
 // If all the responses are negative, then error is returned.
-func (c *Client) SendRecvResolveFirst2xxParallel(ctx context.Context, method string, target string, headers http.Header, reqData, respData interface{}) (*http.Response, error) {
+func (c *Client) SendRecvResolveFirst2xxParallel(ctx context.Context, method string, target string, headers http.Header, reqData, respData any) (*http.Response, error) {
 	targets, err := c.target2URLs(target)
 	if err != nil {
 		return nil, err

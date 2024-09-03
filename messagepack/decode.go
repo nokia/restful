@@ -10,7 +10,7 @@ import (
 )
 
 var decPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		dec := msgpack.NewDecoder(nil)
 		dec.SetCustomStructTag("json")
 		return dec
@@ -29,7 +29,7 @@ func putDecoder(dec *msgpack.Decoder) {
 // Unmarshal parses the MessagePack-encoded data and stores the result
 // in the value pointed to by v.
 // Destination v must be a non-nil pointer.
-func Unmarshal(data []byte, v interface{}) error {
+func Unmarshal(data []byte, v any) error {
 	dec := getDecoder()
 	dec.UsePreallocateValues(true)
 	dec.ResetReader(bytes.NewReader(data))
