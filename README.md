@@ -12,11 +12,18 @@ It lets you handle HTTP+JSON without any extra code.
 You receive and respond with data structures.
 
 ```go
-type reqData struct{...}
-type respData struct{...}
+type reqData struct{
+    Num int `json:"num" validate:"lt=1000000"`
+}
+
+type respData struct{
+    Number int `json:"number"`
+}
 
 func create(ctx context.Context, req *reqData) (*respData, error) {
-    ... // You use data structures directly, without marshalling and unmarshalling.
+    // You use data structures directly, without marshalling and unmarshalling.
+    resp := respData{Number: reqData.Num}
+    return &respData, nil
 }
 
 func main() {

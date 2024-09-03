@@ -20,7 +20,7 @@ import (
 
 type strint struct {
 	S string
-	I int
+	I int `json:"i" validate:"lt=1000"`
 }
 
 func dupCtx(ctx context.Context, si strint) (strint, error) {
@@ -90,7 +90,7 @@ func TestNonContext(t *testing.T) {
 		r.ServeHTTP(rr, req)
 		respBody := rr.Body.String()
 		assert.Equal(200, rr.Code)
-		assert.Equal(`{"S":"ss","I":4}`, respBody)
+		assert.Equal(`{"S":"ss","i":4}`, respBody)
 	}
 	{ // Scalar bad method
 		req, err := http.NewRequest("GET", "/dup", bytes.NewReader(reqBody))
@@ -110,7 +110,7 @@ func TestNonContext(t *testing.T) {
 		r.ServeHTTP(rr, req)
 		respBody := rr.Body.String()
 		assert.Equal(200, rr.Code)
-		assert.Equal(`{"S":"ss","I":4}`, respBody)
+		assert.Equal(`{"S":"ss","i":4}`, respBody)
 	}
 	{ // Error
 		req, err := http.NewRequest("POST", "/err", bytes.NewReader(reqBody))
@@ -160,7 +160,7 @@ func TestContext(t *testing.T) {
 		assert.Equal("POST", rr.Header().Get("Request-method"))
 		assert.Contains(rr.Header().Get("Request-URL"), "/context/42?q=hello%20world")
 		assert.Equal("42", rr.Header().Get("Request-path-id"))
-		assert.Equal(`{"S":"ss","I":4}`, respBody)
+		assert.Equal(`{"S":"ss","i":4}`, respBody)
 	}
 	{ // Context; without http layer
 		headers := make(http.Header)
@@ -177,6 +177,28 @@ func TestContext(t *testing.T) {
 		assert.Equal(4, resp.I)
 		otherCtx := AddLambdaToContext(context.Background(), L(ctx))
 		assert.Equal(L(ctx), L(otherCtx))
+	}
+}
+
+func TestValidationError(t *testing.T) {
+	assert := assert.New(t)
+
+	r := NewRouter()
+	route := r.Methods(http.MethodPost).Name("Hello").Path("/context/{id:[0-9]+}").Schemes("http").HandlerFunc(dupCtx)
+	assert.NoError(route.GetError())
+
+	{ // "lt"
+		reqBody := []byte(`{"s":"s","i":1000000}`)
+		req, err := http.NewRequest("POST", "/context/42", bytes.NewReader(reqBody))
+		assert.NoError(err)
+		req.Header.Set("Content-Type", "application/json")
+		req.URL.RawQuery = "q=hello%20world"
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+		respBody := rr.Body.String()
+		assert.Equal(422, rr.Code)
+		assert.Contains(respBody, "validation")
+		assert.Equal("application/json", rr.Header().Get("Content-Type"))
 	}
 }
 
@@ -296,7 +318,7 @@ func TestDefaultRouter(t *testing.T) {
 	DefaultServeMux.router.ServeHTTP(rr, req)
 	respBody := rr.Body.String()
 	assert.Equal(200, rr.Code)
-	assert.Equal(`{"S":"ss","I":4}`, respBody)
+	assert.Equal(`{"S":"ss","i":4}`, respBody)
 }
 
 func TestBadCT(t *testing.T) {
