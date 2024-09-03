@@ -10,7 +10,7 @@ import (
 )
 
 var encPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		enc := msgpack.NewEncoder(nil)
 		enc.SetCustomStructTag("json")
 		enc.UseCompactInts(true)
@@ -29,7 +29,7 @@ func putEncoder(enc *msgpack.Encoder) {
 }
 
 // Marshal returns the MessagePack encoding of v.
-func Marshal(v interface{}) ([]byte, error) {
+func Marshal(v any) ([]byte, error) {
 	enc := getEncoder()
 
 	var buf bytes.Buffer

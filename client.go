@@ -627,7 +627,7 @@ func (c *Client) calcBackoff(retry int) time.Duration {
 	return backoff
 }
 
-func (c *Client) makeBodyBytes(data interface{}) ([]byte, error) {
+func (c *Client) makeBodyBytes(data any) ([]byte, error) {
 	if data == nil {
 		return nil, nil
 	}
@@ -673,7 +673,7 @@ func (c *Client) addCT(req *http.Request, method string, headers http.Header, bo
 // SendRequest sends an HTTP request with JSON data.
 // Target URL and headers to be added can be defined.
 // It is the caller's responsibility to close http.Response.Body.
-func (c *Client) SendRequest(ctx context.Context, method string, target string, headers http.Header, data interface{}) (*http.Response, error) {
+func (c *Client) SendRequest(ctx context.Context, method string, target string, headers http.Header, data any) (*http.Response, error) {
 	body, err := c.makeBodyBytes(data)
 	if err != nil {
 		return nil, err
@@ -737,7 +737,7 @@ func (c *Client) setMsgPackUse(resp *http.Response) {
 // Received response is returned. E.g. resp.StatusCode.
 // If request data is empty then request body is not sent in HTTP request.
 // If response data is nil then response body is omitted.
-func (c *Client) SendRecv(ctx context.Context, method string, target string, headers http.Header, reqData, respData interface{}) (*http.Response, error) {
+func (c *Client) SendRecv(ctx context.Context, method string, target string, headers http.Header, reqData, respData any) (*http.Response, error) {
 	resp, err := c.SendRequest(ctx, method, target, headers, reqData)
 	if err != nil {
 		return nil, err
@@ -753,7 +753,7 @@ func (c *Client) SendRecv(ctx context.Context, method string, target string, hea
 // Received response is returned. E.g. resp.Header["Location"].
 // If request data is nil then request body is not sent in HTTP request.
 // If response data is nil then response body is omitted.
-func (c *Client) SendRecv2xx(ctx context.Context, method string, target string, headers http.Header, reqData, respData interface{}) (*http.Response, error) {
+func (c *Client) SendRecv2xx(ctx context.Context, method string, target string, headers http.Header, reqData, respData any) (*http.Response, error) {
 	resp, err := c.SendRequest(ctx, method, target, headers, reqData)
 	if err != nil {
 		return nil, err
@@ -780,7 +780,7 @@ func (c *Client) SendRecv2xx(ctx context.Context, method string, target string, 
 // BroadcastRequest sends a HTTP request with JSON data to all of the IP addresses received in the DNS response
 // for the target URI and expects 2xx responses, returning error in any other case.
 // This is meant for sending notifications to headless kubernetes services. Response data is not returned or saved.
-func (c *Client) BroadcastRequest(ctx context.Context, method string, target string, headers http.Header, reqData interface{}) error {
+func (c *Client) BroadcastRequest(ctx context.Context, method string, target string, headers http.Header, reqData any) error {
 	targets, err := c.target2URLs(target)
 	if err != nil {
 		return err
@@ -801,7 +801,7 @@ func (c *Client) BroadcastRequest(ctx context.Context, method string, target str
 
 // PostForm posts data as "application/x-www-form-urlencoded", expects response as "application/json", if any.
 // Returns Location URL, if received.
-func (c *Client) PostForm(ctx context.Context, target string, reqData url.Values, respData interface{}) (*url.URL, error) {
+func (c *Client) PostForm(ctx context.Context, target string, reqData url.Values, respData any) (*url.URL, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, strings.NewReader(reqData.Encode()))
 	if err != nil {
 		return nil, err
@@ -827,7 +827,7 @@ func (c *Client) PostForm(ctx context.Context, target string, reqData url.Values
 
 // Post sends a POST request.
 // Primarily designed to create a resource and return its Location. That may be nil.
-func (c *Client) Post(ctx context.Context, target string, reqData, respData interface{}) (*url.URL, error) {
+func (c *Client) Post(ctx context.Context, target string, reqData, respData any) (*url.URL, error) {
 	resp, err := c.SendRecv2xx(ctx, http.MethodPost, target, nil, reqData, respData)
 	if resp != nil {
 		location, _ := resp.Location()
@@ -838,12 +838,12 @@ func (c *Client) Post(ctx context.Context, target string, reqData, respData inte
 
 // Post sends a POST request.
 // Primarily designed to create a resource and return its Location. That may be nil.
-func Post(ctx context.Context, target string, reqData, respData interface{}) (*url.URL, error) {
+func Post(ctx context.Context, target string, reqData, respData any) (*url.URL, error) {
 	return defaultClient.Post(ctx, target, reqData, respData)
 }
 
 // Put updates a resource. Might return Location of created resource, otherwise nil.
-func (c *Client) Put(ctx context.Context, target string, reqData, respData interface{}) (*url.URL, error) {
+func (c *Client) Put(ctx context.Context, target string, reqData, respData any) (*url.URL, error) {
 	resp, err := c.SendRecv2xx(ctx, http.MethodPut, target, nil, reqData, respData)
 	if resp != nil {
 		location, _ := resp.Location()
@@ -853,7 +853,7 @@ func (c *Client) Put(ctx context.Context, target string, reqData, respData inter
 }
 
 // Put updates a resource. Might return Location of created resource, otherwise nil.
-func Put(ctx context.Context, target string, reqData, respData interface{}) (*url.URL, error) {
+func Put(ctx context.Context, target string, reqData, respData any) (*url.URL, error) {
 	return defaultClient.Put(context.Background(), target, reqData, respData)
 }
 
@@ -862,24 +862,24 @@ func Put(ctx context.Context, target string, reqData, respData interface{}) (*ur
 //
 // WARNING: The chosen Content-Type header may not be what caller needs.
 // One may prefer SendRecv2xx instead.
-func (c *Client) Patch(ctx context.Context, target string, reqData, respData interface{}) error {
+func (c *Client) Patch(ctx context.Context, target string, reqData, respData any) error {
 	_, err := c.SendRecv2xx(ctx, http.MethodPatch, target, nil, reqData, respData)
 	return err
 }
 
 // Patch partially updates a resource.
-func Patch(ctx context.Context, target string, reqData, respData interface{}) error {
+func Patch(ctx context.Context, target string, reqData, respData any) error {
 	return defaultClient.Patch(ctx, target, reqData, respData)
 }
 
 // Get gets a resource.
-func (c *Client) Get(ctx context.Context, target string, respData interface{}) error {
+func (c *Client) Get(ctx context.Context, target string, respData any) error {
 	_, err := c.SendRecv2xx(ctx, http.MethodGet, target, nil, nil, respData)
 	return err
 }
 
 // Get gets a resource.
-func Get(ctx context.Context, target string, respData interface{}) error {
+func Get(ctx context.Context, target string, respData any) error {
 	return defaultClient.Get(ctx, target, respData)
 }
 

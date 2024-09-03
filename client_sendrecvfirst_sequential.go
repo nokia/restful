@@ -13,7 +13,7 @@ import (
 // SendRecvListFirst2xxSequential acts similarly to SendRecv2xx, but sends the request to the targets one-by-one, till a positive (2xx) response is received.
 // If all the responses are negative, then error is returned.
 // You may feed the list to a shuffle function before calling, if order is not defined.
-func (c *Client) SendRecvListFirst2xxSequential(ctx context.Context, method string, targets []string, headers http.Header, reqData, respData interface{}) (*http.Response, error) {
+func (c *Client) SendRecvListFirst2xxSequential(ctx context.Context, method string, targets []string, headers http.Header, reqData, respData any) (*http.Response, error) {
 	body, err := c.makeBodyBytes(reqData)
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func (c *Client) SendRecvListFirst2xxSequential(ctx context.Context, method stri
 // SendRecvResolveFirst2xxSequential acts similarly to SendRecv2xx, but sends the request to the resolved targets one-by-one, till a positive (2xx) response is received.
 // If all the responses are negative, then error is returned.
 // You may feed the list to a shuffle function before calling, if order is not defined.
-func (c *Client) SendRecvResolveFirst2xxSequential(ctx context.Context, method string, target string, headers http.Header, reqData, respData interface{}) (*http.Response, error) {
+func (c *Client) SendRecvResolveFirst2xxSequential(ctx context.Context, method string, target string, headers http.Header, reqData, respData any) (*http.Response, error) {
 	targets, err := c.target2URLs(target)
 	if err != nil {
 		return nil, err

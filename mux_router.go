@@ -48,7 +48,7 @@ func (r *Router) Monitor(pre MonitorFuncPre, post MonitorFuncPost) *Router {
 // HandleFunc assigns an HTTP path to a function.
 // The function can be compatible with type http.HandlerFunc or a restful's Lambda.
 // E.g. r.HandleFunc("/users/{id:[0-9]+}", myFunc)
-func (r *Router) HandleFunc(path string, f interface{}) *Route {
+func (r *Router) HandleFunc(path string, f any) *Route {
 	return r.Handle(path, LambdaWrap(f))
 }
 

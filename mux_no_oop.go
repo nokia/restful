@@ -8,7 +8,7 @@ package restful
 var DefaultServeMux = NewRouter()
 
 // HandleFunc assigns an HTTP path template to a function.
-func HandleFunc(path string, f interface{}) *Route {
+func HandleFunc(path string, f any) *Route {
 	return DefaultServeMux.HandleFunc(path, f)
 }
 
