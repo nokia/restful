@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"reflect"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/nokia/restful/lambda"
 )
 
@@ -19,6 +20,14 @@ var LambdaMaxBytesToParse = 0
 // LambdaSanitizeJSON defines whether to sanitize JSON of Lambda return or SendResp.
 // See SanitizeJSONString for details.
 var LambdaSanitizeJSON = false
+
+// LambdaValidator tells if incoming request is to be validated.
+// Validation is done by https://github.com/go-playground/validator.
+// See its documentation for details.
+var LambdaValidator = true
+
+// validate is a single instance, caching info about the struct to be validated.
+var validate *validator.Validate = validator.New(validator.WithRequiredStructEnabled())
 
 func lambdaHandleRes0(l *lambda.Lambda) (err error) {
 	if l != nil && l.Status > 0 {
@@ -92,20 +101,27 @@ func lambdaGetParams(w http.ResponseWriter, r *http.Request, f any) ([]reflect.V
 
 		// Handle body parameter
 		if reqDataIdx < t.NumIn() {
-			var err error
 			var reqData reflect.Value
+			var reqDataInterface any
 			reqDataType := t.In(reqDataIdx)
 			if reqDataType.Kind() == reflect.Ptr {
 				reqData = reflect.New(reqDataType.Elem())
-				err = GetRequestData(r, LambdaMaxBytesToParse, reqData.Interface())
+				reqDataInterface = reqData.Interface()
 			} else {
 				reqData = reflect.New(reqDataType).Elem()
-				err = GetRequestData(r, LambdaMaxBytesToParse, reqData.Addr().Interface())
+				reqDataInterface = reqData.Addr().Interface()
 			}
 
-			if err != nil {
+			if err := GetRequestData(r, LambdaMaxBytesToParse, reqDataInterface); err != nil {
 				return nil, r, err
 			}
+
+			if LambdaValidator {
+				if err := validate.Struct(reqDataInterface); err != nil {
+					return nil, r, NewError(err, http.StatusUnprocessableEntity)
+				}
+			}
+
 			params[reqDataIdx] = reqData
 		}
 	}

@@ -6,7 +6,7 @@ Lambda lets you focus on business logic.
 HTTP + JSON are technical details, just like socket handling and forking on accepting a request.
 These details are not in your way.
 Lambda creates a new abstraction, making a server a collection of functions.
-The concept is nothing new. The syntax offered here is similar to AWS Lambda Go handler.
+The concept is nothing new. It is somewhat similar to Python FastAPI with Pydantic.
 
 Note that many lambda solutions are often meant to be serverless.
 I.e. your app does not have an HTTP server, but functions directly invoked by an API GW.
@@ -38,17 +38,18 @@ import (
     "fmt"
     "net/http"
 
+    "github.com/go-playground/validator/v10"
     "github.com/google/uuid"
     "github.com/nokia/restful"
     "github.com/sirupsen/logrus"
 )
 
-type userId struct {
-    Id string `json:"id"`
+type userID struct {
+    ID string `json:"id" validate:"uuid"`
 }
 
 type user struct {
-    Name    string `json:"name"`
+    Name    string `json:"name" validate:"alpha,required"`
     Address string `json:"address,omitempty"`
 }
 
@@ -65,11 +66,11 @@ func createUser(ctx context.Context, usr user) error {
     return nil // No error
 }
 
-func readUser(id userId) (*user, error) {
-    if usr, ok := db[id.Id]; ok {
+func readUser(id userID) (*user, error) {
+    if usr, ok := db[id.ID]; ok {
         return &usr, nil
     }
-    err := fmt.Errorf("invalid user id: %v", id.Id)
+    err := fmt.Errorf("invalid user id: %v", id.ID)
     return nil, restful.NewError(err, http.StatusBadRequest)
 }
 
@@ -99,6 +100,7 @@ Notes:
 * K8s liveness probe (/livez or /healthz) are answered automatically.
 * Logs errors to stdout. If log level is debug, then log messages, too.
 * `restful.L(ctx)` provides Lambda's HTTP request attributes, such as path parameters and method.
+* Validate tagging is a convenient way of validating message content and returning HTTP status code 422 on error.
 * On GET or POST with urlencoded parameters, [Gorilla/Schema](https://github.com/gorilla/schema) is used.
   If Go field names and parameter names do not match, use `schema:"query-parameter-name"` tagging.
 
