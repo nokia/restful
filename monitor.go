@@ -91,7 +91,8 @@ func (c monitorHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Monitor wraps http.Handler, adding user defined pre and post ReporterFunc call after the handler is served.
+// Monitor wraps handler function, creating a middleware in a safe and convenient fashion.
+// It adds pre and post functions to be called on serving a request.
 // You may prefer Server's or Router's Monitor functions.
 func Monitor(h http.Handler, pre MonitorFuncPre, post MonitorFuncPost) http.Handler {
 	return monitorHandler{origHandler: h, pre: pre, post: post}

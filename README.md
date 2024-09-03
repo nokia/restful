@@ -44,7 +44,7 @@ location, err := restful.Post(ctx, "https://example.com", &reqData, &respData)
 * [Tracing](doc/tracing.md) information is propagated in context, received in Lambda and used in client request.
   That is all done without any extra coding on your side.
   Based on [OpenTelemetry](https://opentelemetry.io/).
-* [Monitor](doc/monitor.md) is a middleware that can pre-process requests and post-process responses.
+* [Monitor](doc/monitor.md) is a convenient middleware solution to pre-process requests and post-process responses.
   Pre and post hooks can be used for whatever you want, such as adding Prometheus counters on router level, without littering your business logic.
 * [Error](doc/error.md) is a Go error object containing HTTP status code besides traditional error.
 

@@ -38,8 +38,8 @@ func NewRouter() *Router {
 	return &Router{router: mux.NewRouter()}
 }
 
-// Monitor sets monitor functions for the router.
-// These functions are called pre / post serving each request.
+// Monitor wraps handler function, creating a middleware in a safe and convenient fashion.
+// It adds pre and post functions to be called on serving a request.
 func (r *Router) Monitor(pre MonitorFuncPre, post MonitorFuncPost) *Router {
 	r.monitors.append(pre, post)
 	return r
