@@ -766,7 +766,7 @@ func (c *Client) SendRecv2xx(ctx context.Context, method string, target string, 
 				return nil, NewError(nil, resp.StatusCode, detail)
 			}
 		} else if errors.Is(err, ErrUnexpectedContentType) { // Non-problem JSON, e.g. plain text or other JSON
-			return nil, newErrorWithBody(nil, resp.StatusCode, resp.Header.Get(ContentTypeHeader), body)
+			return nil, NewErrorWithBody(nil, resp.StatusCode, resp.Header.Get(ContentTypeHeader), body)
 		}
 		return nil, NewError(fmt.Errorf("unexpected response: %s", resp.Status), resp.StatusCode, detail)
 	}
