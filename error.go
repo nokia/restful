@@ -97,7 +97,8 @@ func NewError(err error, statusCode int, description ...string) error {
 	return &restError{err: err, statusCode: statusCode, problemDetails: ProblemDetails{Detail: strings.Join(description, " ")}}
 }
 
-func newErrorWithBody(err error, statusCode int, contentType string, body []byte) error {
+// NewErrorWithBody creates new error with custom HTTP status code, content-type and payload body.
+func NewErrorWithBody(err error, statusCode int, contentType string, body []byte) error {
 	if len(body) > maxErrBodyLen {
 		return &restError{err: err, statusCode: statusCode}
 	}
