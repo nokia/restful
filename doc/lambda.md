@@ -38,7 +38,6 @@ import (
     "fmt"
     "net/http"
 
-    "github.com/go-playground/validator/v10"
     "github.com/google/uuid"
     "github.com/nokia/restful"
     "github.com/sirupsen/logrus"
