@@ -429,11 +429,11 @@ func (c *Client) setUA(req *http.Request) {
 }
 
 func (c *Client) cloneBody(req *http.Request) io.ReadCloser {
-	var body io.ReadCloser
-	if c.retries > 0 && req.Body != nil {
-		body, _ = req.GetBody()
+	if c.retries > 0 && req.Body != nil && req.Body != http.NoBody {
+		clonedBody, _ := req.GetBody()
+		return clonedBody
 	}
-	return body
+	return nil
 }
 
 func retryStatus(statusCode int) bool {
@@ -518,8 +518,6 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 
 	c.setUA(req)
 
-	body := c.cloneBody(req)
-
 	if c.username != "" && c.oauth2.config == nil {
 		req.SetBasicAuth(c.username, c.password)
 	}
@@ -539,7 +537,7 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	req, spanStr := doSpan(req)
-	resp, err := c.doLog(spanStr, req, body, target)
+	resp, err := c.doLog(spanStr, req, target)
 
 	for i := 0; i < len(c.monitor); i++ {
 		if c.monitor[i].post != nil {
@@ -553,7 +551,8 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	return resp, err
 }
 
-func (c *Client) doWithRetry(req *http.Request, body io.ReadCloser, spanStr, target string) (*http.Response, error) {
+func (c *Client) doWithRetry(req *http.Request, spanStr, target string) (*http.Response, error) {
+	clonedBody := c.cloneBody(req)
 	resp, err := c.do(req)
 
 	for retries := 0; retries < c.retries && !errDeadlineOrCancel(err) && retryResp(resp); retries++ { // Gateway error or overload responses.
@@ -561,8 +560,8 @@ func (c *Client) doWithRetry(req *http.Request, body io.ReadCloser, spanStr, tar
 			_ = resp.Body.Close()
 		}
 
-		req.Body = body
-		body = c.cloneBody(req)
+		req.Body = clonedBody
+		clonedBody = c.cloneBody(req)
 
 		time.Sleep(c.calcBackoff(retries))
 		log.Debugf("[%s] Send rty(%d): %s %s: err=%v", spanStr, retries, req.Method, target, err)
@@ -572,9 +571,9 @@ func (c *Client) doWithRetry(req *http.Request, body io.ReadCloser, spanStr, tar
 	return resp, err
 }
 
-func (c *Client) doLog(spanStr string, req *http.Request, body io.ReadCloser, target string) (*http.Response, error) {
+func (c *Client) doLog(spanStr string, req *http.Request, target string) (*http.Response, error) {
 	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, target)
-	resp, err := c.doWithRetry(req, body, spanStr, target)
+	resp, err := c.doWithRetry(req, spanStr, target)
 	if err != nil {
 		log.Debugf("[%s] Fail req: %s %s", spanStr, req.Method, target)
 	} else {
