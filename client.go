@@ -430,6 +430,18 @@ func (c *Client) setUA(req *http.Request) {
 
 func (c *Client) cloneBody(req *http.Request) io.ReadCloser {
 	if c.retries > 0 && req.Body != nil && req.Body != http.NoBody {
+		if req.GetBody == nil { // Probably a server request body to be forwarded.
+			req.GetBody = func() (io.ReadCloser, error) {
+				recvdBuf, err := io.ReadAll(req.Body)
+				if err != nil {
+					return nil, err
+				}
+				clonedBuf := make([]byte, len(recvdBuf))
+				copy(clonedBuf, recvdBuf)
+				req.Body = io.NopCloser(bytes.NewReader(recvdBuf))
+				return io.NopCloser(bytes.NewReader(clonedBuf)), nil
+			}
+		}
 		clonedBody, _ := req.GetBody()
 		return clonedBody
 	}

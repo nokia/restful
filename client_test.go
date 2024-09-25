@@ -349,6 +349,41 @@ func TestTimeout(t *testing.T) {
 	}
 }
 
+func TestRetryWithServerForwarding(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server the client forwards requests to
+	srvCounter := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if srvCounter&1 == 0 {
+			w.WriteHeader(502)
+		} else {
+			w.WriteHeader(200)
+		}
+		srvCounter++
+	}))
+	defer srv.Close()
+
+	client := NewClient().Root(srv.URL).Retry(3, time.Millisecond, time.Second)
+	{ // With body
+		req, _ := http.NewRequest("POST", "/hello", strings.NewReader(`{"hello": "world"}`))
+		req.GetBody = nil // Simulating server behavior
+		resp, err := client.Do(req)
+		assert.NoError(err)
+		assert.Equal(200, resp.StatusCode)
+	}
+
+	{ // No body
+		req, _ := http.NewRequest("DELETE", "/hello", nil)
+		req.GetBody = nil // Simulating server behavior
+		resp, err := client.Do(req)
+		assert.NoError(err)
+		assert.Equal(200, resp.StatusCode)
+	}
+
+	assert.Equal(4, srvCounter)
+}
+
 func TestMethodsError(t *testing.T) {
 	assert := assert.New(t)
 
