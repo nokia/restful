@@ -6,6 +6,7 @@ package restful
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -84,4 +85,50 @@ func TestSendRespEmbeddedError(t *testing.T) {
 
 	err := NewClient().Get(context.Background(), srv.URL, nil)
 	assert.Equal(`{"detail":"error: embedded"}`, err.Error())
+}
+
+func TestSendRespCustomError(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	srv := httptest.NewServer(Logger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		invalidParam := InvalidParam{Param: "name", Reason: "missing"}
+		body, err := json.Marshal(invalidParam)
+		assert.NoError(err)
+		assert.Equal(ContentTypeApplicationJSON, r.Header.Get("Accept"))
+
+		err = NewErrorWithBody(nil, http.StatusBadRequest, ContentTypeApplicationJSON, body)
+		SendResp(w, r, err, nil)
+		assert.Equal(ContentTypeApplicationJSON, w.Header().Get("content-type"))
+	})))
+	defer srv.Close()
+
+	err := NewClient().Get(context.Background(), srv.URL, nil)
+	assert.Equal(http.StatusBadRequest, GetErrStatusCode(err))
+	contentType, body := GetErrBody(err)
+	assert.Equal(ContentTypeApplicationJSON, contentType)
+	assert.Equal(`{"param":"name","reason":"missing"}`, string(body))
+}
+
+func TestSendRespCustomErrorWithoutCT(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	srv := httptest.NewServer(Logger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		invalidParam := InvalidParam{Param: "name", Reason: "missing"}
+		body, err := json.Marshal(invalidParam)
+		assert.NoError(err)
+		r.Header.Del("Accept")
+
+		err = NewErrorWithBody(nil, http.StatusBadRequest, ContentTypeApplicationJSON, body)
+		SendResp(w, r, err, nil)
+		assert.Equal("", w.Header().Get("content-type"))
+	})))
+	defer srv.Close()
+
+	err := NewClient().Get(context.Background(), srv.URL, nil)
+	assert.Equal(http.StatusBadRequest, GetErrStatusCode(err))
+	contentType, body := GetErrBody(err)
+	assert.Equal("", contentType)
+	assert.Equal(``, string(body))
 }

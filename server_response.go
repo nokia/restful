@@ -7,6 +7,7 @@ package restful
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/nokia/restful/messagepack"
@@ -171,18 +172,32 @@ func SendProblemResponse(w http.ResponseWriter, r *http.Request, statusCode int,
 	return
 }
 
+func sendResponseWithCustomError(r *http.Request, w http.ResponseWriter, body []byte, statusCode int, contentType string) (err error) {
+	if string(body[0]) == "{" && contentType != "" && slices.Contains(r.Header.Values(AcceptHeader), contentType) {
+		w.Header().Set(ContentTypeHeader, contentType)
+		w.WriteHeader(statusCode)
+		_, err = w.Write([]byte(body))
+		return
+	}
+	SendEmptyResponse(w, statusCode)
+	return nil
+}
+
 // SendProblemDetails adds detailed problem description to JSON body, if available. See RFC 7807.
 func SendProblemDetails(w http.ResponseWriter, r *http.Request, err error) error {
-	if err, ok := err.(*restError); ok {
-		d := err.problemDetails.Detail
+	if restErr, ok := err.(*restError); ok {
+		if len(restErr.body) != 0 {
+			return sendResponseWithCustomError(r, w, restErr.body, GetErrStatusCode(restErr), restErr.contentType)
+		}
+		d := restErr.problemDetails.Detail
 		// check in case it is somehow already filled with JSON text...
 		if d != "" && d[0] != '{' {
-			if err.err != nil {
-				if embeddedStr := err.err.Error(); embeddedStr != "" {
-					err.problemDetails.Detail += ": " + embeddedStr
+			if restErr.err != nil {
+				if embeddedStr := restErr.err.Error(); embeddedStr != "" {
+					restErr.problemDetails.Detail += ": " + embeddedStr
 				}
 			}
-			return SendProblemResponse(w, r, GetErrStatusCode(err), err.problemDetails.String())
+			return SendProblemResponse(w, r, GetErrStatusCode(restErr), restErr.problemDetails.String())
 		}
 	}
 	return SendProblemResponse(w, r, GetErrStatusCode(err), err.Error())
