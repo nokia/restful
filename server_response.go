@@ -172,7 +172,7 @@ func SendProblemResponse(w http.ResponseWriter, r *http.Request, statusCode int,
 	return
 }
 
-func sendResponseWithCustomError(r *http.Request, w http.ResponseWriter, body []byte, statusCode int, contentType string) (err error) {
+func sendCustomResponse(r *http.Request, w http.ResponseWriter, body []byte, statusCode int, contentType string) (err error) {
 	if string(body[0]) == "{" && contentType != "" && slices.Contains(r.Header.Values(AcceptHeader), contentType) {
 		w.Header().Set(ContentTypeHeader, contentType)
 		w.WriteHeader(statusCode)
@@ -187,7 +187,7 @@ func sendResponseWithCustomError(r *http.Request, w http.ResponseWriter, body []
 func SendProblemDetails(w http.ResponseWriter, r *http.Request, err error) error {
 	if restErr, ok := err.(*restError); ok {
 		if len(restErr.body) != 0 {
-			return sendResponseWithCustomError(r, w, restErr.body, GetErrStatusCode(restErr), restErr.contentType)
+			return sendCustomResponse(r, w, restErr.body, GetErrStatusCode(restErr), restErr.contentType)
 		}
 		d := restErr.problemDetails.Detail
 		// check in case it is somehow already filled with JSON text...
