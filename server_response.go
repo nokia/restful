@@ -7,7 +7,6 @@ package restful
 import (
 	"encoding/json"
 	"net/http"
-	"slices"
 	"strings"
 
 	"github.com/nokia/restful/messagepack"
@@ -172,8 +171,27 @@ func SendProblemResponse(w http.ResponseWriter, r *http.Request, statusCode int,
 	return
 }
 
+func acceptContentType(r *http.Request, contentType string) bool {
+	acceptHeaders := r.Header.Values(AcceptHeader)
+	if len(acceptHeaders) == 0 {
+		return true
+	}
+	var mainContentType string
+	ctParts := strings.SplitN(contentType, "/", 2)
+	if len(ctParts) == 2 {
+		mainContentType = ctParts[0] + "/*"
+	}
+	for i := range acceptHeaders {
+		baseCT := BaseContentType(acceptHeaders[i])
+		if baseCT == contentType || baseCT == mainContentType || baseCT == ContentTypeAny {
+			return true
+		}
+	}
+	return false
+}
+
 func sendCustomResponse(r *http.Request, w http.ResponseWriter, body []byte, statusCode int, contentType string) (err error) {
-	if string(body[0]) == "{" && contentType != "" && slices.Contains(r.Header.Values(AcceptHeader), contentType) {
+	if contentType != "" && acceptContentType(r, contentType) {
 		w.Header().Set(ContentTypeHeader, contentType)
 		w.WriteHeader(statusCode)
 		_, err = w.Write([]byte(body))

@@ -98,6 +98,55 @@ func TestSendRespCustomError(t *testing.T) {
 		assert.Equal(ContentTypeApplicationJSON, r.Header.Get("Accept"))
 
 		err = NewErrorWithBody(nil, http.StatusBadRequest, ContentTypeApplicationJSON, body)
+		assert.True(acceptContentType(r, ContentTypeApplicationJSON))
+		SendResp(w, r, err, nil)
+		assert.Equal(ContentTypeApplicationJSON, w.Header().Get("content-type"))
+	})))
+	defer srv.Close()
+
+	err := NewClient().Get(context.Background(), srv.URL, nil)
+	assert.Equal(http.StatusBadRequest, GetErrStatusCode(err))
+	contentType, body := GetErrBody(err)
+	assert.Equal(ContentTypeApplicationJSON, contentType)
+	assert.Equal(`{"param":"name","reason":"missing"}`, string(body))
+}
+
+func TestSendRespCustomErrorCTAny(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	srv := httptest.NewServer(Logger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		invalidParam := InvalidParam{Param: "name", Reason: "missing"}
+		body, err := json.Marshal(invalidParam)
+		assert.NoError(err)
+		r.Header.Set(AcceptHeader, ContentTypeAny)
+
+		err = NewErrorWithBody(nil, http.StatusBadRequest, ContentTypeApplicationJSON, body)
+		assert.True(acceptContentType(r, ContentTypeApplicationJSON))
+		SendResp(w, r, err, nil)
+		assert.Equal(ContentTypeApplicationJSON, w.Header().Get("content-type"))
+	})))
+	defer srv.Close()
+
+	err := NewClient().Get(context.Background(), srv.URL, nil)
+	assert.Equal(http.StatusBadRequest, GetErrStatusCode(err))
+	contentType, body := GetErrBody(err)
+	assert.Equal(ContentTypeApplicationJSON, contentType)
+	assert.Equal(`{"param":"name","reason":"missing"}`, string(body))
+}
+
+func TestSendRespCustomErrorWithoutAccept(t *testing.T) {
+	assert := assert.New(t)
+
+	// Server
+	srv := httptest.NewServer(Logger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		invalidParam := InvalidParam{Param: "name", Reason: "missing"}
+		body, err := json.Marshal(invalidParam)
+		assert.NoError(err)
+		r.Header.Del("Accept")
+
+		err = NewErrorWithBody(nil, http.StatusBadRequest, ContentTypeApplicationJSON, body)
+		assert.True(acceptContentType(r, ContentTypeApplicationJSON))
 		SendResp(w, r, err, nil)
 		assert.Equal(ContentTypeApplicationJSON, w.Header().Get("content-type"))
 	})))
@@ -118,9 +167,9 @@ func TestSendRespCustomErrorWithoutCT(t *testing.T) {
 		invalidParam := InvalidParam{Param: "name", Reason: "missing"}
 		body, err := json.Marshal(invalidParam)
 		assert.NoError(err)
-		r.Header.Del("Accept")
 
-		err = NewErrorWithBody(nil, http.StatusBadRequest, ContentTypeApplicationJSON, body)
+		err = NewErrorWithBody(nil, http.StatusBadRequest, "", body)
+		assert.False(acceptContentType(r, ""))
 		SendResp(w, r, err, nil)
 		assert.Equal("", w.Header().Get("content-type"))
 	})))
