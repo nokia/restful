@@ -172,13 +172,18 @@ func SendProblemResponse(w http.ResponseWriter, r *http.Request, statusCode int,
 }
 
 func acceptContentType(r *http.Request, contentType string) bool {
-	if !strings.HasPrefix(contentType, "application/") {
-		return false
+	acceptHeaders := r.Header.Values(AcceptHeader)
+	if len(acceptHeaders) == 0 {
+		return true
 	}
-	acceptHeader := r.Header.Values(AcceptHeader)
-	for i := range acceptHeader {
-		baseCT := BaseContentType(acceptHeader[i])
-		if baseCT == contentType || baseCT == ContentTypeApplicationAny || baseCT == ContentTypeAny {
+	var mainContentType string
+	ctParts := strings.SplitN(contentType, "/", 2)
+	if len(ctParts) == 2 {
+		mainContentType = ctParts[0] + "/*"
+	}
+	for i := range acceptHeaders {
+		baseCT := BaseContentType(acceptHeaders[i])
+		if baseCT == contentType || baseCT == mainContentType || baseCT == ContentTypeAny {
 			return true
 		}
 	}
@@ -186,7 +191,7 @@ func acceptContentType(r *http.Request, contentType string) bool {
 }
 
 func sendCustomResponse(r *http.Request, w http.ResponseWriter, body []byte, statusCode int, contentType string) (err error) {
-	if string(body[0]) == "{" && contentType != "" && acceptContentType(r, contentType) {
+	if contentType != "" && acceptContentType(r, contentType) {
 		w.Header().Set(ContentTypeHeader, contentType)
 		w.WriteHeader(statusCode)
 		_, err = w.Write([]byte(body))
