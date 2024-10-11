@@ -16,18 +16,20 @@ type loggerCtxKey string
 const loggerCtxName = loggerCtxKey("restfulLoggerTraceStr")
 
 var (
-	// HealthCheckPath is the path of health checking, such as liveness and readiness probes.
-	// Handled by default, 200 OK sent.
+	// HealthCheckPath is the path of health checking.
+	// Handled automatically, 200 OK sent.
+	// Similar to liveness endpoint, but sends `Connection: close` header as an extra in the response,
+	// so that each invocation to check listening/accepting new connections.
 	// Ignored at logging. By default "/healthz".
 	HealthCheckPath = "/healthz"
 
 	// LivenessProbePath is the path of liveness probes.
-	// Handled by default, 200 OK sent.
+	// Handled automatically, 200 OK sent.
 	// Ignored at logging. By default "/livez".
 	LivenessProbePath = "/livez"
 
 	// ReadinessProbePath is the path of readiess probes.
-	// Not handled.
+	// Not handled automatically. But a custom endpoint is needed.
 	// Ignored at logging. By default "/readyz".
 	ReadinessProbePath = "/readyz"
 )
@@ -42,8 +44,12 @@ func loggerPost(w http.ResponseWriter, r *http.Request, statusCode int) {
 }
 
 func loggerPre(w http.ResponseWriter, r *http.Request) *http.Request {
-	if r.URL.Path == LivenessProbePath || r.URL.Path == HealthCheckPath {
+	if r.URL.Path == LivenessProbePath {
 		w.Header().Set("Cache-Control", "no-cache")
+		w.WriteHeader(http.StatusOK) // No logs, stop processing.
+	} else if r.URL.Path == HealthCheckPath {
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "close")
 		w.WriteHeader(http.StatusOK) // No logs, stop processing.
 	} else if r.URL.Path != ReadinessProbePath && log.IsLevelEnabled(log.DebugLevel) { // If log won't be printed, then omit context and trace operations.
 		trace := traceFromContextOrRequestOrRandom(r)
