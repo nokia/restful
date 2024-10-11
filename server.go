@@ -44,9 +44,9 @@ func NewServer() *Server {
 }
 
 // Graceful enables graceful shutdown.
-// Awaits TERM/INT signals and exits when http shutdown completed.
-// Caller may define gracePeriod to wait before shutting down, or zero to wait till server connections are closed.
-// Grace period is respected even if server connections are shut down earlier, to allow background client connections to be closed.
+// Awaits TERM/INT signals and exits when http shutdown completed, i.e. clients are served.
+// Caller may define gracePeriod to wait before shutting down listening point.
+// Client connection shutdown awaited indefinitely.
 func (s *Server) Graceful(gracePeriod time.Duration) *Server {
 	s.graceful = true
 	s.gracePeriod = gracePeriod
@@ -95,41 +95,33 @@ func (s *Server) ListenAndServe() error {
 		return s.listenAndServe()
 	}
 
-	c := make(chan error)
+	stopErrCh := make(chan error)
 
 	go func() {
 		if err := s.listenAndServe(); err != http.ErrServerClosed {
-			c <- err
+			stopErrCh <- err
 		} else {
-			c <- nil
+			stopErrCh <- nil
 		}
 	}()
 
-	go waitForSignal(c)
+	go waitForSignal(stopErrCh)
 
-	if err := <-c; err != nil {
+	if err := <-stopErrCh; err != nil {
 		return err
 	}
 
-	var shutdownErr error
 	if s.gracePeriod > 0 {
 		log.Debug("Waiting grace period: ", s.gracePeriod)
-
-		start := time.Now()
-		ctx, cancel := context.WithTimeout(context.Background(), s.gracePeriod)
-		defer cancel()
-		shutdownErr = s.server.Shutdown(ctx)
-		elapsed := time.Since(start)
-
-		if elapsed < s.gracePeriod { // If shutdown was faster, keep waiting, so that background clients are awaited.
-			time.Sleep(s.gracePeriod - elapsed)
-		}
+		time.Sleep(s.gracePeriod) // Still accept new connections.
+		log.Debug("Grace period over")
 	} else {
-		shutdownErr = s.server.Shutdown(context.Background())
+		time.Sleep(10 * time.Millisecond) // Clients just connected to be served. E.g. K8s endpoint just deleted.
 	}
-
-	log.Debug("Shutting down")
-	return shutdownErr
+	log.Debug("Waiting client connections to shut down")
+	err := s.server.Shutdown(context.Background())
+	log.Debug("Shutdown completed")
+	return err
 }
 
 func waitForSignal(c chan error) {
