@@ -1,7 +1,8 @@
 MINIMUM_COVERAGE=85
 MAXIMUM_COMPLEXITY=15
 
-RUN:=docker run -it --rm -w $(CURDIR) -v $(CURDIR):$(CURDIR):Z gotools:latest
+GO_VER?=latest
+RUN:=docker run -it --rm -w $(CURDIR) -v $(CURDIR):$(CURDIR):Z gotools:$(GO_VER)
 COV=/tmp/test.out
 
 .PHONY: all
@@ -24,5 +25,5 @@ test:
 
 .PHONY: gotools
 gotools:
-	docker pull golang:latest # Make sure latest is latest
+	docker pull golang:$(GO_VER) || true # Try to use the latest of the desired Go version
 	docker build . --tag gotools
