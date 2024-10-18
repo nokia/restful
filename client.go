@@ -724,8 +724,11 @@ func (c *Client) setMsgPackUse(resp *http.Response) {
 	if c.msgpackUsage == msgpackDisable {
 		return // Nothing to check and set
 	}
-
-	if isMsgPackContentType(GetBaseContentType(resp.Header)) {
+	contentType := GetBaseContentType(resp.Header)
+	if contentType == "" {
+		return // Cannot be decided
+	}
+	if isMsgPackContentType(contentType) {
 		c.msgpackUsage = msgpackUse // Use confirmed
 	} else {
 		c.msgpackUsage = msgpackDisable // Stop discovery
