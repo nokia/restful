@@ -116,7 +116,7 @@ func lambdaGetParams(w http.ResponseWriter, r *http.Request, f any) ([]reflect.V
 				return nil, r, err
 			}
 
-			if LambdaValidator {
+			if LambdaValidator && reflect.ValueOf(reqDataInterface).Elem().Kind() == reflect.Struct {
 				if err := validate.Struct(reqDataInterface); err != nil {
 					return nil, r, NewError(err, http.StatusUnprocessableEntity)
 				}
