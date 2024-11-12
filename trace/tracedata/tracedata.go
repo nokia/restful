@@ -8,16 +8,22 @@ import (
 	"net/http"
 )
 
+// Span is an object returned at creating a span.
+// That must be closed after use.
+type Span interface {
+	// End ends a span.
+	End()
+
+	// String returns trace span ID string representation.
+	String() string
+}
+
 // TraceData contains HTTP message tracing data of various kind.
 type TraceData interface {
 	// Span spans the existing trace data and puts that into the request.
 	// Returns the updated request and a trace string for logging.
 	// Does not change the input trace data.
-	Span(r *http.Request) (*http.Request, string)
-
-	// SetHeader sets request headers according to the trace data.
-	// Input headers object must not be nil.
-	SetHeader(header http.Header)
+	Span(r *http.Request) (*http.Request, Span)
 
 	// IsReceived tells whether trace data was received (parsed from a request) or a random one.
 	IsReceived() bool

@@ -77,7 +77,8 @@ type Tracer struct {
 	received  bool
 }
 
-// NewFromRequest creates new tracer object from request. Returns nil if not found.
+// NewFromRequest creates new tracer object from request.
+// Returns nil if no tracing data found.
 func NewFromRequest(r *http.Request) *Tracer {
 	var traceData tracedata.TraceData
 	if otelEnabled {
@@ -140,14 +141,8 @@ func NewRandom() *Tracer {
 // Span spans the existing trace data and puts that into the request.
 // Returns the updated request and a trace string for logging.
 // Does not change the input trace data.
-func (t *Tracer) Span(r *http.Request) (*http.Request, string) {
+func (t *Tracer) Span(r *http.Request) (*http.Request, tracedata.Span) {
 	return t.traceData.Span(r)
-}
-
-// SetHeader sets request headers according to the trace data.
-// Input headers object must not be nil.
-func (t *Tracer) SetHeader(headers http.Header) {
-	t.traceData.SetHeader(headers)
 }
 
 // IsReceived tells whether trace data was received (parsed from a request) or a random one.

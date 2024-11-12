@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/nokia/restful/trace/tracecommon"
+	"github.com/nokia/restful/trace/tracedata"
 )
 
 const (
@@ -50,18 +51,32 @@ func (p *TraceParent) span() *TraceParent {
 	return span
 }
 
+// Span is a new span.
+type Span struct {
+	name string
+}
+
+// End ends a span.
+func (s Span) End() {
+}
+
+// String returns trace span ID string representation.
+func (s Span) String() string {
+	return s.name
+}
+
 // Span spans the existing trace data and puts that into the request.
 // Returns the updated request and a trace string for logging.
 // Does not change the input trace data.
-func (p *TraceParent) Span(r *http.Request) (*http.Request, string) {
+func (p *TraceParent) Span(r *http.Request) (*http.Request, tracedata.Span) {
 	span := p.span()
-	span.SetHeader(r.Header)
-	return r, span.String()
+	span.setHeader(r.Header)
+	return r, Span{name: span.String()}
 }
 
-// SetHeader sets request headers according to the trace data.
+// setHeader sets request headers according to the trace data.
 // Input headers object must not be nil.
-func (p *TraceParent) SetHeader(headers http.Header) {
+func (p *TraceParent) setHeader(headers http.Header) {
 	headers.Set(headerTraceParent, p.String())
 	tracecommon.SetHeaderStr(headers, headerTraceState, p.state)
 }

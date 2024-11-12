@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/nokia/restful/messagepack"
-	"github.com/nokia/restful/trace/tracecommon"
 	"github.com/nokia/restful/trace/tracedata"
 	"github.com/nokia/restful/trace/traceotel"
 	"github.com/nokia/restful/trace/tracer"
@@ -413,13 +412,9 @@ func traceFromContextOrRequestOrRandom(req *http.Request) (trace tracedata.Trace
 	return
 }
 
-func doSpan(req *http.Request) (*http.Request, string) {
+func doSpan(req *http.Request) (*http.Request, tracedata.Span) {
 	trace := traceFromContextOrRequestOrRandom(req)
-
-	if trace.IsReceived() || isTraced {
-		return trace.Span(req)
-	}
-	return req, tracecommon.NewTraceID()
+	return trace.Span(req)
 }
 
 func (c *Client) setUA(req *http.Request) {
@@ -548,8 +543,8 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 		}
 	}
 
-	req, spanStr := doSpan(req)
-	resp, err := c.doLog(spanStr, req, target)
+	req, span := doSpan(req)
+	resp, err := c.doLog(span.String(), req, target)
 
 	for i := 0; i < len(c.monitor); i++ {
 		if c.monitor[i].post != nil {
@@ -559,6 +554,8 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 			}
 		}
 	}
+
+	span.End()
 
 	return resp, err
 }

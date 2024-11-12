@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/nokia/restful/trace/tracecommon"
+	"github.com/nokia/restful/trace/tracedata"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -121,13 +122,27 @@ func (b3 *TraceB3) span() *TraceB3 {
 	return &newB3
 }
 
+// Span is a new span.
+type Span struct {
+	name string
+}
+
+// End ends a span.
+func (s Span) End() {
+}
+
+// String returns trace span ID string representation.
+func (s Span) String() string {
+	return s.name
+}
+
 // Span spans the existing trace data and puts that into the request.
 // Returns the updated request and a trace string for logging.
 // Does not change the input trace data.
-func (b3 *TraceB3) Span(r *http.Request) (*http.Request, string) {
+func (b3 *TraceB3) Span(r *http.Request) (*http.Request, tracedata.Span) {
 	span := b3.span()
-	span.SetHeader(r.Header)
-	return r, span.String()
+	span.setHeader(r.Header)
+	return r, Span{name: span.String()}
 }
 
 func (b3 *TraceB3) setHeaderSingleLine(headers http.Header) {
@@ -149,9 +164,9 @@ func (b3 *TraceB3) setHeaderMultiLine(headers http.Header) {
 	tracecommon.SetHeaderStr(headers, headerB3Flags, b3.flags)
 }
 
-// SetHeader sets request headers according to the trace data.
+// setHeader sets request headers according to the trace data.
 // Input headers object must not be nil.
-func (b3 *TraceB3) SetHeader(headers http.Header) {
+func (b3 *TraceB3) setHeader(headers http.Header) {
 	if b3.traceID == "" {
 		return
 	}

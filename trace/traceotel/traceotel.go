@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/nokia/restful/trace/tracedata"
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -65,49 +66,53 @@ func NewRandom() *TraceOTel {
 
 // TraceHeadersToContext maps trace headers in request to context.
 // If there were no tracing headers to be propagated, the original context is returned.
-// The returned bool indicates if the original and the new contexts are the same.
+// Returns span found or nil.
 func TraceHeadersToContext(parentCtx context.Context, r *http.Request) (context.Context, bool) {
 	prop := b3.New()
 	ctx := prop.Extract(parentCtx, propagation.HeaderCarrier(r.Header))
-	spanCtx := trace.SpanContextFromContext(ctx)
+	span := trace.SpanFromContext(ctx)
+	spanCtx := span.SpanContext()
 	if spanCtx.IsValid() {
 		return ctx, true
 	}
 	return parentCtx, false
 }
 
-// Span spans the existing trace data and puts that into the request.
-// Does not change the input trace data.
-func (t *TraceOTel) Span(r *http.Request) (*http.Request, string) {
-	ctx := r.Context()
-	spanCtx := trace.SpanContextFromContext(ctx)
-
-	if ctx == nil || !spanCtx.IsValid() {
-		ctx = t.ctx
-		spanCtx = trace.SpanContextFromContext(ctx)
-	}
-
-	if spanCtx.IsValid() {
-		ctx, span := tracer.Start(ctx, "client")
-		spanCtx = span.SpanContext()
-		span.End() // Note: span stored in ctx is completed. That is not right.
-		r = r.WithContext(ctx)
-	} else {
-		// Check if req has tracing headers
-		newCtx, ok := TraceHeadersToContext(r.Context(), r)
-		if !ok {
-			newCtx = NewRandom().ctx
-		}
-		spanCtx = trace.SpanContextFromContext(newCtx)
-		r = r.WithContext(newCtx)
-	}
-
-	return r, spanCtx.TraceID().String()
+// Span is a new span.
+type Span struct {
+	span trace.Span
+	name string
 }
 
-// SetHeader sets request headers according to the trace data.
-// This function is dummy, as headers are set at client transport.
-func (t *TraceOTel) SetHeader(headers http.Header) {
+// End ends a span.
+func (s Span) End() {
+	s.span.End()
+}
+
+// String returns trace span ID string representation.
+func (s Span) String() string {
+	return s.name
+}
+
+// Span spans the existing trace data and puts that into the request.
+// Does not change the input trace data.
+func (t *TraceOTel) Span(r *http.Request) (*http.Request, tracedata.Span) {
+	// Get parent span from context
+	ctx := r.Context()
+
+	// Fallback: Get parent span from tracing data
+	if ctx == nil || !trace.SpanContextFromContext(ctx).IsValid() {
+		ctx = t.ctx
+	}
+
+	// Fallback 2: Get parent span from headers
+	if !trace.SpanContextFromContext(ctx).IsValid() {
+		ctx, _ = TraceHeadersToContext(r.Context(), r)
+	}
+
+	ctx, span := tracer.Start(ctx, "client")
+	r = r.WithContext(ctx)
+	return r, Span{span: span, name: span.SpanContext().TraceID().String()}
 }
 
 // IsReceived tells whether trace data was received (parsed from a request) or a random one.
