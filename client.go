@@ -223,8 +223,17 @@ func NewClientWInterface(networkInterface string) *Client {
 
 // NewH2Client creates a RESTful client instance, forced to use HTTP2 with TLS (H2) (a.k.a. prior knowledge).
 func NewH2Client() *Client {
+	return NewH2ClientWInterface("")
+}
+
+// NewH2CClient creates a RESTful client instance, forced to use HTTP2 Cleartext (H2C).
+func NewH2CClient() *Client {
+	return NewH2CClientWInterface("")
+}
+
+func NewH2ClientWInterface(networkInterface string) *Client {
 	c := &Client{Kind: KindH2}
-	var rt http.RoundTripper = &h2Transport
+	var rt http.RoundTripper = GetH2Transport(networkInterface)
 	if isTraced && tracer.GetOTel() {
 		rt = otelhttp.NewTransport(rt)
 	}
@@ -232,15 +241,71 @@ func NewH2Client() *Client {
 	return c
 }
 
-// NewH2CClient creates a RESTful client instance, forced to use HTTP2 Cleartext (H2C).
-func NewH2CClient() *Client {
+func NewH2CClientWInterface(networkInterface string) *Client {
 	c := &Client{Kind: KindH2C}
-	var rt http.RoundTripper = &h2CTransport
+	var rt http.RoundTripper = GetH2CTransport(networkInterface)
 	if isTraced && tracer.GetOTel() {
 		rt = otelhttp.NewTransport(rt)
 	}
 	c.Client = &http.Client{Transport: rt}
 	return c
+}
+
+func GetH2Transport(iface string) *http2.Transport {
+	return &http2.Transport{
+		DialTLS: GetDialTLSCallback(iface, true),
+	}
+}
+
+func GetH2CTransport(iface string) *http2.Transport {
+	return &http2.Transport{
+		AllowHTTP: true,
+		DialTLS: GetDialTLSCallback(iface, false),
+	}
+}
+
+func GetDialTLSCallback(iface string, withTLS bool) func(string,string,*tls.Config) (net.Conn, error) {
+	return func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+		dialer := net.Dialer{Timeout: 2 * time.Second}
+
+		var conn *tls.Conn
+		var err error
+		if iface != "" {
+			IPs := getIPFromInterface(iface)
+			if IPs.IPv4 != nil {
+				dialer.LocalAddr = IPs.IPv4
+				conn, err = tls.DialWithDialer(&dialer, network, addr, cfg)
+			}
+
+			// Try IPv6 if IPv4 is unavailable or connection fails.
+			if IPs.IPv4 == nil || (IPs.IPv6 != nil && err != nil && !errDeadlineOrCancel(err)) {
+				dialer.LocalAddr = IPs.IPv6
+				conn, err = tls.DialWithDialer(&dialer, network, addr, cfg)
+			}
+		} else {
+			conn, err = tls.DialWithDialer(&dialer, network, addr, cfg)
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		if withTLS {
+			if err := conn.Handshake(); err != nil {
+				return nil, err
+			}
+			if !cfg.InsecureSkipVerify {
+				if err := conn.VerifyHostname(cfg.ServerName); err != nil {
+					return nil, err
+				}
+			}
+			state := conn.ConnectionState()
+			if p := state.NegotiatedProtocol; p != http2.NextProtoTLS {
+				return nil, fmt.Errorf("http2: unexpected ALPN protocol %q; want %q", p, http2.NextProtoTLS)
+			}
+		}
+		return conn, nil
+	}
 }
 
 // UserAgent to be sent as User-Agent HTTP header. If not set then default Go client settings are used.
