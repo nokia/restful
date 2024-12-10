@@ -242,22 +242,22 @@ func getDialTLSCallback(iface string, withTLS bool) func(string,string,*tls.Conf
 	return func(network, addr string, cfg *tls.Config) (net.Conn, error) {
 		dialer := net.Dialer{Timeout: 2 * time.Second}
 
-		var conn *tls.Conn
+		var conn net.Conn
 		var err error
 		if iface != "" {
 			IPs := getIPFromInterface(iface)
 			if IPs.IPv4 != nil {
 				dialer.LocalAddr = IPs.IPv4
-				conn, err = tls.DialWithDialer(&dialer, network, addr, cfg)
+				conn, err = dialWithDialer(&dialer, network, addr, cfg, withTLS)
 			}
 
 			// Try IPv6 if IPv4 is unavailable or connection fails.
 			if IPs.IPv4 == nil || (IPs.IPv6 != nil && err != nil && !errDeadlineOrCancel(err)) {
 				dialer.LocalAddr = IPs.IPv6
-				conn, err = tls.DialWithDialer(&dialer, network, addr, cfg)
+				conn, err = dialWithDialer(&dialer, network, addr, cfg, withTLS)
 			}
 		} else {
-			conn, err = tls.DialWithDialer(&dialer, network, addr, cfg)
+			conn, err = dialWithDialer(&dialer, network, addr, cfg, withTLS)
 		}
 
 		if err != nil {
@@ -266,20 +266,28 @@ func getDialTLSCallback(iface string, withTLS bool) func(string,string,*tls.Conf
 
 		// Skip TLS dial if it is the H2C
 		if withTLS {
-			if err := conn.Handshake(); err != nil {
+			if err := conn.(*tls.Conn).Handshake(); err != nil {
 				return nil, err
 			}
 			if !cfg.InsecureSkipVerify {
-				if err := conn.VerifyHostname(cfg.ServerName); err != nil {
+				if err := conn.(*tls.Conn).VerifyHostname(cfg.ServerName); err != nil {
 					return nil, err
 				}
 			}
-			state := conn.ConnectionState()
+			state := conn.(*tls.Conn).ConnectionState()
 			if p := state.NegotiatedProtocol; p != http2.NextProtoTLS {
 				return nil, fmt.Errorf("http2: unexpected ALPN protocol %q; want %q", p, http2.NextProtoTLS)
 			}
 		}
 		return conn, nil
+	}
+}
+
+func dialWithDialer(dialer *net.Dialer, network, addr string, cfg *tls.Config, withTLS bool) (net.Conn, error) {
+	if withTLS {
+		return tls.DialWithDialer(dialer, network, addr, cfg)
+	} else {
+		return dialer.Dial(network, addr)
 	}
 }
 
