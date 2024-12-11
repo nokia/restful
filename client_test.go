@@ -6,7 +6,10 @@ package restful
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -14,10 +17,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 	"golang.org/x/oauth2"
 )
 
@@ -854,4 +860,93 @@ func TestCientInterface(t *testing.T) {
 
 	c := NewClientWInterface(theUsedInterface)
 	assert.NotNil(t, c)
+}
+
+func startH2Server(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
+	defer wg.Done()
+	server := &http.Server{
+        Addr:    "localhost:8443",
+        Handler: mux,
+        TLSConfig: &tls.Config{
+            NextProtos: []string{"h2"},
+        },
+    }
+
+    go func() {
+        if err := server.ListenAndServeTLS("test_certs/tls.crt", "test_certs/tls.key"); err != nil && err != http.ErrServerClosed {
+            fmt.Printf("Failed to start server: %v", err)
+        }
+    }()
+	return server
+}
+
+func startH2CServer(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
+	defer wg.Done()
+	server := &http.Server{
+        Addr:    "localhost:8440",
+        Handler: h2c.NewHandler(mux, &http2.Server{}),
+    }
+
+    go func() {
+        if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+            fmt.Printf("Failed to start server: %v", err)
+        }
+    }()
+	return server
+}
+
+func TestClients(t *testing.T) {
+	mux := http.NewServeMux()
+    mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]string{"message": "Hello, world!"}
+		json.NewEncoder(w).Encode(response)
+    })
+	var wg sync.WaitGroup
+	wg.Add(2)
+	h2Server := startH2Server(mux, &wg)
+	h2cServer := startH2CServer(mux, &wg)
+	defer func() { 
+		h2Server.Close()
+	    h2cServer.Close()
+	}()
+
+	h2Client := NewH2Client()
+	h2Client.Client.Transport.(*http2.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true,}
+	h2cClient := NewH2CClient()
+	
+	wg.Wait()
+
+	tests := []struct {
+		name      string
+		client    *Client
+		serverURL string
+	}{
+		{
+			name:      "HTTP/2 Client (H2)",
+			client:     h2Client,
+			serverURL: "https://localhost:8443", // H2 server
+		},
+		{
+			name:      "HTTP/2 Cleartext Client (H2C)",
+			client:     h2cClient,
+			serverURL: "http://localhost:8440", // H2C server
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+
+			var resp any
+			err := test.client.Get(context.Background(), test.serverURL, &resp)
+			if err != nil {
+				t.Fatalf("Failed to make request: %v", err)
+			}
+		
+			b, _ := json.Marshal(resp)
+			if string(b) != "{\"message\":\"Hello, world!\"}" {
+				t.Fatalf("Unexpected response: %s", b)
+			}
+		})
+	}
 }
