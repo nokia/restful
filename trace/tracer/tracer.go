@@ -25,17 +25,21 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
-var otelEnabled = false
+// OtelEnabled tells if OpenTelemetry tracing was activated.
+// You may set that directly or use OTEL_ environment variables for settings.
+// See https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/
+// If OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is set, then tracing is activated automatically.
+var OtelEnabled = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" || os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != ""
 
 // GetOTel returns if Open Telemetry is enabled.
 func GetOTel() bool {
-	return otelEnabled
+	return OtelEnabled
 }
 
 // SetOTel enables/disables Open Telemetry. By default it is disabled.
 // Tracer provider can be set with an exporter and collector endpoint you need.
 func SetOTel(enabled bool, tp *sdktrace.TracerProvider) {
-	otelEnabled = enabled
+	OtelEnabled = enabled
 
 	if enabled {
 		if tp == nil {
@@ -90,7 +94,7 @@ type Tracer struct {
 // NewFromRequest creates new tracer object from request. Returns nil if not found.
 func NewFromRequest(r *http.Request) *Tracer {
 	var traceData tracedata.TraceData
-	if otelEnabled {
+	if OtelEnabled {
 		traceData = traceotel.NewFromRequest(r)
 	} else {
 		traceData = traceb3.NewFromRequest(r)
@@ -109,7 +113,7 @@ func NewFromRequest(r *http.Request) *Tracer {
 // NewFromRequestWithContext creates new tracer object from request derived from parentCtx if otel. Returns nil if not found.
 func NewFromRequestWithContext(parentCtx context.Context, r *http.Request) *Tracer {
 	var traceData tracedata.TraceData
-	if otelEnabled {
+	if OtelEnabled {
 		traceData = traceotel.NewFromRequestWithContext(parentCtx, r)
 	} else {
 		traceData = traceb3.NewFromRequest(r)
@@ -139,7 +143,7 @@ func NewFromRequestOrRandom(r *http.Request) *Tracer {
 // NewRandom creates a tracer object with random data.
 func NewRandom() *Tracer {
 	var randomTraceData tracedata.TraceData
-	if otelEnabled {
+	if OtelEnabled {
 		randomTraceData = traceotel.NewRandom()
 	} else {
 		randomTraceData = traceb3.NewRandom()
