@@ -212,7 +212,7 @@ func NewH2ClientWInterface(networkInterface string) *Client {
 	return c
 }
 
-// NewH2ClientWInterface creates a RESTful client instance with the http2 clear text protocol bound to that network interface.
+// NewH2CClientWInterface creates a RESTful client instance with the http2 clear text protocol bound to that network interface.
 // In other words, the http2 clear text is the http2 but without TLS handshake.
 // The instance has a semi-permanent transport TCP connection.
 func NewH2CClientWInterface(networkInterface string) *Client {
@@ -234,11 +234,11 @@ func getH2Transport(iface string) *http2.Transport {
 func getH2CTransport(iface string) *http2.Transport {
 	return &http2.Transport{
 		AllowHTTP: true,
-		DialTLS: getDialTLSCallback(iface, false),
+		DialTLS:   getDialTLSCallback(iface, false),
 	}
 }
 
-func getDialTLSCallback(iface string, withTLS bool) func(string,string,*tls.Config) (net.Conn, error) {
+func getDialTLSCallback(iface string, withTLS bool) func(string, string, *tls.Config) (net.Conn, error) {
 	return func(network, addr string, cfg *tls.Config) (net.Conn, error) {
 		dialer := net.Dialer{Timeout: 2 * time.Second}
 
@@ -286,9 +286,8 @@ func getDialTLSCallback(iface string, withTLS bool) func(string,string,*tls.Conf
 func dialWithDialer(dialer *net.Dialer, network, addr string, cfg *tls.Config, withTLS bool) (net.Conn, error) {
 	if withTLS {
 		return tls.DialWithDialer(dialer, network, addr, cfg)
-	} else {
-		return dialer.Dial(network, addr)
 	}
+	return dialer.Dial(network, addr)
 }
 
 // UserAgent to be sent as User-Agent HTTP header. If not set then default Go client settings are used.
