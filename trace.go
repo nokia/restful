@@ -24,8 +24,14 @@ func SetOTel(enabled bool, tp *sdktrace.TracerProvider) {
 // SetOTelGrpc enables Open Telemetry.
 // Activates trace export to the OTLP gRPC collector target address defined.
 // Port is 4317, unless defined otherwise in provided target string.
-func SetOTelGrpc(target string) error {
-	return tracer.SetOTelGrpc(target)
+//
+// Fraction tells the fraction of spans to report, unless parent is sampled.
+//
+//   - Less or equal 0 means no sampling, unless parent is sampled.
+//   - Greater or equal 1 means always sampled.
+//   - Else the sampling fraction, e.g. 0.01 for 1%.
+func SetOTelGrpc(target string, fraction float64) error {
+	return tracer.SetOTelGrpc(target, fraction)
 }
 
 // SetTrace can enable/disable HTTP tracing.
