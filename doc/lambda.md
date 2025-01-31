@@ -99,7 +99,10 @@ Notes:
 * K8s liveness probe (/livez or /healthz) are answered automatically.
 * Logs errors to stdout. If log level is debug, then log messages, too.
 * `restful.L(ctx)` provides Lambda's HTTP request attributes, such as path parameters and method.
-* Validate tagging is a convenient way of validating message content and returning HTTP status code 422 on error.
+* Validate tagging is a convenient way of validating message content and returning HTTP status code 422
+  or whatever you set at `LambdaValidationErrorStatus` on an error.
+  The validator is further detailed at [go-playground/validator](https://github.com/go-playground/validator).
+  Currently v10.x is used.
 * On GET or POST with urlencoded parameters, [Gorilla/Schema](https://github.com/gorilla/schema) is used.
   If Go field names and parameter names do not match, use `schema:"query-parameter-name"` tagging.
 
