@@ -26,6 +26,11 @@ var LambdaSanitizeJSON = false
 // See its documentation for details.
 var LambdaValidator = true
 
+// LambdaValidationErrorStatus is the HTTP status code to return on message validation error.
+// Default is 422 Unprocessable Entity, similarly to Python FastAPI/Pydantic.
+// If you prefer 400 Bad Request, then change this.
+var LambdaValidationErrorStatus = http.StatusUnprocessableEntity
+
 // validate is a single instance, caching info about the struct to be validated.
 var validate *validator.Validate = validator.New(validator.WithRequiredStructEnabled())
 
@@ -118,7 +123,7 @@ func lambdaGetParams(w http.ResponseWriter, r *http.Request, f any) ([]reflect.V
 
 			if LambdaValidator && reflect.ValueOf(reqDataInterface).Elem().Kind() == reflect.Struct {
 				if err := validate.Struct(reqDataInterface); err != nil {
-					return nil, r, NewError(err, http.StatusUnprocessableEntity)
+					return nil, r, NewError(err, LambdaValidationErrorStatus)
 				}
 			}
 
