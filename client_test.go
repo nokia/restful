@@ -229,7 +229,7 @@ func TestMethods(t *testing.T) {
 
 	v = url.Values{}
 	v.Set("Str", "b")
-	resp, err := client.PostFormWithFullResponse(ctx, "/users", v)
+	resp, err := client.PostFormWithFullResponse(ctx, "/users", v, nil, nil)
 	assert.NoError(err)
 	err = GetResponseData(resp, client.maxBytesToParse, &respData)
 	assert.NoError(err)

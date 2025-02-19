@@ -885,13 +885,25 @@ func (c *Client) PostForm(ctx context.Context, target string, reqData url.Values
 
 // PostFormWithFullResponse posts data as "application/x-www-form-urlencoded".
 // Returns the full response.
-func (c *Client) PostFormWithFullResponse(ctx context.Context, target string, reqData url.Values) (*http.Response, error) {
+func (c *Client) PostFormWithFullResponse(ctx context.Context, target string, reqData url.Values, cookies map[string]string, headers map[string]string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, strings.NewReader(reqData.Encode()))
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header.Set("Content-Type", ContentTypeForm)
+
+	if headers != nil {
+		for name, value := range headers {
+			req.Header.Set(name, value)
+		}
+	}
+
+	if cookies != nil {
+		for name, value := range cookies {
+			req.AddCookie(&http.Cookie{Name: name, Value: value})
+		}
+	}
 
 	resp, err := c.Do(req)
 	if err != nil {
