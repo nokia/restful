@@ -227,6 +227,15 @@ func TestMethods(t *testing.T) {
 	assert.NoError(err)
 	assert.EqualValues(reqData, respData)
 
+	v = url.Values{}
+	v.Set("Str", "b")
+	resp, err := client.PostFormWithFullResponse(ctx, "/users", v, nil, nil)
+	assert.NoError(err)
+	err = GetResponseData(resp, client.maxBytesToParse, &respData)
+	assert.NoError(err)
+	assert.NotNil(resp)
+	assert.EqualValues(reqData, respData)
+
 	err = client.Delete(ctx, locationStr)
 	assert.Nil(err)
 	err = Delete(ctx, locationStr)
@@ -865,56 +874,56 @@ func TestCientInterface(t *testing.T) {
 func startH2Server(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
 	defer wg.Done()
 	server := &http.Server{
-        Addr:    "localhost:8443",
-        Handler: mux,
-        TLSConfig: &tls.Config{
-            NextProtos: []string{"h2"},
-        },
-    }
+		Addr:    "localhost:8443",
+		Handler: mux,
+		TLSConfig: &tls.Config{
+			NextProtos: []string{"h2"},
+		},
+	}
 
-    go func() {
-        if err := server.ListenAndServeTLS("test_certs/tls.crt", "test_certs/tls.key"); err != nil && err != http.ErrServerClosed {
-            fmt.Printf("Failed to start server: %v", err)
-        }
-    }()
+	go func() {
+		if err := server.ListenAndServeTLS("test_certs/tls.crt", "test_certs/tls.key"); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("Failed to start server: %v", err)
+		}
+	}()
 	return server
 }
 
 func startH2CServer(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
 	defer wg.Done()
 	server := &http.Server{
-        Addr:    "localhost:8440",
-        Handler: h2c.NewHandler(mux, &http2.Server{}),
-    }
+		Addr:    "localhost:8440",
+		Handler: h2c.NewHandler(mux, &http2.Server{}),
+	}
 
-    go func() {
-        if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-            fmt.Printf("Failed to start server: %v", err)
-        }
-    }()
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("Failed to start server: %v", err)
+		}
+	}()
 	return server
 }
 
 func TestClients(t *testing.T) {
 	mux := http.NewServeMux()
-    mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		response := map[string]string{"message": "Hello, world!"}
 		json.NewEncoder(w).Encode(response)
-    })
+	})
 	var wg sync.WaitGroup
 	wg.Add(2)
 	h2Server := startH2Server(mux, &wg)
 	h2cServer := startH2CServer(mux, &wg)
-	defer func() { 
+	defer func() {
 		h2Server.Close()
-	    h2cServer.Close()
+		h2cServer.Close()
 	}()
 
 	h2Client := NewH2Client()
-	h2Client.Client.Transport.(*http2.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true,}
+	h2Client.Client.Transport.(*http2.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	h2cClient := NewH2CClient()
-	
+
 	wg.Wait()
 
 	tests := []struct {
@@ -924,12 +933,12 @@ func TestClients(t *testing.T) {
 	}{
 		{
 			name:      "HTTP/2 Client (H2)",
-			client:     h2Client,
+			client:    h2Client,
 			serverURL: "https://localhost:8443", // H2 server
 		},
 		{
 			name:      "HTTP/2 Cleartext Client (H2C)",
-			client:     h2cClient,
+			client:    h2cClient,
 			serverURL: "http://localhost:8440", // H2C server
 		},
 	}
@@ -942,7 +951,7 @@ func TestClients(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to make request: %v", err)
 			}
-		
+
 			b, _ := json.Marshal(resp)
 			if string(b) != "{\"message\":\"Hello, world!\"}" {
 				t.Fatalf("Unexpected response: %s", b)
