@@ -77,3 +77,8 @@ func TestSendRecvFirst2xxSequentialNoPositive(t *testing.T) {
 	_, err = c.SendRecvResolveFirst2xxSequential(ctx, "GET", srv.URL, nil, nil, &respData)
 	assert.Error(err)
 }
+
+func TestSendRecvResolveFirst2xxSequentialNoTarget(t *testing.T) {
+	_, err := NewClient().SendRecvResolveFirst2xxSequential(context.Background(), "GET", "", nil, nil, nil)
+	assert.Error(t, err)
+}

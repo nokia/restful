@@ -107,3 +107,8 @@ func TestSendRecvFirst2xxParallelTimeout(t *testing.T) {
 	assert.Error(err)
 	assert.Nil(resp)
 }
+
+func TestSendRecvFirst2xxParallelNoTarget(t *testing.T) {
+	_, err := NewClient().SendRecvResolveFirst2xxParallel(context.Background(), "GET", "", nil, nil, nil)
+	assert.Error(t, err)
+}
