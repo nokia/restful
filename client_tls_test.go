@@ -108,3 +108,46 @@ func TestAppendCert(t *testing.T) {
 	appendCert("kutyafüle", nil)
 	appendCert("client_tls_test.go", nil)
 }
+
+func TestSetALPNH2(t *testing.T) {
+	assert := assert.New(t)
+
+	client := NewClient()
+	client.SetALPNH2()
+
+	tlsConfig := client.haveTLSClientConfig()
+	assert.Contains(tlsConfig.NextProtos, "h2")
+}
+
+func TestSetCipherSuites(t *testing.T) {
+	assert := assert.New(t)
+
+	client := NewClient()
+	cipherSuites := []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384}
+	client.SetCipherSuites(cipherSuites)
+
+	tlsConfig := client.haveTLSClientConfig()
+	assert.Equal(cipherSuites, tlsConfig.CipherSuites)
+}
+
+func TestSetTLSMaxVersion(t *testing.T) {
+	assert := assert.New(t)
+
+	client := NewClient()
+	maxVersion := uint16(tls.VersionTLS13)
+	client.SetTLSMaxVersion(maxVersion)
+
+	tlsConfig := client.haveTLSClientConfig()
+	assert.Equal(maxVersion, tlsConfig.MaxVersion)
+}
+
+func TestSetTLSMinVersion(t *testing.T) {
+	assert := assert.New(t)
+
+	client := NewClient()
+	minVersion := uint16(tls.VersionTLS12)
+	client.SetTLSMinVersion(minVersion)
+
+	tlsConfig := client.haveTLSClientConfig()
+	assert.Equal(minVersion, tlsConfig.MinVersion)
+}

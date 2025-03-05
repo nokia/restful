@@ -137,3 +137,55 @@ func (c *Client) Insecure() *Client {
 	c.haveTLSClientConfig().InsecureSkipVerify = true
 	return c
 }
+
+// SetTLSMinVersion sets the minimum TLS version for the client.
+// The tlsMinVersion parameter specifies the minimum version of TLS that is acceptable.
+// It returns the client instance to allow for method chaining.
+//
+// Parameters:
+//   - tlsMinVersion: The minimum TLS version to be set.
+//
+// Returns:
+//   - *Client: The client instance with the updated TLS minimum version.
+func (c *Client) SetTLSMinVersion(tlsMinVersion uint16) *Client {
+	c.haveTLSClientConfig().MinVersion   = tlsMinVersion
+	return c
+}
+
+// SetTLSMaxVersion sets the maximum TLS version for the client.
+// The tlsMaxVersion parameter specifies the maximum version of TLS that is acceptable.
+// It returns the client instance to allow for method chaining.
+//
+// Parameters:
+//   - tlsMaxVersion: The maximum TLS version to be set.
+//
+// Returns:
+//   - *Client: The client instance with the updated TLS maximum version.
+func (c *Client) SetTLSMaxVersion(tlsMaxVersion uint16) *Client {
+	c.haveTLSClientConfig().MaxVersion = tlsMaxVersion
+	return c
+}
+
+// SetCipherSuites sets the list of cipher suites for the client.
+// The cipherSuites parameter specifies the list of cipher suites to be used.
+// It returns the client instance to allow for method chaining.
+//
+// Parameters:
+//   - cipherSuites: The list of cipher suites to be set.
+//
+// Returns:
+//   - *Client: The client instance with the updated cipher suites.
+func (c *Client) SetCipherSuites(cipherSuites []uint16) *Client {
+	c.haveTLSClientConfig().CipherSuites = cipherSuites
+	return c
+}
+
+// SetALPNH2 sets the ALPN (Application-Layer Protocol Negotiation) to only support HTTP/2 (h2).
+// It returns the client instance to allow for method chaining.
+//
+// Returns:
+//   - *Client: The client instance with the updated ALPN protocols.
+func (c *Client) SetALPNH2() *Client {
+	c.haveTLSClientConfig().NextProtos = []string{"h2"}
+	return c
+}
