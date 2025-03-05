@@ -266,6 +266,7 @@ func getDialTLSCallback(iface string, withTLS bool) func(string, string, *tls.Co
 
 		// Skip TLS dial if it is the H2C
 		if withTLS {
+			cfg.NextProtos = []string{http2.NextProtoTLS}
 			if err := conn.(*tls.Conn).Handshake(); err != nil {
 				return nil, err
 			}
