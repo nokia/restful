@@ -241,6 +241,7 @@ func getH2CTransport(iface string) *http2.Transport {
 func getDialTLSCallback(iface string, withTLS bool) func(string, string, *tls.Config) (net.Conn, error) {
 	return func(network, addr string, cfg *tls.Config) (net.Conn, error) {
 		dialer := net.Dialer{Timeout: 2 * time.Second}
+		cfg.NextProtos = []string{http2.NextProtoTLS}
 
 		var conn net.Conn
 		var err error
@@ -266,7 +267,6 @@ func getDialTLSCallback(iface string, withTLS bool) func(string, string, *tls.Co
 
 		// Skip TLS dial if it is the H2C
 		if withTLS {
-			cfg.NextProtos = []string{http2.NextProtoTLS}
 			if err := conn.(*tls.Conn).Handshake(); err != nil {
 				return nil, err
 			}
