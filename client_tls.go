@@ -180,13 +180,3 @@ func (c *Client) SetCipherSuites(cipherSuites []uint16) *Client {
 	c.haveTLSClientConfig().CipherSuites = cipherSuites
 	return c
 }
-
-// SetALPNH2 sets the ALPN (Application-Layer Protocol Negotiation) to only support HTTP/2 (h2).
-// It returns the client instance to allow for method chaining.
-//
-// Returns:
-//   - *Client: The client instance with the updated ALPN protocols.
-func (c *Client) SetALPNH2() *Client {
-	c.haveTLSClientConfig().NextProtos = []string{"h2"}
-	return c
-}

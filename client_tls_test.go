@@ -109,16 +109,6 @@ func TestAppendCert(t *testing.T) {
 	appendCert("client_tls_test.go", nil)
 }
 
-func TestSetALPNH2(t *testing.T) {
-	assert := assert.New(t)
-
-	client := NewClient()
-	client.SetALPNH2()
-
-	tlsConfig := client.haveTLSClientConfig()
-	assert.Contains(tlsConfig.NextProtos, "h2")
-}
-
 func TestSetCipherSuites(t *testing.T) {
 	assert := assert.New(t)
 
