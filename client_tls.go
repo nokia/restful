@@ -21,6 +21,10 @@ import (
 // Use if specific config is needed, e.g. server cert or whether to accept untrusted certs.
 // You may use it this way: client := New().TLS(...) or just client.TLS(...)
 func (c *Client) TLS(tlsConfig *tls.Config) *Client {
+	if transport2, ok := c.Client.Transport.(*http2.Transport); ok {
+		transport2.TLSClientConfig = tlsConfig
+		return c
+	}
 	if transport, ok := c.Client.Transport.(*http.Transport); ok {
 		transport.TLSClientConfig = tlsConfig
 	} else {
@@ -104,7 +108,9 @@ func (c *Client) haveTLSClientConfig() *tls.Config {
 		transport.TLSClientConfig = &tls.Config{} // #nosec G402 -- false positive, see below
 	}
 
-	transport.TLSClientConfig.MinVersion = tls.VersionTLS12 // TLS 1.2 is the minimum supported.
+	if transport.TLSClientConfig.MinVersion < tls.VersionTLS12 {
+		transport.TLSClientConfig.MinVersion = tls.VersionTLS12 // TLS 1.2 is the minimum supported.
+	}
 
 	return transport.TLSClientConfig
 }
