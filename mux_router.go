@@ -1,4 +1,4 @@
-// Copyright 2021-2024 Nokia
+// Copyright 2021-2025 Nokia
 // Licensed under the BSD 3-Clause License.
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -43,6 +43,11 @@ func NewRouter() *Router {
 func (r *Router) Monitor(pre MonitorFuncPre, post MonitorFuncPost) *Router {
 	r.monitors.append(pre, post)
 	return r
+}
+
+// DisallowUnknownFields instructs JSON decoder to fail if unknown field in found in the received message.
+func (r *Router) DisallowUnknownFields() *Router {
+	return r.Monitor(disallowUnknownFieldsToCtx, nil)
 }
 
 // HandleFunc assigns an HTTP path to a function.

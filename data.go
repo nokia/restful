@@ -1,10 +1,12 @@
-// Copyright 2021-2024 Nokia
+// Copyright 2021-2025 Nokia
 // Licensed under the BSD 3-Clause License.
 // SPDX-License-Identifier: BSD-3-Clause
 
 package restful
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +18,21 @@ import (
 	"github.com/nokia/restful/messagepack"
 	log "github.com/sirupsen/logrus"
 )
+
+var (
+	// DisallowUnknownFields is a global setting for JSON decoder.
+	// It tells if unknown fields to be ignored silently (false) or to make decoding fail (true).
+	// By default unknown fields are ignored.
+	DisallowUnknownFields = false
+)
+
+type disallowUnknownFieldsCtxKeyType string
+
+const disallowUnknownFieldsCtxName = disallowUnknownFieldsCtxKeyType("restfulDisUnkFld")
+
+func disallowUnknownFieldsToCtx(w http.ResponseWriter, r *http.Request) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), disallowUnknownFieldsCtxName, true))
+}
 
 var (
 	formDecoder = schema.NewDecoder()
@@ -49,7 +66,7 @@ func GetDataBytes(headers http.Header, ioBody io.ReadCloser, maxBytes int) (body
 		return body, fmt.Errorf("body read error: %s", err.Error())
 	}
 
-	if maxBytes > 0 && len(body) > maxBytes {
+	if maxBytes > 0 && len(body) > maxBytes { // In case of streaming content-length is not known at the beginning.
 		err = fmt.Errorf("too long content: %d > %d", len(body), maxBytes)
 	}
 
@@ -76,7 +93,7 @@ func GetDataBytesForContentType(headers http.Header, ioBody io.ReadCloser, maxBy
 	return
 }
 
-func getData(headers http.Header, ioBody io.ReadCloser, maxBytes int, data any, request bool) error {
+func getData(ctx context.Context, headers http.Header, ioBody io.ReadCloser, maxBytes int, data any, request bool) error {
 	if data == nil {
 		_ = ioBody.Close()
 		return nil
@@ -105,6 +122,10 @@ func getData(headers http.Header, ioBody io.ReadCloser, maxBytes int, data any, 
 		return err
 	}
 
+	return getDataJSON(ctx, body, data, request, recvdContentType)
+}
+
+func getDataJSON(ctx context.Context, body []byte, data any, request bool, recvdContentType string) error {
 	if !isJSONContentType(recvdContentType) {
 		err := fmt.Errorf("unexpected Content-Type: '%s'; not JSON", recvdContentType)
 		if request {
@@ -117,7 +138,12 @@ func getData(headers http.Header, ioBody io.ReadCloser, maxBytes int, data any, 
 		log.Debug("Problem: ", string(body))
 	}
 
-	err = json.Unmarshal(body, data)
+	ioBody := io.NopCloser(bytes.NewReader(body))
+	d := json.NewDecoder(ioBody)
+	if DisallowUnknownFields || ctx.Value(disallowUnknownFieldsCtxName) != nil {
+		d.DisallowUnknownFields()
+	}
+	err := d.Decode(data)
 	if err != nil && request {
 		return NewError(err, http.StatusBadRequest, "Invalid JSON content")
 	}
@@ -147,11 +173,11 @@ func GetRequestData(req *http.Request, maxBytes int, data any) error {
 		}
 		return formDecoder.Decode(data, req.PostForm)
 	}
-	return getData(req.Header, req.Body, maxBytes, data, true)
+	return getData(req.Context(), req.Header, req.Body, maxBytes, data, true)
 }
 
 // GetResponseData returns response data from JSON body of HTTP response.
 // If maxBytes > 0 it blocks parsing exceedingly huge JSON data, which could be used for DoS or memory overflow attacks.
 func GetResponseData(resp *http.Response, maxBytes int, data any) error {
-	return getData(resp.Header, resp.Body, maxBytes, data, false)
+	return getData(context.Background(), resp.Header, resp.Body, maxBytes, data, false)
 }

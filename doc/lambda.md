@@ -8,10 +8,12 @@ These details are not in your way.
 Lambda creates a new abstraction, making a server a collection of functions.
 The concept is nothing new. It is somewhat similar to Python FastAPI with Pydantic.
 
-Note that many lambda solutions are often meant to be serverless.
-I.e. your app does not have an HTTP server, but functions directly invoked by an API GW.
-This lambda solution adds server layer to your app. I.e. your app runs all the time, listening on a given port, like any other HTTP server.
-To make your app serverless, thus be able to scale to zero instance, you may choose [Knative](https://knative.dev/).
+In programming "lambda" means an anonymous function.
+Restful's Lambda Server may have named handler functions, but those are mapped to standard http handlers by an anonymous wrapper.
+That mechanism ensures compatibility and intermixability with `http.HandlerFunc`. See Q&A.
+
+In PaaS context "lambda" may refer to serverless handlers.
+Here you have a server. Though you may use some off-the-shelf components to dynamically scale to/from zero instances.
 
 ## Your function as you wish
 
@@ -133,7 +135,8 @@ func validateUser(ctx context.Context, usr user) error {
 
 func newServer() *restful.Router {
     r := restful.NewRouter()
-    r.HandleFunc("/users", validateUser).Methods(http.MethodPost, http.MethodPut) // curl http://localhost:8080/users -d 'Name=Joe' -d 'Address=Suomi'
+    r.DisallowUnknownFields() // If an unknown field is present, then JSON decoding fails.
+    r.HandleFunc("/users", validateUser).Methods(http.MethodPost, http.MethodPut)
     return r
 }
 
@@ -159,7 +162,7 @@ Notes:
 * Receiving context and passing that to client has several advantages.
   * You can define cancellation timeout.
   * Lambda context contains request information, including [tracing HTTP headers](tracing.md).
-  * You can add header to HTTP response.
+  * You can add headers to HTTP responses.
 
 ## Response status codes
 
@@ -197,8 +200,8 @@ The following rules are applied in this order:
 
 A: You are visiting the wrong project, maybe.
    This project is about being able to build cloud-native RESTful services.
-   Leaving many things to other services, such as authorizing requests to API gateways.
-   If you need those, you may want to check out [Fiber](https://github.com/gofiber/fiber).
+   Leaving many things to other services, such as authenticating consumers and authorizing requests to API gateways.
+   If you need those in Go code, you may want to check out [Fiber](https://github.com/gofiber/fiber).
 
 **Q: Why is this library based on Gorilla/Mux, when there are other high-performance alternatives, such as [Gin](https://github.com/gin-gonic/gin) or [Bunrouter](https://bunrouter.uptrace.dev/)?**
 
@@ -216,7 +219,7 @@ Alternatively, you may put T1 and T2 to a common T3 struct, e.g. as anonymous me
 
 A: Not supported. But you can freely mix lambdas and http handler functions.
 
-**Q: Can one stream response? E.g. if response for request is to contain millions of database entries?**
+**Q: Can one stream responses? E.g. if response for request is to contain millions of database entries?**
 
 A: Not supported. But you can freely mix lambdas and http handler functions. Base http package can do streaming wonderfully.
 

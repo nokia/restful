@@ -146,7 +146,7 @@ func TestContext(t *testing.T) {
 	assert.NoError(route.GetError())
 
 	{ // Context
-		reqBody := []byte(`{"s":"s","i":2}`)
+		reqBody := []byte(`{"s":"s", "i":2, "unknown": "whatever"}`)
 		req, err := http.NewRequest("POST", "/context/42", bytes.NewReader(reqBody))
 		assert.NoError(err)
 		req.Header.Set("Content-Type", "application/json")
@@ -200,6 +200,39 @@ func TestValidationError(t *testing.T) {
 		assert.Contains(respBody, "validation")
 		assert.Equal("application/json", rr.Header().Get("Content-Type"))
 	}
+}
+
+func TestDisallowUnknownFieldsGlobal(t *testing.T) {
+	assert := assert.New(t)
+
+	r := NewRouter()
+	r.HandleFunc("/context/{id:[0-9]+}", dupCtx)
+
+	DisallowUnknownFields = true
+	reqBody := []byte(`{"s":"s","i":1, "unknown": "whatever"}`)
+	req, err := http.NewRequest("POST", "/context/42", bytes.NewReader(reqBody))
+	assert.NoError(err)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(400, rr.Code)
+	DisallowUnknownFields = false
+}
+
+func TestDisallowUnknownFieldsRouter(t *testing.T) {
+	assert := assert.New(t)
+
+	r := NewRouter().DisallowUnknownFields()
+	r.HandleFunc("/context/{id:[0-9]+}", dupCtx)
+
+	reqBody := []byte(`{"s":"s","i":1, "unknown": "whatever"}`)
+	req, err := http.NewRequest("POST", "/context/42", bytes.NewReader(reqBody))
+	assert.NoError(err)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(400, rr.Code)
+	DisallowUnknownFields = false
 }
 
 func BenchmarkContext(b *testing.B) {
