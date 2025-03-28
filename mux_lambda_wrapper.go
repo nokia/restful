@@ -31,8 +31,11 @@ var LambdaValidator = true
 // If you prefer 400 Bad Request, then change this.
 var LambdaValidationErrorStatus = http.StatusUnprocessableEntity
 
-// validate is a single instance, caching info about the struct to be validated.
-var validate *validator.Validate = validator.New(validator.WithRequiredStructEnabled())
+// Validate is a singleton global object that performs Lambda server request validation
+// of structs with fields with `validate` tagging.
+// Validation is done by https://github.com/go-playground/validator.
+// You can rely on the default value, unless you use custom validators.
+var Validate *validator.Validate = validator.New(validator.WithRequiredStructEnabled())
 
 func lambdaHandleRes0(l *lambda.Lambda) (err error) {
 	if l != nil && l.Status > 0 {
@@ -122,7 +125,7 @@ func lambdaGetParams(w http.ResponseWriter, r *http.Request, f any) ([]reflect.V
 			}
 
 			if LambdaValidator && reflect.ValueOf(reqDataInterface).Elem().Kind() == reflect.Struct {
-				if err := validate.Struct(reqDataInterface); err != nil {
+				if err := Validate.Struct(reqDataInterface); err != nil {
 					return nil, r, NewError(err, LambdaValidationErrorStatus)
 				}
 			}
