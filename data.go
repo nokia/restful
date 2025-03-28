@@ -23,6 +23,7 @@ var (
 	// DisallowUnknownFields is a global setting for JSON decoder.
 	// It tells if unknown fields to be ignored silently (false) or to make decoding fail (true).
 	// By default unknown fields are ignored.
+	// See also JSON schema and OpenAPI Specification `additionalProperties: false`.
 	DisallowUnknownFields = false
 )
 
