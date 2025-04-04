@@ -37,6 +37,11 @@ var LambdaValidationErrorStatus = http.StatusUnprocessableEntity
 // You can rely on the default value, unless you use custom validators.
 var Validate *validator.Validate = validator.New(validator.WithRequiredStructEnabled())
 
+// ValidateErrConverter is a function variable that allows customization of error
+// returned by validator. You can provide your own function here.
+// This can be used if some standardized formatting is desired.
+var ValidateErrConverter func(err error) error
+
 func lambdaHandleRes0(l *lambda.Lambda) (err error) {
 	if l != nil && l.Status > 0 {
 		err = NewError(nil, l.Status)
@@ -126,6 +131,9 @@ func lambdaGetParams(w http.ResponseWriter, r *http.Request, f any) ([]reflect.V
 
 			if LambdaValidator && reflect.ValueOf(reqDataInterface).Elem().Kind() == reflect.Struct {
 				if err := Validate.Struct(reqDataInterface); err != nil {
+					if ValidateErrConverter != nil {
+						err = ValidateErrConverter(err)
+					}
 					return nil, r, NewError(err, LambdaValidationErrorStatus)
 				}
 			}
