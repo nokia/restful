@@ -50,7 +50,7 @@ const (
 	KindH2C   = "h2c"
 )
 
-// Grant represents the flow how oauth2 access tokens are retreived.
+// Grant represents the flow how oauth2 access tokens are retrieved.
 type Grant string
 
 const (

@@ -60,10 +60,14 @@ func loggerPre(w http.ResponseWriter, r *http.Request) *http.Request {
 	return r
 }
 
-// Logger wraps original handler and returns a handler that logs.
-// Logs start with a semi-random trace ID to be able to match requests to responses.
-// If path matches LivenessProbePath or HealthCheckPath then does not log and responds with 200 OK.
-// If path matches ReadinessProbePath then does not log, but processed as usual.
+// Logger wraps original handler and returns a handler that logs requests and responses separately
+// when they happen.
+// Logs contain the received or generated semi-random trace IDs to be able to correlate requests and responses.
+//
+//   - If path matches LivenessProbePath or HealthCheckPath then it does not log anything
+//     and responds with 200 OK without any further processing.
+//   - If path matches ReadinessProbePath then it does not log anything,
+//     but the request is processed, as usual.
 func Logger(h http.Handler) http.Handler {
 	return Monitor(h, loggerPre, loggerPost)
 }

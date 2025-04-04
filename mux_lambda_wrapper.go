@@ -13,7 +13,7 @@ import (
 	"github.com/nokia/restful/lambda"
 )
 
-// LambdaMaxBytesToParse defines the maximum length of request content allowed to be parsed.
+// LambdaMaxBytesToParse defines the maximum length of the request content allowed to be parsed.
 // If zero then no limits imposed.
 var LambdaMaxBytesToParse = 0
 
