@@ -40,6 +40,9 @@ var defaultClient = NewClient()
 // The reason for having a separate client is that Authorization Server and Resource Server may support different transport.
 var DefaultTokenClient *http.Client = &http.Client{Timeout: 10 * time.Second}
 
+// DialTimeout defines the default timeout for dialing connections.
+var DialTimeout = 2 * time.Second
+
 // Kind is a string representation of what kind the client is. Depending on which New() function is called.
 const (
 	KindBasic = ""
@@ -154,7 +157,7 @@ func NewClientWInterface(networkInterface string) *Client {
 	t.MaxIdleConns = 100
 	t.MaxConnsPerHost = 100
 	t.MaxIdleConnsPerHost = 100
-	dialer := &net.Dialer{Timeout: 2 * time.Second, KeepAlive: 30 * time.Second}
+	dialer := &net.Dialer{Timeout: DialTimeout, KeepAlive: 30 * time.Second}
 	if networkInterface != "" {
 		IPs := getIPFromInterface(networkInterface)
 		t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -240,7 +243,7 @@ func getH2CTransport(iface string) *http2.Transport {
 
 func getDialTLSCallback(iface string, withTLS bool) func(string, string, *tls.Config) (net.Conn, error) {
 	return func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-		dialer := net.Dialer{Timeout: 2 * time.Second}
+		dialer := net.Dialer{Timeout: DialTimeout}
 
 		var conn net.Conn
 		var err error
