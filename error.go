@@ -90,7 +90,7 @@ func (e *restError) Unwrap() error {
 //
 //	if err != nil {return restful.NewError(err, http.StatusBadRequest, "bad data")}
 //
-// Parameter err may be nil, if there is no error to wrap or original error text is better not to be propagated.
+// Parameter err may be nil, if there is no error to wrap or original error text is better not be propagated.
 //
 //	if err != nil {return restful.NewError(nil, http.StatusBadRequest, "bad data")}
 func NewError(err error, statusCode int, description ...string) error {
@@ -111,15 +111,18 @@ func NewDetailedError(err error, status int, pd ProblemDetails) error {
 }
 
 // DetailError adds further description to the error. Useful when cascading return values.
-// Can be used on any error, though mostly used on errors created by restful.NewError() / NewDetailedError()
+// Can be used on any error, though it is mostly used on errors created by restful.NewError() / NewDetailedError()
 // E.g. restful.DetailError(err, "db query failed")
 func DetailError(err error, description string) error {
+	if err == nil {
+		return nil
+	}
 	return &restError{err: err, statusCode: GetErrStatusCodeElse(err, 0), problemDetails: ProblemDetails{Detail: description}}
 }
 
-// GetErrStatusCode returns status code of error response.
+// GetErrStatusCode determines the HTTP status code associated with a given error.
 // If err is nil then http.StatusOK returned.
-// If no status stored (e.g. unexpected content-type received) then http.StatusInternalServerError returned.
+// If no HTTP status is found, then http.StatusInternalServerError (500) is returned.
 func GetErrStatusCode(err error) int {
 	status := GetErrStatusCodeElse(err, -1)
 	if status <= 0 {
@@ -128,9 +131,10 @@ func GetErrStatusCode(err error) int {
 	return status
 }
 
-// GetErrStatusCodeElse returns status code of error response, if available.
-// Else retuns the one the caller provided. Probably transport error happened and no HTTP response was received.
-// If err is nil then http.StatusOK returned.
+// GetErrStatusCodeElse returns the HTTP status code associated with the given error.
+// If no HTTP status code found in the error, then returns the one the caller provided.
+// For example, in case of a transport error no HTTP status code is received.
+// If the error is nil, it returns http.StatusOK.
 func GetErrStatusCodeElse(err error, elseStatusCode int) int {
 	if err != nil {
 		var e *restError
@@ -142,14 +146,14 @@ func GetErrStatusCodeElse(err error, elseStatusCode int) int {
 	return http.StatusOK
 }
 
-// IsConnectError determines if error is due to failed connection.
-// I.e. does not contain HTTP status code, or 502 / 503 / 504.
+// IsConnectError determines if the given error corresponds to a connection-related issue.
+// I.e. non-nil, does not contain HTTP status code, or the status code is 502 / 503 / 504.
 func IsConnectError(err error) bool {
 	status := GetErrStatusCodeElse(err, 502)
 	return status >= 502 && status <= 504
 }
 
-// GetErrBody returns unprocessed body of a response with error status.
+// GetErrBody returns the content-type and raw body stored within the given error.
 //
 //	err := restful.Get()
 //	contentType, Body := restful.GetErrBody(err)

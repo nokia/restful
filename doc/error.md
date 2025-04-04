@@ -1,6 +1,6 @@
 # Error
 
-RESTful's Error is a construct meeting Go `error` interface.
+RESTful's Error is a construct that meets the Go `error` interface.
 It contains an HTTP status code besides the traditional error.
 
 Best used with [Lambda](lambda.md), providing a smooth way of returning an HTTP status code.
@@ -39,7 +39,7 @@ func handlerZ(ctx context.Context) (*myStruct, error) {
         if restful.IsConnectError(err) {
             fmt.Print("Connection failed")
         } else if restful.GetErrStatusCode(err) == http.StatusUnauthorized {
-            fmt.Print("We should have gotten authorized first.")
+            fmt.Print("We should have been authorized first.")
         } else {
             contentType, body := restful.GetErrBody(err)
             if len(body) != 0 {
