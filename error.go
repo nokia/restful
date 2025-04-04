@@ -11,7 +11,9 @@ import (
 	"strings"
 )
 
-const maxErrBodyLen = 4096
+// ErrorBodyMaxLen is the maximum length of the body
+// that is stored to the error object in case of an 4xx or 5xx response.
+const ErrorBodyMaxLen = 4096
 
 var (
 	// ErrNonHTTPSURL means that using non-https URL not allowed.
@@ -99,7 +101,7 @@ func NewError(err error, statusCode int, description ...string) error {
 
 // NewErrorWithBody creates new error with custom HTTP status code, content-type and payload body.
 func NewErrorWithBody(err error, statusCode int, contentType string, body []byte) error {
-	if len(body) > maxErrBodyLen {
+	if len(body) > ErrorBodyMaxLen {
 		return &restError{err: err, statusCode: statusCode}
 	}
 	return &restError{err: err, statusCode: statusCode, contentType: contentType, body: body}
@@ -154,6 +156,7 @@ func IsConnectError(err error) bool {
 }
 
 // GetErrBody returns the content-type and raw body stored within the given error.
+// Note that the body may be chopped if too long. See ErrorBodyMaxLen.
 //
 //	err := restful.Get()
 //	contentType, Body := restful.GetErrBody(err)
