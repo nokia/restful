@@ -2,10 +2,10 @@
 
 ## Introduction
 
-Server class is designed to receive HTTP requests and send response.
-Tries to mimic default http module, with the difference of strong JSON support.
+The Server class is designed to receive HTTP requests and send responses.
+Tries to mimic the default http module, with the difference of strong JSON support.
 
-For more advanced request serving check out [Lambda Server](lambda.md).
+For more advanced request serving, check out [Lambda Server](lambda.md).
 
 ## Using built-in http package
 
@@ -50,9 +50,9 @@ func main() {
 
 ## Server-Client Trace Example
 
-This tiny example shows how incoming request data are saved to context.
+This tiny example shows how incoming request data are saved to the context.
 Headers may contain Zipkin/Jaeger X-B3-* and OpenTracing `traceparent` and `tracestate`.
-If incoming request contained those, then client generates new span IDs for each request.
+If the incoming request contained those, then the client generates new span IDs for each request.
 
 ```go
 func userHandler(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +63,7 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-You see nothing, just `ctx`. The rest is automated. Check network traffic. If debug logs are on then you see the incoming parent as well as the 2 distinct span IDs in the logs, too. If tracing headers are not received, debug logs still contain random IDs, so that you can match requests and responses.
+You see nothing, just `ctx`. The rest is automated. Check network traffic. If debug logs are on, then you see the incoming parent as well as the 2 distinct span IDs in the logs, too. If tracing headers are not received, debug logs still contain random IDs, so that you can match requests and responses.
 
 ## HTTPS
 
@@ -80,7 +80,7 @@ srv.ListenAndServe()
 ```
 
 Mutual TLS is very similar, just client CAs are provided.
-Client CA can be PEM file or a directory containing PEM files case insensitively matching `*.crt` or `*.pem`.
+Client CA can be a PEM file or a directory containing PEM files case-insensitively matching `*.crt` or `*.pem`.
 
 ```go
 // MTLS non-OOP way
@@ -91,6 +91,6 @@ srv := restful.NewServer().Addr(":8443").Handler(handler).TLSServerCert("/etc/ow
 srv.ListenAndServe()
 ```
 
-❗ Note that once the key and certs are loaded they are in the memory.
-Any update (e.g. cert-manager.io) will not affect that.
-You may restart your app, or in the cloud you may issue `kubectl rollout restart deploy/xxx`.
+❗ Note that once the key and certs are loaded, they are in the memory.
+Any update (e.g., cert-manager.io) will not affect that.
+You may restart your app, or in the cloud, you may issue `kubectl rollout restart deploy/xxx`.

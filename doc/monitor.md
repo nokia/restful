@@ -2,23 +2,23 @@
 
 ## Overview
 
-Monitor is a middleware construct of RESTful package.
-That can be used to execute functions *pre* and *post* requests.
-On server before and after handling a request.
-On client side before sending a request and after receiving the response.
+Monitor is a middleware construct of the RESTful package.
+It can be used to execute functions *pre* and *post* requests.
+On the server, before and after handling a request.
+On the client side, before sending a request and after receiving the response.
 
-Monitor can be used for various purposes, such as logging, create various metrics, service charging, message filtering, or authentication.
+Monitor can be used for various purposes, such as logging, creating various metrics, service charging, message filtering, or authentication.
 
 The concept is somewhat overlapping with container sidecars.
-Sidecars are completely independent, can be added or removed, and upgradeable independently.
-But they are more expensive, may require network interface tweaking, and problematic in serverless environment.
+Sidecars are completely independent, can be added or removed, and are upgradeable independently.
+But they are more expensive, may require network interface tweaking, and are problematic in serverless environments.
 Monitor does not have these issues.
 
 ## Server
 
-Monitor is available for `Server`, `Router` and `Route` classes, including sub-routers.
+Monitor is available for `Server`, `Router`, and `Route` classes, including sub-routers.
 
-Built-in `Logger` is based on Monitor.
+The built-in `Logger` is based on Monitor.
 
 ```go
 func pre(w http.ResponseWriter, r *http.Request) *http.Request {
@@ -26,12 +26,12 @@ func pre(w http.ResponseWriter, r *http.Request) *http.Request {
     fmt.Println("Begin")
 
     // If you write a response here, the handler function is not called.
-    // Use it to terminate the request instead of let it being served.
+    // Use it to terminate the request instead of letting it be served.
     if r.URL.Path == "/error" {
         w.WriteHeader(http.StatusBadRequest)
     }
 
-    // You may return a new Request structure, e.g. altering the original context.
+    // You may return a new Request structure, e.g., altering the original context.
     // Or return nil if the original request is fine.
     return nil
 }
@@ -41,7 +41,7 @@ func post(w http.ResponseWriter, r *http.Request, statusCode int) {
     // You can use the status code.
     fmt.Println("Ended with ", statusCode)
 
-    // If the pre function changed the context, e.g. added a new value, then r.Context() contains that change.
+    // If the pre function changed the context, e.g., added a new value, then r.Context() contains that change.
 }
 
 func main() {
@@ -58,8 +58,10 @@ You may apply several such wrappers.
 router = router.Monitor(pre1, post1).Monitor(pre2, nil).Monitor(nil, post3)
 ```
 
-Monitor is quite similar to Middleware of Gorilla/Mux. The result is the same that the original handler is wrapped by another handler.
-The syntax is a bit different. Probably slightly more convenient in some cases, especially when status code of the wrapped handler is needed.
+Monitor is quite similar to Middleware of Gorilla/Mux. The result is the same.
+The original handler is wrapped by another handler.
+The syntax is a bit different. Probably slightly more convenient in some cases,
+especially when the status code of the wrapped handler is needed.
 
 ## Client
 

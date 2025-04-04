@@ -2,20 +2,20 @@
 
 ## Introduction
 
-Tracing is a very good tool to see how trace how request processing happens in the system.
-There are various tools to visualize components and delays. Such as [Jaeger](https://www.jaegertracing.io/) or [Zipkin](https://zipkin.io/).
+Tracing is a very good tool to see how request processing happens in the system.
+There are various tools to visualize components and delays, such as [Jaeger](https://www.jaegertracing.io/) or [Zipkin](https://zipkin.io/).
 
 ## How it works
 
 When you use RESTful, you do not need to write a single line of code for tracing to work.
 
-* When a request is received, Server/Lambda handler puts tracing header information to context parameter.
-  Generates new trace ID if not received any.
+* When a request is received, Server/Lambda handler puts tracing header information into the context parameter.
+  Generates a new trace ID if none is received.
 * When sending a request, Client functions read tracing information from the context and make a new span.
-* Send/receive logs contain compact tracing information. The exact behavior depends on Logrus log level.
-* If `SetOTel(true, tracerProvider)` or `SetOTelGrpc("host:4317", 0.01)` are called, tracing is based on industry standard [OpenTelemetry](https://github.com/open-telemetry/) project.
+* Send/receive logs contain compact tracing information. The exact behavior depends on the Logrus log level.
+* If `SetOTel(true, tracerProvider)` or `SetOTelGrpc("host:4317", 0.01)` are called, tracing is based on the industry-standard [OpenTelemetry](https://github.com/open-telemetry/) project.
   The main difference between the default and OTel is that for OTel you may define an exporter which sends traces to a collector.
-  While the default one just propagates the headers, and relies on a service mesh to report to a collector in timely manner.
+  While the default one just propagates the headers and relies on a service mesh to report to a collector in a timely manner.
 
 OTel can be activated using environment variables `OTEL_EXPORTER_OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`
 instead of using `SetOTel` functions.

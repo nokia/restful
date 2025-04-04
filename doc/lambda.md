@@ -6,14 +6,14 @@ Lambda lets you focus on business logic.
 HTTP + JSON are technical details, just like socket handling and forking on accepting a request.
 These details are not in your way.
 Lambda creates a new abstraction, making a server a collection of functions.
-The concept is nothing new. It is somewhat similar to Python FastAPI with Pydantic.
+The concept is nothing new. It is somewhat similar to Python's FastAPI with Pydantic.
 
-In programming "lambda" means an anonymous function.
+In programming, "lambda" means an anonymous function.
 Restful's Lambda Server may have named handler functions, but those are mapped to standard http handlers by an anonymous wrapper.
 That mechanism ensures compatibility and intermixability with `http.HandlerFunc`. See Q&A.
 
-In PaaS context "lambda" may refer to serverless handlers.
-Here you have a server. Though you may use some off-the-shelf components to dynamically scale to/from zero instances.
+In a PaaS context, "lambda" may refer to serverless handlers.
+Here you have a server, though you may use some off-the-shelf components to dynamically scale to/from zero instances.
 
 ## Your function as you wish
 
@@ -25,10 +25,10 @@ f(ctx context.Context, TIn) (TOut, error)
 
 All of these parameters are *optional*.
 
-* `ctx` contains request context. Detailed later.
-* `TIn` can be of any type, such as a structure. Represents the data the client sent as JSON, form data or in case of HTTP GET request query parameter.
-* `TOut` can be of any type, such as a structure. That is sent as an answer JSON to client.
-* `error` may be returned; if created by restful.NewError() then you can define HTTP status code. In non-error cases status code is automatic, 200/201/204.
+* `ctx` contains the request context. Detailed later.
+* `TIn` can be of any type, such as a structure. It represents the data the client sent as JSON, form data, or in the case of an HTTP GET request, query parameters.
+* `TOut` can be of any type, such as a structure. It is sent as a JSON response to the client.
+* `error` may be returned; if created by `restful.NewError()`, then you can define the HTTP status code. In non-error cases, the status code is automatic: 200/201/204.
 
 ## Example with JSON and Query
 
@@ -208,7 +208,7 @@ A: You are visiting the wrong project, maybe.
 A: We are fortunate to have so many great routers.
    Our aim is to have a simple syntax similar to standard http package.
    [Gorilla/Mux](https://github.com/gorilla/mux) delivers that with many great extensions.
-   For a complex app with database operations, router speed difference may be negliable.
+   For a complex app with database operations, router speed difference may be negligible.
 
 **Q: Is it possible to send alternative types in responses, decided run-time? Like `f() (T1, T2, error)`.**
 
