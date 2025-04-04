@@ -2,21 +2,21 @@
 
 ## Introduction
 
-Client class is designed to send HTTP requests and receive their response.
+Client class is designed to send HTTP requests and receive their responses.
 Similar to `http.Client` class, with the difference of strong data structure support.
-Doing Marshal/Unmarshal automatically to send/receive JSON (or MessagePack).
+Performs Marshal/Unmarshal automatically to send/receive JSON (or MessagePack).
 
-Functions have context parameters. That is used for generic purposes, such as cancelling a request or defining a timeout.
-Furthermore RESTful's Server and Lambda class may add tracing information which is then propagated by this client.
+Functions often have a context parameter. That is used for generic purposes, such as canceling a request or defining a timeout.
+Furthermore, RESTful's Server and Lambda class may add tracing information which is then propagated by this client.
 
 ## SendRecv
 
-`SendRecv` function is at the heart of the client. It expects structure for data to be sent and received.
+`SendRecv` function is at the heart of the client. It expects structures for data to be sent and received.
 
-`SendRecv2xx` is its friend. It is almost the same, but returns error even if a response is received, but not 200-299.
+`SendRecv2xx` is its friend. It is almost the same. But returns an error even if a response is received, but not 200-299.
 `Get`, `Post` and other functions are built on top of it.
 
-## POST, GET, PUT and DELETE
+## POST, GET, PUT, and DELETE
 
 ```go
 type user struct{
@@ -57,7 +57,7 @@ if err != nil {
 
 ### Check URL
 
-It is possible to disable cleartext HTTP entirely or enable toward certain targets only.
+It is possible to disable cleartext HTTP entirely or enable it toward certain targets only.
 
 ```go
 clientNoHTTP := restful.NewClient().HTTPS(nil)
@@ -66,11 +66,11 @@ clientNoHTTPUnlessLocal := restful.NewClient().HTTPS(&HTTPSConfig{AllowLocalhost
 ```
 
 It is up to the design paradigm whether to allow cleartext traffic for non-test targets.
-According to service mesh pattern transport issues, including encryption algorithms, do not belong to the business logic.
+According to the service mesh pattern, transport issues, including encryption algorithms, do not belong to the business logic.
 
 ### OS cert pool
 
-HTTPS works out of box. Certs are loaded from OS cert pool without further ado.
+HTTPS works out of the box. Certs are loaded from the OS cert pool without further ado.
 
 ```go
 client := restful.NewClient()
@@ -79,7 +79,7 @@ client := restful.NewClient()
 ### Own set of CA certs
 
 Load CA certs from a directory. Looks for `*.crt` and `*.pem` files.
-That is often needed when private CA is used.
+That is often needed when a private CA is used.
 
 ```go
 client := restful.NewClient().TLSRootCerts("/etc/cacerts", false)
@@ -90,7 +90,7 @@ client := restful.NewClient().TLSRootCerts("/etc/cacerts", false)
 Mutual TLS is an advanced security solution for private networks. The server authenticates the client, too.
 
 Load CA certs and load own `tls.key` and `tls.crt` files.
-File naming follows Kubernetes TLS secret solution, e.g. used at `kubectl create secret tls` command.
+File naming follows Kubernetes TLS secret solution, e.g., used at `kubectl create secret tls` command.
 
 ```go
 client := restful.NewClient()
@@ -98,9 +98,9 @@ client.TLSRootCerts("/etc/cacerts", false)
 client.TLSOwnCerts("/etc/own_tls")
 ```
 
-❗ Note that once the client loaded the key + cert that is in the memory.
-Any update (e.g. cert-manager.io) will not affect that client.
-You may restart your app, or in the cloud you may issue `kubectl rollout restart deploy/xxx`.
+❗ Note that once the client loaded the key + cert, it is in the memory.
+Any update (e.g., cert-manager.io) will not affect that client.
+You may restart your app, or in the cloud, you may issue `kubectl rollout restart deploy/xxx`.
 
 ## MessagePack
 
@@ -118,11 +118,11 @@ C->>S: PUT: CT:application/msgpack, Accept:application/msgpack,application/json,
 S->>C: 200: CT=application/msgpack, body=msgpack
 ```
 
-MessagePack (msgpack) is an experimental. We are happy to get any feedback.
+MessagePack (msgpack) is experimental. We are happy to get any feedback.
 
 ## Broadcast goodies
 
-* `BroadcastRequest` sends a request to all IP addresses resolved for the given target URL, such as of Kubernetes headless service. Expects 2xx resposes for all.
+* `BroadcastRequest` sends a request to all IP addresses resolved for the given target URL, such as of Kubernetes headless service. Expects 2xx responses for all.
 * `SendRecvResolveFirst2xxSequential` and `SendRecvResolveFirst2xxParallel` are similar to the previous one, but the first 2xx answer satisfies them. Returns data of the first positive response. Sequential and parallel variants send requests one-by-one or all at the same time.
 * `SendRecvListFirst2xxSequential` and `SendRecvListFirst2xxParallel` are similar to the previous one, but target URLs are defined as a list.
 * `PingList` pings a list of URLs. Expects 2xx responses for all. No request body sent or received.

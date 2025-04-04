@@ -1,7 +1,7 @@
 # Error
 
 RESTful's Error is a construct meeting Go `error` interface.
-It contains HTTP status code besides traditional error.
+It contains an HTTP status code besides the traditional error.
 
 Best used with [Lambda](lambda.md), providing a smooth way of returning an HTTP status code.
 
@@ -29,7 +29,7 @@ func handlerY(ctx context.Context) (*myStruct, error) {
 ```
 
 RESTful's HTTP [Client](client.md) returns RESTful's Error object.
-Therefore HTTP status code can be checked.
+Therefore, the HTTP status code can be checked.
 
 ```go
 func handlerZ(ctx context.Context) (*myStruct, error) {
@@ -39,7 +39,7 @@ func handlerZ(ctx context.Context) (*myStruct, error) {
         if restful.IsConnectError(err) {
             fmt.Print("Connection failed")
         } else if restful.GetErrStatusCode(err) == http.StatusUnauthorized {
-            fmt.Print("We should have got authorized, first.")
+            fmt.Print("We should have gotten authorized first.")
         } else {
             contentType, body := restful.GetErrBody(err)
             if len(body) != 0 {

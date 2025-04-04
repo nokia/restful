@@ -12,18 +12,18 @@ It lets you handle HTTP+JSON without any extra code.
 You receive and respond with data structures.
 
 ```go
-type reqData struct{
+type reqData struct {
     Num int `json:"num" validate:"lt=1000000"`
 }
 
-type respData struct{
+type respData struct {
     Number int `json:"number"`
 }
 
 func create(ctx context.Context, req *reqData) (*respData, error) {
     // You use data structures directly, without marshalling and unmarshalling.
-    resp := respData{Number: reqData.Num}
-    return &respData, nil
+    resp := respData{Number: req.Num}
+    return &resp, nil
 }
 
 func main() {
@@ -44,23 +44,24 @@ location, err := restful.Post(ctx, "https://example.com", &reqData, &respData)
 
 * [Lambda server](doc/lambda.md) Focus on business logic. It is a modern variant of an HTTP server.
 * [RESTful server](doc/server.md) An underlying HTTP server of Lambda. An HTTP server with goodies.
-  Besides helper functions for receiving and sending JSON data and it can do logging.
+  Besides helper functions for receiving and sending JSON data, it can do logging.
   Router is based on [Gorilla/Mux](https://github.com/gorilla/mux), offering similar services.
 * [RESTful client](doc/client.md) Sending GET, POST (and receiving Location), PUT, PATCH or DELETE requests and receiving their responses.
   And numerous other helper functions.
-* [Tracing](doc/tracing.md) information is propagated in context, received in Lambda and used in client request.
+* [Tracing](doc/tracing.md) Information is propagated in context, received in Lambda, and used in client requests.
   That is all done without any extra coding on your side.
   Based on [OpenTelemetry](https://opentelemetry.io/).
 * [Monitor](doc/monitor.md) is a convenient middleware solution to pre-process requests and post-process responses.
-  Pre and post hooks can be used for whatever you want, such as adding Prometheus counters on router level, without littering your business logic.
-* [Error](doc/error.md) is a Go error object containing HTTP status code besides traditional error.
+  Pre and post hooks can be used for whatever you want, such as adding Prometheus counters on the router level, without littering your business logic.
+* [Error](doc/error.md) is a Go error object containing an HTTP status code besides the traditional error.
 
-Trace context and error are the glue between Lambda and Client.
-That is why they form a module together.
+Trace context and error are used both at Lambda Server and Client.
+These use similar middleware solution called Monitor.
+That is why, unlike many other Go HTTP router packages, they form a module together.
 
 ## Principles
 
 * Simple, intuitive, Go-ish.
 * Similar to Go's built-in http package, with some advanced router inherited from [Gorilla/Mux](https://github.com/gorilla/mux) project.
 * Powerful HTTP+JSON framework reducing development costs while improving quality.
-* Have quite many goodies needed on developing complex applications.
+* Has quite many goodies needed for developing complex applications.
