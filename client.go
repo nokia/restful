@@ -230,19 +230,19 @@ func NewH2CClientWInterface(networkInterface string) *Client {
 
 func getH2Transport(iface string) *http2.Transport {
 	return &http2.Transport{
-		DialTLS: getDialTLSCallback(iface, true),
+		DialTLSContext: getDialTLSCallback(iface, true),
 	}
 }
 
 func getH2CTransport(iface string) *http2.Transport {
 	return &http2.Transport{
 		AllowHTTP: true,
-		DialTLS:   getDialTLSCallback(iface, false),
+		DialTLSContext:   getDialTLSCallback(iface, false),
 	}
 }
 
-func getDialTLSCallback(iface string, withTLS bool) func(string, string, *tls.Config) (net.Conn, error) {
-	return func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+func getDialTLSCallback(iface string, withTLS bool) func(context.Context, string, string, *tls.Config) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 		dialer := net.Dialer{Timeout: DialTimeout}
 
 		var conn net.Conn
