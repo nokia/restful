@@ -133,6 +133,9 @@ func lambdaGetParams(w http.ResponseWriter, r *http.Request, f any) ([]reflect.V
 				if err := Validate.Struct(reqDataInterface); err != nil {
 					if ValidateErrConverter != nil {
 						err = ValidateErrConverter(err)
+						if _, ok := err.(*restError); ok { // no need to wrap
+							return nil, r, err
+						}
 					}
 					return nil, r, NewError(err, LambdaValidationErrorStatus)
 				}
