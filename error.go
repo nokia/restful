@@ -96,6 +96,9 @@ func (e *restError) Unwrap() error {
 //
 //	if err != nil {return restful.NewError(nil, http.StatusBadRequest, "bad data")}
 func NewError(err error, statusCode int, description ...string) error {
+	if _, ok := err.(*restError); ok {
+		return err
+	}
 	return &restError{err: err, statusCode: statusCode, problemDetails: ProblemDetails{Detail: strings.Join(description, " ")}}
 }
 

@@ -16,6 +16,13 @@ import (
 
 func TestNewError(t *testing.T) {
 	assert := assert.New(t)
+
+	testErr := &restError{errors.New("invalid argument"), 400, ProblemDetails{}, "application/json", []byte{}}
+	newErr := NewError(testErr, LambdaValidationErrorStatus)
+	_, ok := newErr.(*restError)
+	assert.True(ok)
+	assert.Equal(testErr.statusCode, newErr.(*restError).statusCode)
+
 	err := NewError(errors.New("err"), 400, "what?")
 	assert.Equal(400, GetErrStatusCode(err))
 	assert.Equal(400, GetErrStatusCodeElse(err, 501))
