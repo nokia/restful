@@ -78,7 +78,7 @@ func TraceHeadersToContext(parentCtx context.Context, r *http.Request) (context.
 
 // Span spans the existing trace data and puts that into the request.
 // Does not change the input trace data.
-func (t *TraceOTel) Span(r *http.Request) (*http.Request, string) {
+func (t *TraceOTel) Span(r *http.Request) (*http.Request, string, func()) {
 	ctx := r.Context()
 	spanCtx := trace.SpanContextFromContext(ctx)
 
@@ -87,10 +87,11 @@ func (t *TraceOTel) Span(r *http.Request) (*http.Request, string) {
 		spanCtx = trace.SpanContextFromContext(ctx)
 	}
 
+	var spanEndFunc func()
 	if spanCtx.IsValid() {
 		ctx, span := tracer.Start(ctx, "client")
 		spanCtx = span.SpanContext()
-		span.End() // Note: span stored in ctx is completed. That is not right.
+		spanEndFunc = func() { span.End() }
 		r = r.WithContext(ctx)
 	} else {
 		// Check if req has tracing headers
@@ -102,7 +103,7 @@ func (t *TraceOTel) Span(r *http.Request) (*http.Request, string) {
 		r = r.WithContext(newCtx)
 	}
 
-	return r, spanCtx.TraceID().String()
+	return r, spanCtx.TraceID().String(), spanEndFunc
 }
 
 // SetHeader sets request headers according to the trace data.

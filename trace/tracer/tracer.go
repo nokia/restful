@@ -181,7 +181,7 @@ func NewRandom() *Tracer {
 // Span spans the existing trace data and puts that into the request.
 // Returns the updated request and a trace string for logging.
 // Does not change the input trace data.
-func (t *Tracer) Span(r *http.Request) (*http.Request, string) {
+func (t *Tracer) Span(r *http.Request) (*http.Request, string, func()) {
 	return t.traceData.Span(r)
 }
 
