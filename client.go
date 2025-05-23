@@ -236,8 +236,8 @@ func getH2Transport(iface string) *http2.Transport {
 
 func getH2CTransport(iface string) *http2.Transport {
 	return &http2.Transport{
-		AllowHTTP: true,
-		DialTLSContext:   getDialTLSCallback(iface, false),
+		AllowHTTP:      true,
+		DialTLSContext: getDialTLSCallback(iface, false),
 	}
 }
 
@@ -463,13 +463,13 @@ func traceFromContextOrRequestOrRandom(req *http.Request) (trace tracedata.Trace
 	return
 }
 
-func doSpan(req *http.Request) (*http.Request, string) {
+func doSpan(req *http.Request) (*http.Request, string, func()) {
 	trace := traceFromContextOrRequestOrRandom(req)
 
 	if trace.IsReceived() || isTraced {
 		return trace.Span(req)
 	}
-	return req, tracecommon.NewTraceID()
+	return req, tracecommon.NewTraceID(), nil
 }
 
 func (c *Client) setUA(req *http.Request) {
@@ -598,16 +598,20 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 		}
 	}
 
-	req, spanStr := doSpan(req)
+	req, spanStr, spanEndFunc := doSpan(req)
 	resp, err := c.doLog(spanStr, req, target)
 
-	for i := 0; i < len(c.monitor); i++ {
+	for i := range c.monitor {
 		if c.monitor[i].post != nil {
 			newResp := c.monitor[i].post(req, resp, err)
 			if newResp != nil {
 				resp = newResp
 			}
 		}
+	}
+
+	if spanEndFunc != nil {
+		spanEndFunc()
 	}
 
 	return resp, err

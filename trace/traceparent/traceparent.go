@@ -53,10 +53,10 @@ func (p *TraceParent) span() *TraceParent {
 // Span spans the existing trace data and puts that into the request.
 // Returns the updated request and a trace string for logging.
 // Does not change the input trace data.
-func (p *TraceParent) Span(r *http.Request) (*http.Request, string) {
+func (p *TraceParent) Span(r *http.Request) (*http.Request, string, func()) {
 	span := p.span()
 	span.SetHeader(r.Header)
-	return r, span.String()
+	return r, span.String(), nil
 }
 
 // SetHeader sets request headers according to the trace data.
