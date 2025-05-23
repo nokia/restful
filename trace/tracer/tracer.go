@@ -25,18 +25,39 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
+const unsetFraction = float64(-32.0)
+
 // OtelEnabled tells if OpenTelemetry tracing was activated.
-// You may set that directly or use OTEL_ environment variables for settings.
-// See https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/
 // If OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is set, then tracing is activated automatically.
-var OtelEnabled = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" || os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != ""
+// You may set OTEL_TRACES_SAMPLER and OTEL_TRACES_SAMPLER_ARG to set the sampling type and fraction.
+// See also
+//   - https://opentelemetry.io/docs/specs/otel/protocol/exporter/
+//   - https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/
+var OtelEnabled = false
+
+func init() {
+	target := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if target == "" {
+		target = os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+	}
+	if target == "" {
+		return
+	}
+
+	OtelEnabled = true
+
+	if err := SetOTelGrpc(target, unsetFraction); err != nil {
+		panic(err)
+	}
+}
 
 // GetOTel returns if Open Telemetry is enabled.
+// It may be enabled automatically if OTEL_ environment variables are set.
 func GetOTel() bool {
 	return OtelEnabled
 }
 
-// SetOTel enables/disables Open Telemetry. By default it is disabled.
+// SetOTel enables/disables Open Telemetry.
 // Tracer provider can be set with an exporter and collector endpoint you need.
 func SetOTel(enabled bool, tp *sdktrace.TracerProvider) {
 	OtelEnabled = enabled
@@ -55,10 +76,9 @@ func SetOTel(enabled bool, tp *sdktrace.TracerProvider) {
 // Activates trace export to the OTLP gRPC collector target address defined.
 // Port is 4317, unless defined otherwise in provided target string.
 //
-// Fraction tells the fraction of spans to report, unless parent is sampled.
-//
-//   - Less or equal 0 means no sampling, unless parent is sampled.
-//   - Greater or equal 1 means always sampled.
+// Fraction tells the fraction of spans to report, unless the parent is sampled.
+//   - Zero means no sampling.
+//   - Greater or equal 1 means sampling all the messages.
 //   - Else the sampling fraction, e.g. 0.01 for 1%.
 func SetOTelGrpc(target string, fraction float64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -76,11 +96,18 @@ func SetOTelGrpc(target string, fraction float64) error {
 	}
 
 	batchSpanProcessor := sdktrace.NewBatchSpanProcessor(exporter)
+
+	var sampler sdktrace.Sampler = nil
+	if fraction != unsetFraction {
+		sampler = sdktrace.ParentBased(sdktrace.TraceIDRatioBased(fraction))
+	}
+
 	tracerProvider := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(fraction))),
+		sdktrace.WithSampler(sampler), // may be nil if fraction is unset, using env vars instead.
 		sdktrace.WithResource(res),
 		sdktrace.WithSpanProcessor(batchSpanProcessor),
 	)
+
 	SetOTel(true, tracerProvider)
 	return nil
 }
