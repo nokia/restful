@@ -124,10 +124,10 @@ func (b3 *TraceB3) span() *TraceB3 {
 // Span spans the existing trace data and puts that into the request.
 // Returns the updated request and a trace string for logging.
 // Does not change the input trace data.
-func (b3 *TraceB3) Span(r *http.Request) (*http.Request, string) {
+func (b3 *TraceB3) Span(r *http.Request) (*http.Request, string, func()) {
 	span := b3.span()
 	span.SetHeader(r.Header)
-	return r, span.String()
+	return r, span.String(), nil
 }
 
 func (b3 *TraceB3) setHeaderSingleLine(headers http.Header) {

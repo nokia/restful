@@ -11,9 +11,9 @@ import (
 // TraceData contains HTTP message tracing data of various kind.
 type TraceData interface {
 	// Span spans the existing trace data and puts that into the request.
-	// Returns the updated request and a trace string for logging.
+	// Returns the updated request, a trace string for logging and a span end function or nil.
 	// Does not change the input trace data.
-	Span(r *http.Request) (*http.Request, string)
+	Span(r *http.Request) (*http.Request, string, func())
 
 	// SetHeader sets request headers according to the trace data.
 	// Input headers object must not be nil.

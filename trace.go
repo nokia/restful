@@ -25,10 +25,9 @@ func SetOTel(enabled bool, tp *sdktrace.TracerProvider) {
 // Activates trace export to the OTLP gRPC collector target address defined.
 // Port is 4317, unless defined otherwise in provided target string.
 //
-// Fraction tells the fraction of spans to report, unless parent is sampled.
-//
-//   - Less or equal 0 means no sampling, unless parent is sampled.
-//   - Greater or equal 1 means always sampled.
+// Fraction tells the fraction of spans to report, unless the parent is sampled.
+//   - Zero means no sampling.
+//   - Greater or equal 1 means sampling all the messages.
 //   - Else the sampling fraction, e.g. 0.01 for 1%.
 func SetOTelGrpc(target string, fraction float64) error {
 	return tracer.SetOTelGrpc(target, fraction)
