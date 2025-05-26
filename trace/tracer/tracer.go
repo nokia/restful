@@ -25,6 +25,8 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
+const unsetFraction = float64(-32.0)
+
 // OtelEnabled tells if OpenTelemetry tracing was activated.
 // If OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is set, then tracing is activated automatically.
 // You may set OTEL_TRACES_SAMPLER and OTEL_TRACES_SAMPLER_ARG to set the sampling type and fraction.
@@ -34,21 +36,19 @@ import (
 var OtelEnabled = false
 
 func init() {
-	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" &&
-		os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") == "" {
+	target := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if target == "" {
+		target = os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+	}
+	if target == "" {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	OtelEnabled = true
 
-	name := filepath.Base(os.Args[0])
-	res, err := resource.New(ctx, resource.WithAttributes(semconv.ServiceNameKey.String(name)))
-	if err != nil {
-		return
+	if err := SetOTelGrpc(target, unsetFraction); err != nil {
+		panic(err)
 	}
-
-	SetOTel(true, sdktrace.NewTracerProvider(sdktrace.WithResource(res)))
 }
 
 // GetOTel returns if Open Telemetry is enabled.
@@ -97,7 +97,10 @@ func SetOTelGrpc(target string, fraction float64) error {
 
 	batchSpanProcessor := sdktrace.NewBatchSpanProcessor(exporter)
 
-	sampler := sdktrace.ParentBased(sdktrace.TraceIDRatioBased(fraction))
+	var sampler sdktrace.Sampler = nil
+	if fraction != unsetFraction {
+		sampler = sdktrace.ParentBased(sdktrace.TraceIDRatioBased(fraction))
+	}
 
 	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sampler), // may be nil if fraction is unset, using env vars instead.
