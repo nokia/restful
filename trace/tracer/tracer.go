@@ -67,7 +67,6 @@ func SetOTel(enabled bool, tp *sdktrace.TracerProvider) {
 			tp = sdktrace.NewTracerProvider()
 		}
 		traceotel.SetTraceProvider(tp)
-		otel.SetTracerProvider(tp)
 		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, b3.New(), b3.New(b3.WithInjectEncoding(b3.B3MultipleHeader))))
 	}
 }
