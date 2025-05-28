@@ -107,12 +107,6 @@ func getData(ctx context.Context, headers http.Header, ioBody io.ReadCloser, max
 		}
 		return err
 	}
-	if len(body) == 0 {
-		if request {
-			return NewError(nil, http.StatusBadRequest, "body expected")
-		}
-		return nil
-	}
 
 	recvdContentType := GetBaseContentType(headers)
 	if isMsgPackContentType(recvdContentType) {
