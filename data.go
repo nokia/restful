@@ -108,6 +108,10 @@ func getData(ctx context.Context, headers http.Header, ioBody io.ReadCloser, max
 		return err
 	}
 
+	if len(body) == 0 {
+		return nil
+	}
+
 	recvdContentType := GetBaseContentType(headers)
 	if isMsgPackContentType(recvdContentType) {
 		err = messagepack.Unmarshal(body, data)
