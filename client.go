@@ -684,6 +684,18 @@ func (c *Client) setReqTarget(req *http.Request) (target string, err error) {
 		req.URL, err = url.Parse(target)
 	}
 
+	dnsResolver := net.Resolver{}
+	IPs, err := dnsResolver.LookupHost(req.Context(), req.URL.Hostname())
+	if err != nil {
+		log.Debugf("Failed to resolve host %s: %v", req.URL.Hostname(), err)
+	}
+	if len(IPs) > 1 {
+		log.Debugf("Multiple IPs for %s: %v", req.URL.Hostname(), IPs)
+		req.Host = req.URL.Host                                           // Set Host header to original Host.
+		req.URL.Host = strings.TrimSuffix(IPs[0]+":"+req.URL.Port(), ":") // Use the first IP address.
+		target = req.URL.String()
+	}
+
 	if !c.httpsCfg.isAllowed(req.URL) {
 		return target, ErrNonHTTPSURL
 	}
