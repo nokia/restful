@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -691,8 +692,8 @@ func (c *Client) setReqTarget(req *http.Request) (target string, err error) {
 	}
 	if len(IPs) > 1 {
 		log.Debugf("Multiple IPs for %s: %v", req.URL.Hostname(), IPs)
-		req.Host = req.URL.Host                                           // Set Host header to original Host.
-		req.URL.Host = strings.TrimSuffix(IPs[0]+":"+req.URL.Port(), ":") // Use the first IP address.
+		req.Host = req.URL.Host                                                          // Set Host header to original Host.
+		req.URL.Host = strings.TrimSuffix(chooseIPFromList(IPs)+":"+req.URL.Port(), ":") // Use the first IP address.
 		target = req.URL.String()
 	}
 
@@ -1071,4 +1072,9 @@ func getIPFromInterface(networkInterface string) (theIPs localIPs) {
 		}
 	}
 	return
+}
+
+func chooseIPFromList(IPs []string) string {
+	index := rand.Intn(len(IPs)) //gosec:disable G404 -- This is a false positive
+	return IPs[index]            // Return the randomly chosen IP
 }
