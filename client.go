@@ -156,7 +156,7 @@ func NewClient() *Client {
 func NewClientWInterface(networkInterface string) *Client {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.MaxIdleConns = 100
-	t.MaxConnsPerHost = 100
+	t.MaxConnsPerHost = 1000
 	t.MaxIdleConnsPerHost = 100
 	dialer := &net.Dialer{Timeout: DialTimeout, KeepAlive: 30 * time.Second}
 	if networkInterface != "" {
