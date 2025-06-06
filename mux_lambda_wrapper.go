@@ -42,6 +42,10 @@ var Validate *validator.Validate = validator.New(validator.WithRequiredStructEna
 // This can be used if some standardized formatting is desired.
 var ValidateErrConverter func(err error) error
 
+// ReadErrConverted is a function variable similar to ValidateErrConverter
+// that allows customization of errors returned when the request body is read and Unmarhsaled
+var ReadErrConverter func(err error) error
+
 func lambdaHandleRes0(l *lambda.Lambda) (err error) {
 	if l != nil && l.Status > 0 {
 		err = NewError(nil, l.Status)
@@ -126,6 +130,13 @@ func lambdaGetParams(w http.ResponseWriter, r *http.Request, f any) ([]reflect.V
 			}
 
 			if err := GetRequestData(r, LambdaMaxBytesToParse, reqDataInterface); err != nil {
+				if ReadErrConverter != nil {
+					err = ReadErrConverter(err)
+					if _, ok := err.(*restError); ok { // no need to wrap
+						return nil, r, err
+					}
+					return nil, r, NewError(err, http.StatusInternalServerError)
+				}
 				return nil, r, err
 			}
 
