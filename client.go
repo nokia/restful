@@ -143,6 +143,12 @@ type Client struct {
 		client     *http.Client
 	}
 	msgpackUsage msgpackUsage
+
+	// LoadBalanceRandom is a flag that tells whether to choose random IP address from the list of IPs received in DNS response for the target URI.
+	LoadBalanceRandom bool
+
+	// CountersEnabled is a flag that tells whether to enable Prometheus counters for the client.
+	CountersEnabled bool
 }
 
 // NewClient creates a RESTful client instance.
@@ -684,6 +690,12 @@ func (c *Client) setReqTarget(req *http.Request) (target string, err error) {
 		target = c.rootURL + target
 		req.URL, err = url.Parse(target)
 	}
+	if !c.httpsCfg.isAllowed(req.URL) {
+		return target, ErrNonHTTPSURL
+	}
+	if !c.LoadBalanceRandom {
+		return
+	}
 
 	dnsResolver := net.Resolver{}
 	IPs, err := dnsResolver.LookupHost(req.Context(), req.URL.Hostname())
@@ -696,10 +708,6 @@ func (c *Client) setReqTarget(req *http.Request) (target string, err error) {
 		req.URL.Host = strings.TrimSuffix(chooseIPFromList(IPs)+":"+req.URL.Port(), ":") // Use the first IP address.
 		target = req.URL.String()
 	}
-
-	if !c.httpsCfg.isAllowed(req.URL) {
-		return target, ErrNonHTTPSURL
-	}
 	return
 }
 
@@ -708,13 +716,22 @@ func (c *Client) do(req *http.Request) (resp *http.Response, err error) {
 		err = ctxErr
 		return
 	}
+	start := time.Now()
 	resp, err = c.Client.Do(req)
+	duration := time.Since(start).Milliseconds()
 
 	// Workaround for https://github.com/golang/go/issues/36026
 	if err, ok := err.(net.Error); ok && err.Timeout() {
 		c.Client.CloseIdleConnections()
 	}
 
+	if c.CountersEnabled {
+		if err != nil {
+			RecordRequestLatency(req.Method, req.URL.Hostname(), float64(duration))
+			totalRequestCount.WithLabelValues(req.Method, req.URL.Hostname()).Inc()
+			totalRequestLatencyMs.WithLabelValues(req.Method, req.URL.Hostname()).Add(float64(duration))
+		}
+	}
 	return
 }
 
