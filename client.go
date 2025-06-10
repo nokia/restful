@@ -726,11 +726,9 @@ func (c *Client) do(req *http.Request) (resp *http.Response, err error) {
 	}
 
 	if c.CountersEnabled {
-		if err != nil {
-			RecordRequestLatency(req.Method, req.URL.Hostname(), float64(duration))
-			totalRequestCount.WithLabelValues(req.Method, req.URL.Hostname()).Inc()
-			totalRequestLatencyMs.WithLabelValues(req.Method, req.URL.Hostname()).Add(float64(duration))
-		}
+		RecordRequestLatency(req.Method, req.URL.Hostname(), float64(duration))
+		totalRequestCount.WithLabelValues(req.Method, req.URL.Hostname()).Inc()
+		totalRequestLatencyMs.WithLabelValues(req.Method, req.URL.Hostname()).Add(float64(duration))
 	}
 	return
 }
