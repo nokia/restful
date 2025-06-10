@@ -7,7 +7,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "restful_http_request_latency_ms",
 			Help:    "Latency of HTTP requests in milliseconds.",
-			Buckets: prometheus.DefBuckets,
+			Buckets: []float64{1, 2, 5, 10, 100, 250, 500, 1000, 2000},
 		},
 		[]string{"method", "endpoint"},
 	)
