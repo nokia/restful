@@ -693,7 +693,7 @@ func (c *Client) setReqTarget(req *http.Request) (target string, err error) {
 	if !c.httpsCfg.isAllowed(req.URL) {
 		return target, ErrNonHTTPSURL
 	}
-	if !c.LoadBalanceRandom {
+	if !(strings.HasSuffix(req.URL.Hostname(), "headless") || strings.HasSuffix(req.URL.Hostname(), "cluster.local")) {
 		return
 	}
 
@@ -726,9 +726,9 @@ func (c *Client) do(req *http.Request) (resp *http.Response, err error) {
 	}
 
 	if c.CountersEnabled {
-		RecordRequestLatency(req.Method, req.URL.Hostname(), float64(duration))
-		totalRequestCount.WithLabelValues(req.Method, req.URL.Hostname()).Inc()
-		totalRequestLatencyMs.WithLabelValues(req.Method, req.URL.Hostname()).Add(float64(duration))
+		RecordRequestLatency(req.Method, req.Host, float64(duration))
+		totalRequestCount.WithLabelValues(req.Method, req.Host).Inc()
+		totalRequestLatencyMs.WithLabelValues(req.Method, req.Host).Add(float64(duration))
 	}
 	return
 }
