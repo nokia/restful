@@ -463,6 +463,8 @@ func traceFromContextOrRequestOrRandom(req *http.Request) (trace tracedata.Trace
 	return
 }
 
+// doSpan spans the context.
+// Note that this span is created only once, even if there are retries.
 func doSpan(req *http.Request) (*http.Request, string, func()) {
 	trace := traceFromContextOrRequestOrRandom(req)
 
