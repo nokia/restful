@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/nokia/restful/trace/traceb3"
@@ -71,9 +72,19 @@ func SetOTel(enabled bool, tp *sdktrace.TracerProvider) {
 	}
 }
 
+func ensureScheme(target string) string {
+	if strings.Contains(target, "://") {
+		return target
+	}
+
+	// Add something. The exact scheme (grpc, https, http or even dns) is not important, it seems.
+	return "http://" + target
+}
+
 // SetOTelGrpc enables Open Telemetry.
 // Activates trace export to the OTLP gRPC collector target address defined.
 // Port is 4317, unless defined otherwise in provided target string.
+// E.g. "http://localhost:4317".
 //
 // Fraction tells the fraction of spans to report, unless the parent is sampled.
 //   - Zero means no sampling.
@@ -89,7 +100,7 @@ func SetOTelGrpc(target string, fraction float64) error {
 		return err
 	}
 
-	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithEndpointURL(target))
+	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithEndpointURL(ensureScheme(target)))
 	if err != nil {
 		return err
 	}
@@ -102,7 +113,7 @@ func SetOTelGrpc(target string, fraction float64) error {
 	}
 
 	tracerProvider := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sampler), // may be nil if fraction is unset, using env vars instead.
+		sdktrace.WithSampler(sampler), // may be nil if fraction is unset, using env vars OTEL_TRACES_SAMPLER(_ARG) instead.
 		sdktrace.WithResource(res),
 		sdktrace.WithSpanProcessor(batchSpanProcessor),
 	)
