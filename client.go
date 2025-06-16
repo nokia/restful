@@ -236,8 +236,8 @@ func getH2Transport(iface string) *http2.Transport {
 
 func getH2CTransport(iface string) *http2.Transport {
 	return &http2.Transport{
-		AllowHTTP: true,
-		DialTLSContext:   getDialTLSCallback(iface, false),
+		AllowHTTP:      true,
+		DialTLSContext: getDialTLSCallback(iface, false),
 	}
 }
 
@@ -463,13 +463,15 @@ func traceFromContextOrRequestOrRandom(req *http.Request) (trace tracedata.Trace
 	return
 }
 
-func doSpan(req *http.Request) (*http.Request, string) {
+// doSpan spans the context.
+// Note that this span is created only once, even if there are retries.
+func doSpan(req *http.Request) (*http.Request, string, func()) {
 	trace := traceFromContextOrRequestOrRandom(req)
 
 	if trace.IsReceived() || isTraced {
 		return trace.Span(req)
 	}
-	return req, tracecommon.NewTraceID()
+	return req, tracecommon.NewTraceID(), nil
 }
 
 func (c *Client) setUA(req *http.Request) {
@@ -559,6 +561,42 @@ func (c *Client) setOauth2Auth(ctx context.Context, req *http.Request) error {
 	return nil
 }
 
+func (c *Client) doSetAuth(ctx context.Context, req *http.Request) error {
+	if c.username != "" && c.oauth2.config == nil {
+		req.SetBasicAuth(c.username, c.password)
+	}
+	if c.oauth2.config != nil {
+		if err := c.setOauth2Auth(ctx, req); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Client) doPre(req *http.Request) (*http.Response, error) {
+	for i := len(c.monitor) - 1; i >= 0; i-- {
+		if c.monitor[i].pre != nil {
+			resp, err := c.monitor[i].pre(req)
+			if resp != nil || err != nil {
+				return resp, err
+			}
+		}
+	}
+	return nil, nil
+}
+
+func (c *Client) doPost(req *http.Request, resp *http.Response, err error) (*http.Response, error) {
+	for i := range c.monitor {
+		if c.monitor[i].post != nil {
+			newResp := c.monitor[i].post(req, resp, err)
+			if newResp != nil {
+				resp = newResp
+			}
+		}
+	}
+	return resp, err
+}
+
 // Do sends an HTTP request and returns an HTTP response.
 // All the rules of http.Client.Do() apply.
 // If URL of req is relative path then root defined at client.Root is added as prefix.
@@ -580,34 +618,21 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 
 	c.setUA(req)
 
-	if c.username != "" && c.oauth2.config == nil {
-		req.SetBasicAuth(c.username, c.password)
-	}
-	if c.oauth2.config != nil {
-		if err := c.setOauth2Auth(ctx, req); err != nil {
-			return nil, err
-		}
+	if err := c.doSetAuth(ctx, req); err != nil {
+		return nil, err
 	}
 
-	for i := len(c.monitor) - 1; i >= 0; i-- {
-		if c.monitor[i].pre != nil {
-			resp, err := c.monitor[i].pre(req)
-			if resp != nil || err != nil {
-				return resp, err
-			}
-		}
+	if resp, err := c.doPre(req); resp != nil || err != nil {
+		return resp, err
 	}
 
-	req, spanStr := doSpan(req)
+	req, spanStr, spanEndFunc := doSpan(req)
 	resp, err := c.doLog(spanStr, req, target)
 
-	for i := 0; i < len(c.monitor); i++ {
-		if c.monitor[i].post != nil {
-			newResp := c.monitor[i].post(req, resp, err)
-			if newResp != nil {
-				resp = newResp
-			}
-		}
+	resp, err = c.doPost(req, resp, err)
+
+	if spanEndFunc != nil {
+		spanEndFunc()
 	}
 
 	return resp, err

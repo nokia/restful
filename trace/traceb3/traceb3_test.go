@@ -16,7 +16,7 @@ func TestB3SingleLine(t *testing.T) {
 	assert.True(trace.IsReceived())
 	assert.Equal(trace.TraceID(), "0af7651916cd43dd8448eb211c80319c")
 	assert.Equal(trace.SpanID(), "b9c7c989f97918e1")
-	_, span := trace.Span(r)
+	_, span, _ := trace.Span(r)
 	assert.NotContains(span, "b9c7c989f97918e1")
 	assert.Contains(trace.String(), "0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1")
 
@@ -36,7 +36,7 @@ func TestB3MultiLine(t *testing.T) {
 	assert.True(trace.IsReceived())
 	assert.Equal(trace.TraceID(), "0af7651916cd43dd8448eb211c80319c")
 	assert.Equal(trace.SpanID(), "b9c7c989f97918e1")
-	_, span := trace.Span(r)
+	_, span, _ := trace.Span(r)
 	assert.NotContains(span, "b9c7c989f97918e1")
 
 	headers := http.Header{}

@@ -19,6 +19,10 @@ When you use RESTful, you do not need to write a single line of code for tracing
 
 OTel can be activated using environment variables `OTEL_EXPORTER_OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`
 instead of using `SetOTel` functions.
+Sampling is then set by `OTEL_TRACES_SAMPLER` and `OTEL_TRACES_SAMPLER_ARG` variables.
+E.g. `OTEL_TRACES_SAMPLER=parentbased_traceidratio` and `OTEL_TRACES_SAMPLER_ARG=0.01`,
+meaning that 1% of the traffic is sampled, unless the incoming request indicates that sampling is required.
+See Otel documentation for details.
 
 An example, tracing data propagated in variable `ctx`.
 

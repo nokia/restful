@@ -10,12 +10,26 @@ import (
 
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
 
 var tracer trace.Tracer
+
+// spanRequestAttributes adds attributes similar to what OTel adds at transport layer.
+// But this span envelopes all the retries of the client.
+func spanRequestAttributes(r *http.Request) []attribute.KeyValue {
+	kv := []attribute.KeyValue{
+		attribute.String("http.method", r.Method),
+		attribute.String("http.url", r.URL.String()),
+	}
+	if r.ContentLength > 0 {
+		kv = append(kv, attribute.Int64("http.request.content_length", r.ContentLength))
+	}
+	return kv
+}
 
 // SetTraceProvider sets global Open Telemetry trace provider to be used.
 func SetTraceProvider(tp *sdktrace.TracerProvider) {
@@ -59,7 +73,7 @@ func NewFromContext(ctx context.Context) *TraceOTel {
 func NewRandom() *TraceOTel {
 	var span trace.Span
 	ctx, span := tracer.Start(context.Background(), "client")
-	span.End()
+	span.End() // TODO: Cretaing a span and ending that instantly is not the best way to do this.
 	return &TraceOTel{ctx: ctx}
 }
 
@@ -78,7 +92,7 @@ func TraceHeadersToContext(parentCtx context.Context, r *http.Request) (context.
 
 // Span spans the existing trace data and puts that into the request.
 // Does not change the input trace data.
-func (t *TraceOTel) Span(r *http.Request) (*http.Request, string) {
+func (t *TraceOTel) Span(r *http.Request) (*http.Request, string, func()) {
 	ctx := r.Context()
 	spanCtx := trace.SpanContextFromContext(ctx)
 
@@ -87,10 +101,12 @@ func (t *TraceOTel) Span(r *http.Request) (*http.Request, string) {
 		spanCtx = trace.SpanContextFromContext(ctx)
 	}
 
+	var spanEndFunc func()
 	if spanCtx.IsValid() {
-		ctx, span := tracer.Start(ctx, "client")
+		ctx, span := tracer.Start(ctx, "HTTP "+r.Method)
+		span.SetAttributes(spanRequestAttributes(r)...)
 		spanCtx = span.SpanContext()
-		span.End() // Note: span stored in ctx is completed. That is not right.
+		spanEndFunc = func() { span.End() }
 		r = r.WithContext(ctx)
 	} else {
 		// Check if req has tracing headers
@@ -102,7 +118,7 @@ func (t *TraceOTel) Span(r *http.Request) (*http.Request, string) {
 		r = r.WithContext(newCtx)
 	}
 
-	return r, spanCtx.TraceID().String()
+	return r, spanCtx.TraceID().String(), spanEndFunc
 }
 
 // SetHeader sets request headers according to the trace data.
