@@ -1,6 +1,11 @@
 package restful
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"net/http"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 var (
 	httpRequestLatency = prometheus.NewHistogramVec(
@@ -37,4 +42,21 @@ func init() {
 // RecordRequestLatency records the latency of an HTTP request.
 func RecordRequestLatency(method, endpoint string, duration float64) {
 	httpRequestLatency.WithLabelValues(method, endpoint).Observe(duration)
+}
+
+// RecordTotalRequestMetrics records the total request count and latency metrics for an HTTP request.
+func (c *Client) RecordTotalRequestMetrics(req *http.Request, start time.Time) {
+	if !c.CountersEnabled {
+		return
+	}
+	duration := time.Since(start).Milliseconds()
+	endpoint := req.Host
+	if endpoint == "" {
+		endpoint = req.URL.Hostname() + ":" + req.URL.Port()
+	}
+	RecordRequestLatency(req.Method, endpoint, float64(duration))
+	totalRequestCount.WithLabelValues(req.Method, endpoint).Inc()
+	totalRequestLatencyMs.WithLabelValues(req.Method, endpoint).Add(float64(duration))
+
+	return
 }

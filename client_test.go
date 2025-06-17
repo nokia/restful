@@ -959,3 +959,17 @@ func TestClients(t *testing.T) {
 		})
 	}
 }
+func TestEnableLoadBalanceRandom(t *testing.T) {
+	client := NewClient()
+	assert.False(t, client.LoadBalanceRandom, "LoadBalanceRandom should be false by default")
+
+	client.EnableLoadBalanceRandom()
+	assert.True(t, client.LoadBalanceRandom, "LoadBalanceRandom should be true after calling EnableLoadBalanceRandom")
+}
+func TestEnableCounters(t *testing.T) {
+	client := NewClient()
+	assert.False(t, client.CountersEnabled, "CountersEnabled should be false by default")
+
+	client.EnableCounters()
+	assert.True(t, client.CountersEnabled, "CountersEnabled should be true after calling EnableCounters")
+}

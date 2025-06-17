@@ -693,7 +693,7 @@ func (c *Client) setReqTarget(req *http.Request) (target string, err error) {
 	if !c.httpsCfg.isAllowed(req.URL) {
 		return target, ErrNonHTTPSURL
 	}
-	if !(strings.HasSuffix(req.URL.Hostname(), "headless") || strings.HasSuffix(req.URL.Hostname(), "cluster.local")) {
+	if !c.LoadBalanceRandom {
 		return
 	}
 
@@ -718,18 +718,13 @@ func (c *Client) do(req *http.Request) (resp *http.Response, err error) {
 	}
 	start := time.Now()
 	resp, err = c.Client.Do(req)
-	duration := time.Since(start).Milliseconds()
+	c.RecordTotalRequestMetrics(req, start)
 
 	// Workaround for https://github.com/golang/go/issues/36026
 	if err, ok := err.(net.Error); ok && err.Timeout() {
 		c.Client.CloseIdleConnections()
 	}
 
-	if c.CountersEnabled {
-		RecordRequestLatency(req.Method, req.Host, float64(duration))
-		totalRequestCount.WithLabelValues(req.Method, req.Host).Inc()
-		totalRequestLatencyMs.WithLabelValues(req.Method, req.Host).Add(float64(duration))
-	}
 	return
 }
 
@@ -1092,4 +1087,14 @@ func getIPFromInterface(networkInterface string) (theIPs localIPs) {
 func chooseIPFromList(IPs []string) string {
 	index := rand.Intn(len(IPs)) //gosec:disable G404 -- This is a false positive
 	return IPs[index]            // Return the randomly chosen IP
+}
+
+func (c *Client) EnableLoadBalanceRandom() *Client {
+	c.LoadBalanceRandom = true
+	return c
+}
+
+func (c *Client) EnableCounters() *Client {
+	c.CountersEnabled = true
+	return c
 }
