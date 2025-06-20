@@ -146,9 +146,6 @@ type Client struct {
 
 	// LoadBalanceRandom is a flag that tells whether to choose random IP address from the list of IPs received in DNS response for the target URI.
 	LoadBalanceRandom bool
-
-	// CountersEnabled is a flag that tells whether to enable Prometheus counters for the client.
-	CountersEnabled bool
 }
 
 // NewClient creates a RESTful client instance.
@@ -716,9 +713,7 @@ func (c *Client) do(req *http.Request) (resp *http.Response, err error) {
 		err = ctxErr
 		return
 	}
-	start := time.Now()
 	resp, err = c.Client.Do(req)
-	c.RecordTotalRequestMetrics(req, start)
 
 	// Workaround for https://github.com/golang/go/issues/36026
 	if err, ok := err.(net.Error); ok && err.Timeout() {
@@ -1091,10 +1086,5 @@ func chooseIPFromList(IPs []string) string {
 
 func (c *Client) EnableLoadBalanceRandom() *Client {
 	c.LoadBalanceRandom = true
-	return c
-}
-
-func (c *Client) EnableCounters() *Client {
-	c.CountersEnabled = true
 	return c
 }
