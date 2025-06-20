@@ -72,6 +72,10 @@ func SetOTel(enabled bool, tp *sdktrace.TracerProvider) {
 	}
 }
 
+func init() {
+	SetOTel(OtelEnabled, nil)
+}
+
 func ensureScheme(target string) string {
 	if strings.Contains(target, "://") {
 		return target
