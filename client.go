@@ -630,7 +630,9 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 
+	target = c.setLoadBalanceTarget(req, target)
 	req, spanStr, spanEndFunc := doSpan(req)
+
 	resp, err := c.doLog(spanStr, req, target)
 
 	resp, err = c.doPost(req, resp, err)
@@ -687,23 +689,9 @@ func (c *Client) setReqTarget(req *http.Request) (target string, err error) {
 		target = c.rootURL + target
 		req.URL, err = url.Parse(target)
 	}
+
 	if !c.httpsCfg.isAllowed(req.URL) {
 		return target, ErrNonHTTPSURL
-	}
-	if !c.LoadBalanceRandom {
-		return
-	}
-
-	dnsResolver := net.Resolver{}
-	IPs, err := dnsResolver.LookupHost(req.Context(), req.URL.Hostname())
-	if err != nil {
-		log.Debugf("Failed to resolve host %s: %v", req.URL.Hostname(), err)
-	}
-	if len(IPs) > 1 {
-		log.Debugf("Multiple IPs for %s: %v", req.URL.Hostname(), IPs)
-		req.Host = req.URL.Host                                                          // Set Host header to original Host.
-		req.URL.Host = strings.TrimSuffix(chooseIPFromList(IPs)+":"+req.URL.Port(), ":") // Use the first IP address.
-		target = req.URL.String()
 	}
 	return
 }
@@ -1075,6 +1063,26 @@ func getIPFromInterface(networkInterface string) (theIPs localIPs) {
 				}
 			}
 		}
+	}
+	return
+}
+
+func (c *Client) setLoadBalanceTarget(req *http.Request, target string) (targetOut string) {
+	targetOut = target
+	if !c.LoadBalanceRandom {
+		return
+	}
+
+	dnsResolver := net.Resolver{}
+	IPs, err := dnsResolver.LookupHost(req.Context(), req.URL.Hostname())
+	if err != nil {
+		log.Debugf("Failed to resolve host %s: %v", req.URL.Hostname(), err)
+	}
+	if len(IPs) > 1 {
+		log.Debugf("Multiple IPs for %s: %v", req.URL.Hostname(), IPs)
+		req.Host = req.URL.Host                                                          // Set Host header to original Host.
+		req.URL.Host = strings.TrimSuffix(chooseIPFromList(IPs)+":"+req.URL.Port(), ":") // Use the first IP address.
+		targetOut = req.URL.String()
 	}
 	return
 }
