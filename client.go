@@ -1067,22 +1067,33 @@ func getIPFromInterface(networkInterface string) (theIPs localIPs) {
 	return
 }
 
+// netLookupHost is a variable to allow patching net.LookupHost in tests.
+var netLookupHost = func(ctx context.Context, host string) ([]string, error) {
+	return net.DefaultResolver.LookupHost(ctx, host)
+}
+
 func (c *Client) setLoadBalanceTarget(req *http.Request, target string) (targetOut string) {
 	targetOut = target
 	if !c.LoadBalanceRandom {
 		return
 	}
+	if net.ParseIP(req.URL.Hostname()) != nil {
+		log.Debugf("Host %s is an IP address, not a hostname. Load balancing is not applied.", req.URL.Hostname())
+		return // Do not apply load balancing if Host is an IP address.
+	}
 
-	dnsResolver := net.Resolver{}
-	IPs, err := dnsResolver.LookupHost(req.Context(), req.URL.Hostname())
+	IPs, err := netLookupHost(req.Context(), req.URL.Hostname())
 	if err != nil {
 		log.Debugf("Failed to resolve host %s: %v", req.URL.Hostname(), err)
+		return
 	}
 	if len(IPs) > 1 {
 		log.Debugf("Multiple IPs for %s: %v", req.URL.Hostname(), IPs)
-		req.Host = req.URL.Host                                                          // Set Host header to original Host.
-		req.URL.Host = strings.TrimSuffix(chooseIPFromList(IPs)+":"+req.URL.Port(), ":") // Use the first IP address.
-		targetOut = req.URL.String()
+		if req.Host == "" { //  MonitorPre maybe already change req.URL.Host. And set req.Host to the original Host.
+			req.Host = req.URL.Host // Set Host header to original Host. This is used for TLS SNI and other purposes.
+		}
+		req.URL.Host = strings.TrimSuffix(chooseIPFromList(IPs)+":"+req.URL.Port(), ":") // Use the random IP address.
+		targetOut += "->" + req.URL.String()                                             // targetOut is only used for logging, so it is ok to modify it.
 	}
 	return
 }
