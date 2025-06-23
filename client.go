@@ -1093,7 +1093,7 @@ func (c *Client) setLoadBalanceTarget(req *http.Request, target string) (targetO
 			req.Host = req.URL.Host // Set Host header to original Host. This is used for TLS SNI and other purposes.
 		}
 		req.URL.Host = strings.TrimSuffix(chooseIPFromList(IPs)+":"+req.URL.Port(), ":") // Use the random IP address.
-		targetOut += "->" + req.URL.String()                                             // targetOut is only used for logging, so it is ok to modify it.
+		targetOut += "[" + req.URL.Hostname() + "]"                                      // targetOut is only used for logging, so it is ok to modify it.
 	}
 	return
 }
