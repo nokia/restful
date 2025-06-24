@@ -1029,7 +1029,7 @@ func TestSetLoadBalanceTarget_DoubleIP(t *testing.T) {
 	defer func() { netLookupHost = origLookupHost }()
 
 	out := client.setLoadBalanceTarget(req, target)
-	assert.Contains(t, out, "->")
 	assert.Contains(t, req.URL.Host, "192.0.2.")
 	assert.Equal(t, "example.com", req.Host)
+	assert.Regexp(t, `\[192\.0\.2\.\d+]`, out, "Expected output to contain one IP in the format '[IP]'")
 }
