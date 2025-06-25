@@ -1103,6 +1103,8 @@ func chooseIPFromList(IPs []string) string {
 	return IPs[index]            // Return the randomly chosen IP
 }
 
+// EnableLoadBalanceRandom enables load balancing by randomly choosing one of the IP addresses
+// returned by net.LookupHost for the target hostname.
 func (c *Client) EnableLoadBalanceRandom() *Client {
 	c.LoadBalanceRandom = true
 	return c
