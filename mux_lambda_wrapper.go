@@ -42,7 +42,7 @@ var Validate *validator.Validate = validator.New(validator.WithRequiredStructEna
 // This can be used if some standardized formatting is desired.
 var ValidateErrConverter func(err error) error
 
-// ReadErrConverted is a function variable similar to ValidateErrConverter
+// ReadErrConverter is a function variable similar to ValidateErrConverter
 // that allows customization of errors returned when the request body is read and Unmarhsaled
 var ReadErrConverter func(err error) error
 

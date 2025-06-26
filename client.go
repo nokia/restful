@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -142,6 +143,9 @@ type Client struct {
 		client     *http.Client
 	}
 	msgpackUsage msgpackUsage
+
+	// LoadBalanceRandom is a flag that tells whether to choose random IP address from the list of IPs received in DNS response for the target URI.
+	LoadBalanceRandom bool
 }
 
 // NewClient creates a RESTful client instance.
@@ -155,7 +159,7 @@ func NewClient() *Client {
 func NewClientWInterface(networkInterface string) *Client {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.MaxIdleConns = 100
-	t.MaxConnsPerHost = 100
+	t.MaxConnsPerHost = 1000
 	t.MaxIdleConnsPerHost = 100
 	dialer := &net.Dialer{Timeout: DialTimeout, KeepAlive: 30 * time.Second}
 	if networkInterface != "" {
@@ -626,7 +630,9 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 
+	target = c.setLoadBalanceTarget(req, target)
 	req, spanStr, spanEndFunc := doSpan(req)
+
 	resp, err := c.doLog(spanStr, req, target)
 
 	resp, err = c.doPost(req, resp, err)
@@ -1059,4 +1065,47 @@ func getIPFromInterface(networkInterface string) (theIPs localIPs) {
 		}
 	}
 	return
+}
+
+// netLookupHost is a variable to allow patching net.LookupHost in tests.
+var netLookupHost = func(ctx context.Context, host string) ([]string, error) {
+	return net.DefaultResolver.LookupHost(ctx, host)
+}
+
+func (c *Client) setLoadBalanceTarget(req *http.Request, target string) (targetOut string) {
+	targetOut = target
+	if !c.LoadBalanceRandom {
+		return
+	}
+	if net.ParseIP(req.URL.Hostname()) != nil {
+		log.Debugf("Host %s is an IP address, not a hostname. Load balancing is not applied.", req.URL.Hostname())
+		return // Do not apply load balancing if Host is an IP address.
+	}
+
+	IPs, err := netLookupHost(req.Context(), req.URL.Hostname())
+	if err != nil {
+		log.Debugf("Failed to resolve host %s: %v", req.URL.Hostname(), err)
+		return
+	}
+	if len(IPs) > 1 {
+		log.Debugf("Multiple IPs for %s: %v", req.URL.Hostname(), IPs)
+		if req.Host == "" { //  MonitorPre maybe already change req.URL.Host. And set req.Host to the original Host.
+			req.Host = req.URL.Host // Set Host header to original Host. This is used for TLS SNI and other purposes.
+		}
+		req.URL.Host = strings.TrimSuffix(chooseIPFromList(IPs)+":"+req.URL.Port(), ":") // Use the random IP address.
+		targetOut += "[" + req.URL.Hostname() + "]"                                      // targetOut is only used for logging, so it is ok to modify it.
+	}
+	return
+}
+
+func chooseIPFromList(IPs []string) string {
+	index := rand.Intn(len(IPs)) //gosec:disable G404 -- This is a false positive
+	return IPs[index]            // Return the randomly chosen IP
+}
+
+// EnableLoadBalanceRandom enables load balancing by randomly choosing one of the IP addresses
+// returned by net.LookupHost for the target hostname.
+func (c *Client) EnableLoadBalanceRandom() *Client {
+	c.LoadBalanceRandom = true
+	return c
 }
