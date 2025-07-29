@@ -1077,23 +1077,23 @@ var netLookupHost = func(ctx context.Context, host string) ([]string, error) {
 	return net.DefaultResolver.LookupHost(ctx, host)
 }
 
-func (c *Client) setLoadBalanceTarget(req *http.Request, target, OriginalHost string) (targetOut string) {
+func (c *Client) setLoadBalanceTarget(req *http.Request, target, originalHost string) (targetOut string) {
 	targetOut = target
 	if !c.LoadBalanceRandom {
 		return
 	}
-	if net.ParseIP(OriginalHost) != nil {
+	if net.ParseIP(originalHost) != nil {
 		log.Debugf("Host %s is an IP address, not a hostname. Load balancing is not applied.", req.URL.Hostname())
 		return // Do not apply load balancing if Host is an IP address.
 	}
 
-	IPs, err := netLookupHost(req.Context(), OriginalHost)
+	IPs, err := netLookupHost(req.Context(), originalHost)
 	if err != nil {
-		log.Debugf("Failed to resolve host %s: %v", OriginalHost, err)
+		log.Debugf("Failed to resolve host %s: %v", originalHost, err)
 		return
 	}
 	if len(IPs) > 1 {
-		log.Debugf("Multiple IPs for %s: %v", OriginalHost, IPs)
+		log.Debugf("Multiple IPs for %s: %v", originalHost, IPs)
 		if req.Host == "" { //  MonitorPre maybe already change req.URL.Host. And set req.Host to the original Host.
 			req.Host = req.URL.Host // Set Host header to original Host. This is used for TLS SNI and other purposes.
 		}
@@ -1108,8 +1108,8 @@ func chooseIPFromList(IPs []string) string {
 	return IPs[index]            // Return the randomly chosen IP
 }
 
-// EnableLoadBalanceRandom enables load balancing by randomly choosing one of the IP addresses
-// returned by net.LookupHost for the target hostname.
+// EnableLoadBalanceRandom enables or disables load balancing by random IP address.
+// If enabled, the client will resolve the hostname and choose a random IP address from the list
 func (c *Client) EnableLoadBalanceRandom(enable bool) *Client {
 	c.LoadBalanceRandom = enable
 	return c
