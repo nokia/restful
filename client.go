@@ -577,7 +577,7 @@ func (c *Client) doSetAuth(ctx context.Context, req *http.Request) error {
 	return nil
 }
 
-func (c *Client) doPre(req *http.Request) (*http.Response, error) {
+func (c *Client) doMonitorPre(req *http.Request) (*http.Response, error) {
 	for i := len(c.monitor) - 1; i >= 0; i-- {
 		if c.monitor[i].pre != nil {
 			resp, err := c.monitor[i].pre(req)
@@ -589,7 +589,7 @@ func (c *Client) doPre(req *http.Request) (*http.Response, error) {
 	return nil, nil
 }
 
-func (c *Client) doPost(req *http.Request, resp *http.Response, err error) (*http.Response, error) {
+func (c *Client) doMonitorPost(req *http.Request, resp *http.Response, err error) (*http.Response, error) {
 	for i := range c.monitor {
 		if c.monitor[i].post != nil {
 			newResp := c.monitor[i].post(req, resp, err)
@@ -615,7 +615,7 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 		req.Header = make(http.Header)
 	}
 
-	target, err := c.setReqTarget(req)
+	targetForLog, err := c.setReqTarget(req)
 	if err != nil {
 		return nil, err
 	}
@@ -626,16 +626,15 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	if resp, err := c.doPre(req); resp != nil || err != nil {
+	if resp, err := c.doMonitorPre(req); resp != nil || err != nil {
 		return resp, err
 	}
 
-	target = c.setLoadBalanceTarget(req, target)
 	req, spanStr, spanEndFunc := doSpan(req)
 
-	resp, err := c.doLog(spanStr, req, target)
+	resp, err := c.doLog(spanStr, req, targetForLog)
 
-	resp, err = c.doPost(req, resp, err)
+	resp, err = c.doMonitorPost(req, resp, err)
 
 	if spanEndFunc != nil {
 		spanEndFunc()
@@ -644,7 +643,12 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	return resp, err
 }
 
-func (c *Client) doWithRetry(req *http.Request, spanStr, target string) (*http.Response, error) {
+func (c *Client) doWithRetry(req *http.Request, spanStr, targetForLog string) (*http.Response, error) {
+	originalHost := req.URL.Hostname()
+	targetForLog = c.setLoadBalanceTarget(req, targetForLog, originalHost)
+
+	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, targetForLog)
+
 	clonedBody := c.cloneBody(req)
 	resp, err := c.do(req)
 
@@ -653,22 +657,23 @@ func (c *Client) doWithRetry(req *http.Request, spanStr, target string) (*http.R
 			_ = resp.Body.Close()
 		}
 
+		targetForLog = c.setLoadBalanceTarget(req, targetForLog, originalHost) // Set target again
+
 		req.Body = clonedBody
 		clonedBody = c.cloneBody(req)
 
 		time.Sleep(c.calcBackoff(retries))
-		log.Debugf("[%s] Send rty(%d): %s %s: err=%v", spanStr, retries, req.Method, target, err)
+		log.Debugf("[%s] Send rty(%d): %s %s: err=%v", spanStr, retries, req.Method, targetForLog, err)
 		resp, err = c.do(req)
 	}
 
 	return resp, err
 }
 
-func (c *Client) doLog(spanStr string, req *http.Request, target string) (*http.Response, error) {
-	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, target)
-	resp, err := c.doWithRetry(req, spanStr, target)
+func (c *Client) doLog(spanStr string, req *http.Request, targetForLog string) (*http.Response, error) {
+	resp, err := c.doWithRetry(req, spanStr, targetForLog)
 	if err != nil {
-		log.Debugf("[%s] Fail req: %s %s", spanStr, req.Method, target)
+		log.Debugf("[%s] Fail req: %s %s", spanStr, req.Method, targetForLog)
 	} else {
 		log.Debugf("[%s] Recv rsp: %s", spanStr, resp.Status)
 	}
@@ -1072,23 +1077,23 @@ var netLookupHost = func(ctx context.Context, host string) ([]string, error) {
 	return net.DefaultResolver.LookupHost(ctx, host)
 }
 
-func (c *Client) setLoadBalanceTarget(req *http.Request, target string) (targetOut string) {
+func (c *Client) setLoadBalanceTarget(req *http.Request, target, originalHost string) (targetOut string) {
 	targetOut = target
 	if !c.LoadBalanceRandom {
 		return
 	}
-	if net.ParseIP(req.URL.Hostname()) != nil {
+	if net.ParseIP(originalHost) != nil {
 		log.Debugf("Host %s is an IP address, not a hostname. Load balancing is not applied.", req.URL.Hostname())
 		return // Do not apply load balancing if Host is an IP address.
 	}
 
-	IPs, err := netLookupHost(req.Context(), req.URL.Hostname())
+	IPs, err := netLookupHost(req.Context(), originalHost)
 	if err != nil {
-		log.Debugf("Failed to resolve host %s: %v", req.URL.Hostname(), err)
+		log.Debugf("Failed to resolve host %s: %v", originalHost, err)
 		return
 	}
 	if len(IPs) > 1 {
-		log.Debugf("Multiple IPs for %s: %v", req.URL.Hostname(), IPs)
+		log.Debugf("Multiple IPs for %s: %v", originalHost, IPs)
 		if req.Host == "" { //  MonitorPre maybe already change req.URL.Host. And set req.Host to the original Host.
 			req.Host = req.URL.Host // Set Host header to original Host. This is used for TLS SNI and other purposes.
 		}
@@ -1103,9 +1108,9 @@ func chooseIPFromList(IPs []string) string {
 	return IPs[index]            // Return the randomly chosen IP
 }
 
-// EnableLoadBalanceRandom enables load balancing by randomly choosing one of the IP addresses
-// returned by net.LookupHost for the target hostname.
-func (c *Client) EnableLoadBalanceRandom() *Client {
-	c.LoadBalanceRandom = true
+// EnableLoadBalanceRandom enables or disables load balancing by random IP address.
+// If enabled, the client will resolve the hostname and choose a random IP address from the list
+func (c *Client) EnableLoadBalanceRandom(enable bool) *Client {
+	c.LoadBalanceRandom = enable
 	return c
 }

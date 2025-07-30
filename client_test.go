@@ -963,27 +963,27 @@ func TestEnableLoadBalanceRandom(t *testing.T) {
 	client := NewClient()
 	assert.False(t, client.LoadBalanceRandom, "LoadBalanceRandom should be false by default")
 
-	client.EnableLoadBalanceRandom()
+	client.EnableLoadBalanceRandom(true)
 	assert.True(t, client.LoadBalanceRandom, "LoadBalanceRandom should be true after calling EnableLoadBalanceRandom")
 }
 func TestSetLoadBalanceTarget_NoLoadBalance(t *testing.T) {
 	client := NewClient()
 	req, _ := http.NewRequest("GET", "http://example.com/resource", nil)
 	target := "http://example.com/resource"
-	out := client.setLoadBalanceTarget(req, target)
+	out := client.setLoadBalanceTarget(req, target, req.URL.Hostname())
 	assert.Equal(t, target, out)
 }
 
 func TestSetLoadBalanceTarget_IPAddressHost(t *testing.T) {
-	client := NewClient().EnableLoadBalanceRandom()
+	client := NewClient().EnableLoadBalanceRandom(true)
 	req, _ := http.NewRequest("GET", "http://127.0.0.1/resource", nil)
 	target := "http://127.0.0.1/resource"
-	out := client.setLoadBalanceTarget(req, target)
+	out := client.setLoadBalanceTarget(req, target, req.URL.Hostname())
 	assert.Equal(t, target, out)
 }
 
 func TestSetLoadBalanceTarget_ResolveError(t *testing.T) {
-	client := NewClient().EnableLoadBalanceRandom()
+	client := NewClient().EnableLoadBalanceRandom(true)
 	req, _ := http.NewRequest("GET", "http://nonexistent.invalid/resource", nil)
 	target := "http://nonexistent.invalid/resource"
 
@@ -994,12 +994,12 @@ func TestSetLoadBalanceTarget_ResolveError(t *testing.T) {
 	}
 	defer func() { netLookupHost = origLookupHost }()
 
-	out := client.setLoadBalanceTarget(req, target)
+	out := client.setLoadBalanceTarget(req, target, req.URL.Hostname())
 	assert.Equal(t, target, out)
 }
 
 func TestSetLoadBalanceTarget_SingleIP(t *testing.T) {
-	client := NewClient().EnableLoadBalanceRandom()
+	client := NewClient().EnableLoadBalanceRandom(true)
 	req, _ := http.NewRequest("GET", "http://example.com/resource", nil)
 	target := "http://example.com/resource"
 
@@ -1010,15 +1010,16 @@ func TestSetLoadBalanceTarget_SingleIP(t *testing.T) {
 	}
 	defer func() { netLookupHost = origLookupHost }()
 
-	out := client.setLoadBalanceTarget(req, target)
+	out := client.setLoadBalanceTarget(req, target, req.URL.Hostname())
 	assert.NotContains(t, out, "->")
 	assert.Contains(t, req.URL.Host, "example.com")
 	assert.Equal(t, "example.com", req.Host)
 }
 
 func TestSetLoadBalanceTarget_DoubleIP(t *testing.T) {
-	client := NewClient().EnableLoadBalanceRandom()
-	req, _ := http.NewRequest("GET", "http://example.com/resource", nil)
+	URL := "http://example-headless.com/resource"
+	client := NewClient().EnableLoadBalanceRandom(strings.Contains(URL, "headless"))
+	req, _ := http.NewRequest("GET", URL, nil)
 	target := "http://example.com/resource"
 
 	// Patch net.LookupHost to return a single IP
@@ -1028,8 +1029,8 @@ func TestSetLoadBalanceTarget_DoubleIP(t *testing.T) {
 	}
 	defer func() { netLookupHost = origLookupHost }()
 
-	out := client.setLoadBalanceTarget(req, target)
+	out := client.setLoadBalanceTarget(req, target, req.URL.Hostname())
 	assert.Contains(t, req.URL.Host, "192.0.2.")
-	assert.Equal(t, "example.com", req.Host)
+	assert.Equal(t, "example-headless.com", req.Host)
 	assert.Regexp(t, `\[192\.0\.2\.\d+]`, out, "Expected output to contain one IP in the format '[IP]'")
 }
