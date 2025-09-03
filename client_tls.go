@@ -7,6 +7,8 @@ package restful
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -35,6 +37,82 @@ func (c *Client) TLS(tlsConfig *tls.Config) *Client {
 		}
 	}
 	return c
+}
+
+func (c *Client) verifyPeerCert(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+	if len(rawCerts) == 0 {
+		return fmt.Errorf("no peer certificate provided")
+	}
+
+	// Parse leaf certificate
+	leaf, err := x509.ParseCertificate(rawCerts[0])
+	if err != nil {
+		return fmt.Errorf("failed to parse peer certificate: %v", err)
+	}
+
+	// Parse intermediates (if any)
+	intermediates := x509.NewCertPool()
+	for _, certDER := range rawCerts[1:] {
+		if cert, err := x509.ParseCertificate(certDER); err == nil {
+			intermediates.AddCert(cert)
+		}
+	}
+
+	// Prepare verification options
+	opts := x509.VerifyOptions{
+		Roots: c.haveTLSClientConfig().RootCAs,
+	}
+	if c.haveTLSClientConfig().ServerName != "" {
+		opts.DNSName = c.haveTLSClientConfig().ServerName // enables hostname verification
+	}
+
+	// Run standard cert verification
+	if _, err := leaf.Verify(opts); err != nil {
+		return fmt.Errorf("certificate verification failed: %v", err)
+	}
+
+	if c.crl != nil {
+		c.crlMu.RLock()
+		defer c.crlMu.RUnlock()
+
+		// Check revocation
+		if _, ok := c.crl[leaf.SerialNumber.String()]; ok {
+			return fmt.Errorf("certificate %s is revoked", leaf.SerialNumber.String())
+		}
+	}
+
+	return nil
+}
+
+// CRL sets the CRL (Certificate Revocation List) path used by the client
+// Peer certificates are checked against this list when it's set.
+// The file can be PEM encoded or straight ASN.1 DER encoded
+func (c *Client) CRL(path string) error {
+	crlBytes, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read CRL: %v", err)
+	}
+
+	// Handle optional PEM decoding
+	if block, _ := pem.Decode(crlBytes); block != nil {
+		crlBytes = block.Bytes
+	}
+	revList, err := x509.ParseRevocationList(crlBytes)
+	if err != nil {
+		return err
+	}
+
+	c.crlMu.Lock()
+	defer c.crlMu.Unlock()
+
+	c.crl = make(map[string]struct{})
+	for _, rc := range revList.RevokedCertificateEntries {
+		c.crl[rc.SerialNumber.String()] = struct{}{}
+	}
+	c.haveTLSClientConfig().VerifyPeerCertificate = c.verifyPeerCert
+
+	return nil
+
 }
 
 func appendCert(path string, pool *x509.CertPool) {
@@ -92,7 +170,10 @@ func (c *Client) haveTLSClientConfig() *tls.Config {
 	// HTTP2
 	if transport2, ok := c.Client.Transport.(*http2.Transport); ok {
 		if transport2.TLSClientConfig == nil {
-			transport2.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+			transport2.TLSClientConfig = &tls.Config{
+				MinVersion:            tls.VersionTLS12,
+				VerifyPeerCertificate: c.verifyPeerCert,
+			}
 		}
 		return transport2.TLSClientConfig
 	}
@@ -105,7 +186,9 @@ func (c *Client) haveTLSClientConfig() *tls.Config {
 	}
 
 	if transport.TLSClientConfig == nil {
-		transport.TLSClientConfig = &tls.Config{} // #nosec G402 -- false positive, see below
+		transport.TLSClientConfig = &tls.Config{
+			VerifyPeerCertificate: c.verifyPeerCert,
+		} // #nosec G402 -- false positive, see below
 	}
 
 	if transport.TLSClientConfig.MinVersion < tls.VersionTLS12 {

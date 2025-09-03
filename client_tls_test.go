@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testCertSerial = "7205E19DDE58A905641FA671DE51A150EEFD155B"
+
 func TestHTTPS(t *testing.T) {
 	assert := assert.New(t)
 
@@ -44,11 +46,35 @@ func TestHTTPSMTLS(t *testing.T) {
 	srv.TLS.Certificates = []tls.Certificate{cert}
 	srv.TLS.ClientCAs = NewCertPool("test_certs", true)
 	srv.TLS.ClientAuth = tls.RequireAndVerifyClientCert
+
 	srv.URL = strings.ReplaceAll(srv.URL, "127.0.0.1", "localhost")
 	defer srv.Close()
 
 	assert.NoError(NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs").Get(context.Background(), "/NEF", nil)) // Own cert set
 	assert.Error(NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).Get(context.Background(), "/NEF", nil))                             // Own cert not set
+}
+
+func TestClientCertificateRevoked(t *testing.T) {
+	assert := assert.New(t)
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	cert, err := tls.LoadX509KeyPair("test_certs/tls.crt", "test_certs/tls.key")
+	assert.Nil(err)
+	srv.TLS.Certificates = []tls.Certificate{cert}
+	srv.TLS.ClientCAs = NewCertPool("test_certs", true)
+	srv.TLS.ClientAuth = tls.RequireAndVerifyClientCert
+
+	srv.URL = strings.ReplaceAll(srv.URL, "127.0.0.1", "localhost")
+	defer srv.Close()
+
+	c := NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs")
+	assert.NoError(c.CRL("test_certs/ca.crl"))
+	err = c.Get(context.Background(), "/NEF", nil)
+
+	assert.Error(err) // Own cert set
+	assert.Contains(err.Error(), "certificate 650956105584125576863273316802994206532737766747 is revoked")
 }
 
 func TestHTTPSMTLSServer(t *testing.T) {
