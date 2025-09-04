@@ -11,13 +11,13 @@ import (
 	"time"
 )
 
-type ClientOrServer interface {
+type clientOrServer interface {
 	setCRL(crl map[string]struct{})
 	getCRLMu() *sync.RWMutex
 }
 
 // set CRL for client or server
-func setCRL(ctx context.Context, x ClientOrServer, path string, readInterval, fileExistTimeout time.Duration, errChan chan (error)) {
+func setCRL(ctx context.Context, x clientOrServer, path string, readInterval, fileExistTimeout time.Duration, errChan chan (error)) {
 	fileExistDeadline := time.Now().Add(fileExistTimeout)
 	// initial read
 	crl, err := readCRL(path, x.getCRLMu())
