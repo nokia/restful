@@ -28,6 +28,9 @@ type Server struct {
 	restarting  bool
 	gracePeriod time.Duration
 	monitors    monitors
+
+	crlMu sync.RWMutex
+	crl   *map[string]struct{}
 }
 
 // ServerReadHeaderTimeout is the amount of time allowed to read request headers.
@@ -39,7 +42,10 @@ var ServerReadTimeout = 60 * time.Second
 
 // NewServer creates a new Server instance.
 func NewServer() *Server {
-	server := Server{server: &http.Server{ReadHeaderTimeout: ServerReadHeaderTimeout, ReadTimeout: ServerReadTimeout}}
+	server := Server{server: &http.Server{
+		ReadHeaderTimeout: ServerReadHeaderTimeout,
+		ReadTimeout:       ServerReadTimeout}}
+
 	return &server
 }
 

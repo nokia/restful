@@ -68,13 +68,17 @@ func TestClientCertificateRevoked(t *testing.T) {
 
 	srv.URL = strings.ReplaceAll(srv.URL, "127.0.0.1", "localhost")
 	defer srv.Close()
+	ctx, canc := context.WithCancel(context.Background())
+	defer canc()
+	ch := make(chan error)
+	c := NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs").CRL(ctx, "test_certs/ca.crl", time.Minute, time.Minute, ch)
 
-	c := NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs")
-	assert.NoError(c.CRL("test_certs/ca.crl"))
 	err = c.Get(context.Background(), "/NEF", nil)
 
 	assert.Error(err) // Own cert set
-	assert.Contains(err.Error(), "certificate 650956105584125576863273316802994206532737766747 is revoked")
+	assert.Contains(err.Error(), "certificate "+testCertSerial+" is revoked")
+	c.setCRL(nil)
+	assert.NoError(c.Get(context.Background(), "/NEF", nil))
 }
 
 func TestHTTPSMTLSServer(t *testing.T) {
