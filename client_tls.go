@@ -5,7 +5,6 @@
 package restful
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"net/http"
@@ -43,24 +42,31 @@ func (c *Client) TLS(tlsConfig *tls.Config) *Client {
 // CRL sets up Certificate Revocation List watching for the Client.
 // CRL cert is read from *path*, re-read every *readInterval* and has to exist until *fileExistTimeout*.
 // Errors are delivered through *errChan*
-func (c *Client) CRL(ctx context.Context, path string, readInterval, fileExistTimeout time.Duration, errChan chan (error)) *Client {
-	setCRL(ctx, c, path, readInterval, fileExistTimeout, errChan)
-	c.haveTLSClientConfig().VerifyPeerCertificate = verifyPeerCert(&c.crlMu, c.crl)
+func (c *Client) CRL(o CRLOptions) *Client {
+	setCRL(c, o)
+	c.haveTLSClientConfig().VerifyPeerCertificate = verifyPeerCert(c.crl)
 	return c
 }
 
-func (c *Client) getCRLMu() *sync.RWMutex {
-	return &c.crlMu
+func (c *Client) getCRL() *crl {
+	return c.crl
 }
 
-func (c *Client) setCRL(crl map[string]struct{}) {
-	c.crlMu.Lock()
-	defer c.crlMu.Unlock()
+func (c *Client) setCRL(serials map[string]struct{}, nextUpdate time.Time, strict bool) {
 	if c.crl == nil {
-		c.crl = &crl
-		return
+		c.crl = &crl{
+			mu:         sync.RWMutex{},
+			serials:    map[string]struct{}{},
+			nextUpdate: time.Time{},
+		}
 	}
-	*(c.crl) = crl
+
+	c.crl.mu.Lock()
+	defer c.crl.mu.Unlock()
+
+	c.crl.serials = serials
+	c.crl.nextUpdate = nextUpdate
+	c.crl.strictCheck = strict
 }
 
 func appendCert(path string, pool *x509.CertPool) {

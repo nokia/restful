@@ -5,7 +5,6 @@
 package restful
 
 import (
-	"context"
 	"crypto/tls"
 	"net/http"
 	"sync"
@@ -52,22 +51,29 @@ func ListenAndServeMTLS(addr, certFile, keyFile, clientCerts string, loadSystemC
 // CRL sets up Certificate Revocation List watching for the Server.
 // CRL cert is read from *path*, re-read every *readInterval* and has to exist until *fileExistTimeout*.
 // Errors are delivered through *errChan*
-func (s *Server) CRL(ctx context.Context, path string, readInterval, fileExistTimeout time.Duration, errChan chan (error)) *Server {
-	setCRL(ctx, s, path, readInterval, fileExistTimeout, errChan)
-	s.server.TLSConfig.VerifyPeerCertificate = verifyPeerCert(&s.crlMu, s.crl)
+func (s *Server) CRL(o CRLOptions) *Server {
+	setCRL(s, o)
+	s.server.TLSConfig.VerifyPeerCertificate = verifyPeerCert(s.crl)
 	return s
 }
 
-func (s *Server) getCRLMu() *sync.RWMutex {
-	return &s.crlMu
+func (s *Server) getCRL() *crl {
+	return s.crl
 }
 
-func (s *Server) setCRL(crl map[string]struct{}) {
-	s.crlMu.Lock()
-	defer s.crlMu.Unlock()
+func (s *Server) setCRL(serials map[string]struct{}, nextUpdate time.Time, strict bool) {
 	if s.crl == nil {
-		s.crl = &crl
-		return
+		s.crl = &crl{
+			mu:         sync.RWMutex{},
+			serials:    map[string]struct{}{},
+			nextUpdate: time.Time{},
+		}
 	}
-	*(s.crl) = crl
+
+	s.crl.mu.Lock()
+	defer s.crl.mu.Unlock()
+
+	s.crl.serials = serials
+	s.crl.nextUpdate = nextUpdate
+	s.crl.strictCheck = strict
 }

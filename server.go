@@ -29,8 +29,7 @@ type Server struct {
 	gracePeriod time.Duration
 	monitors    monitors
 
-	crlMu sync.RWMutex
-	crl   *map[string]struct{}
+	crl *crl
 }
 
 // ServerReadHeaderTimeout is the amount of time allowed to read request headers.

@@ -46,7 +46,14 @@ func TestHTTPSServerCRL(t *testing.T) {
 	server := NewServer().Addr(addr)
 	server.TLSServerCert("test_certs/tls.crt", "test_certs/tls.key")
 	server.TLSClientCert("test_certs", false)
-	server.CRL(ctx, "test_certs/ca.crl", time.Minute, time.Minute, ch)
+	opt := CRLOptions{
+		Ctx:              ctx,
+		ErrChan:          ch,
+		CRLLocation:      "test_certs/ca.crl",
+		ReadInterval:     time.Minute,
+		FileExistTimeout: time.Minute,
+	}
+	server.CRL(opt)
 	go server.ListenAndServe()
 	defer server.Close()
 
@@ -54,9 +61,10 @@ func TestHTTPSServerCRL(t *testing.T) {
 
 	err := c.Get(context.Background(), "https://localhost"+addr+"/b", nil)
 	assert.Error(t, err)
-	server.setCRL(nil)
+	server.setCRL(nil, time.Time{}, true)
 	err = c.Get(context.Background(), "https://localhost"+addr+"/b", nil)
-	assert.NoError(t, err)
+	assert.Error(t, err) //revocation list pass
+	server.setCRL(nil, time.Time{}, false)
 }
 func TestHTTPSServerNoOOP(t *testing.T) {
 	ListenAndServeTLS(":-1", "test_certs/tls.crt", "test_certs/tls.key", nil)
