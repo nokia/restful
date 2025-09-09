@@ -44,7 +44,7 @@ type CRLOptions struct {
 	ErrChan chan (error)
 
 	// StrictValityCheck enables strict NextUpdate checking.
-	// With this disabled, peer certificate checks will fail if the latest CRL file is outdated
+	// With this enabled, peer certificate checks will fail if the latest CRL file is outdated
 	StrictValityCheck bool
 }
 
