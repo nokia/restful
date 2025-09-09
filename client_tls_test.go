@@ -9,12 +9,15 @@ import (
 	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+const testCertSerial = "1000"
 
 func TestHTTPS(t *testing.T) {
 	assert := assert.New(t)
@@ -44,11 +47,65 @@ func TestHTTPSMTLS(t *testing.T) {
 	srv.TLS.Certificates = []tls.Certificate{cert}
 	srv.TLS.ClientCAs = NewCertPool("test_certs", true)
 	srv.TLS.ClientAuth = tls.RequireAndVerifyClientCert
+
 	srv.URL = strings.ReplaceAll(srv.URL, "127.0.0.1", "localhost")
 	defer srv.Close()
 
 	assert.NoError(NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs").Get(context.Background(), "/NEF", nil)) // Own cert set
 	assert.Error(NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).Get(context.Background(), "/NEF", nil))                             // Own cert not set
+}
+
+func TestClientCertificateRevoked(t *testing.T) {
+	assert := assert.New(t)
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	cert, err := tls.LoadX509KeyPair("test_certs/tls.crt", "test_certs/tls.key")
+	assert.Nil(err)
+	srv.TLS.Certificates = []tls.Certificate{cert}
+	srv.TLS.ClientCAs = NewCertPool("test_certs", true)
+	srv.TLS.ClientAuth = tls.RequireAndVerifyClientCert
+
+	srv.URL = strings.ReplaceAll(srv.URL, "127.0.0.1", "localhost")
+	defer srv.Close()
+	ctx, canc := context.WithCancel(context.Background())
+	defer canc()
+	ch := make(chan error)
+	opt := CRLOptions{
+		Ctx:              ctx,
+		ErrChan:          ch,
+		CRLLocation:      "test_certs/ca.crl",
+		ReadInterval:     time.Minute,
+		FileExistTimeout: time.Minute,
+	}
+	c := NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs").CRL(opt)
+
+	err = c.Get(context.Background(), "/NEF", nil)
+
+	assert.Error(err) // Own cert set
+	assert.Contains(err.Error(), "certificate "+testCertSerial+" is revoked")
+	c.setCRL(nil, time.Time{}, false)
+	assert.NoError(c.Get(context.Background(), "/NEF", nil))
+}
+
+func TestCertificateURL(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		crlBytes, _ := os.ReadFile("test_certs/ca.crl")
+		w.Write(crlBytes)
+	}))
+	defer srv.Close()
+	ctx, canc := context.WithCancel(context.Background())
+	defer canc()
+	opt := CRLOptions{
+		Ctx:              ctx,
+		CRLLocation:      "test_certs/ca.crl",
+		ReadInterval:     time.Minute,
+		FileExistTimeout: time.Minute,
+	}
+	c := NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs").CRL(opt)
+
+	assert.Equal(t, map[string]struct{}{"4096": {}}, c.crl.serials)
 }
 
 func TestHTTPSMTLSServer(t *testing.T) {

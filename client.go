@@ -144,6 +144,8 @@ type Client struct {
 	}
 	msgpackUsage msgpackUsage
 
+	crl *crl
+
 	// LoadBalanceRandom is a flag that tells whether to choose random IP address from the list of IPs received in DNS response for the target URI.
 	LoadBalanceRandom bool
 }

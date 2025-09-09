@@ -7,6 +7,8 @@ package restful
 import (
 	"crypto/tls"
 	"net/http"
+	"sync"
+	"time"
 )
 
 // TLSClientCert adds client certs to server, enabling mutual TLS (mTLS).
@@ -20,6 +22,7 @@ func (s *Server) TLSClientCert(path string, loadSystemCerts bool) *Server {
 	}
 	s.server.TLSConfig.ClientCAs = NewCertPool(path, loadSystemCerts)
 	s.server.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+
 	return s
 }
 
@@ -43,4 +46,34 @@ func ListenAndServeTLS(addr, certFile, keyFile string, handler http.Handler) err
 // Logs, except for automatically served LivenessProbePath and HealthCheckPath.
 func ListenAndServeMTLS(addr, certFile, keyFile, clientCerts string, loadSystemCerts bool, handler http.Handler) error {
 	return NewServer().Addr(addr).Handler(handler).TLSServerCert(certFile, keyFile).TLSClientCert(clientCerts, loadSystemCerts).ListenAndServe()
+}
+
+// CRL sets up Certificate Revocation List watching for the Server.
+// CRL cert is read from *path*, re-read every *readInterval* and has to exist until *fileExistTimeout*.
+// Errors are delivered through *errChan*
+func (s *Server) CRL(o CRLOptions) *Server {
+	setCRL(s, o)
+	s.server.TLSConfig.VerifyPeerCertificate = verifyPeerCert(s.crl)
+	return s
+}
+
+func (s *Server) getCRL() *crl {
+	return s.crl
+}
+
+func (s *Server) setCRL(serials map[string]struct{}, nextUpdate time.Time, strict bool) {
+	if s.crl == nil {
+		s.crl = &crl{
+			mu:         sync.RWMutex{},
+			serials:    map[string]struct{}{},
+			nextUpdate: time.Time{},
+		}
+	}
+
+	s.crl.mu.Lock()
+	defer s.crl.mu.Unlock()
+
+	s.crl.serials = serials
+	s.crl.nextUpdate = nextUpdate
+	s.crl.strictCheck = strict
 }

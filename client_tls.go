@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -35,6 +37,36 @@ func (c *Client) TLS(tlsConfig *tls.Config) *Client {
 		}
 	}
 	return c
+}
+
+// CRL sets up Certificate Revocation List watching for the Client.
+// CRL cert is read from *path*, re-read every *readInterval* and has to exist until *fileExistTimeout*.
+// Errors are delivered through *errChan*
+func (c *Client) CRL(o CRLOptions) *Client {
+	setCRL(c, o)
+	c.haveTLSClientConfig().VerifyPeerCertificate = verifyPeerCert(c.crl)
+	return c
+}
+
+func (c *Client) getCRL() *crl {
+	return c.crl
+}
+
+func (c *Client) setCRL(serials map[string]struct{}, nextUpdate time.Time, strict bool) {
+	if c.crl == nil {
+		c.crl = &crl{
+			mu:         sync.RWMutex{},
+			serials:    map[string]struct{}{},
+			nextUpdate: time.Time{},
+		}
+	}
+
+	c.crl.mu.Lock()
+	defer c.crl.mu.Unlock()
+
+	c.crl.serials = serials
+	c.crl.nextUpdate = nextUpdate
+	c.crl.strictCheck = strict
 }
 
 func appendCert(path string, pool *x509.CertPool) {
@@ -92,7 +124,9 @@ func (c *Client) haveTLSClientConfig() *tls.Config {
 	// HTTP2
 	if transport2, ok := c.Client.Transport.(*http2.Transport); ok {
 		if transport2.TLSClientConfig == nil {
-			transport2.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+			transport2.TLSClientConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
 		}
 		return transport2.TLSClientConfig
 	}
