@@ -7,6 +7,7 @@ package restful
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -72,9 +73,15 @@ func TestClientCertificateRevoked(t *testing.T) {
 	ctx, canc := context.WithCancel(context.Background())
 	defer canc()
 	ch := make(chan error)
+	go func() {
+		for {
+			err := <-ch
+			t.Log(err)
+		}
+	}()
 	opt := CRLOptions{
 		Ctx:              ctx,
-		ErrChan:          ch,
+		StatusChan:       ch,
 		CRLLocation:      "test_certs/ca.crl",
 		ReadInterval:     time.Minute,
 		FileExistTimeout: time.Minute,
@@ -84,7 +91,8 @@ func TestClientCertificateRevoked(t *testing.T) {
 	err = c.Get(context.Background(), "/NEF", nil)
 
 	assert.Error(err) // Own cert set
-	assert.Contains(err.Error(), "certificate "+testCertSerial+" is revoked")
+	assert.Contains(err.Error(), "certificate revoked: "+testCertSerial)
+	assert.True(errors.Is(err, ErrCertificateRevoked))
 	c.setCRL(nil, time.Time{}, false)
 	assert.NoError(c.Get(context.Background(), "/NEF", nil))
 }
@@ -99,7 +107,7 @@ func TestCertificateURL(t *testing.T) {
 	defer canc()
 	opt := CRLOptions{
 		Ctx:              ctx,
-		CRLLocation:      "test_certs/ca.crl",
+		CRLLocation:      srv.URL,
 		ReadInterval:     time.Minute,
 		FileExistTimeout: time.Minute,
 	}

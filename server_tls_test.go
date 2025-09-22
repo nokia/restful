@@ -42,13 +42,18 @@ func TestHTTPSServerCRL(t *testing.T) {
 	ctx, canc := context.WithCancel(context.Background())
 	defer canc()
 	ch := make(chan error)
-
+	go func() {
+		for {
+			err := <-ch
+			t.Log(err)
+		}
+	}()
 	server := NewServer().Addr(addr)
 	server.TLSServerCert("test_certs/tls.crt", "test_certs/tls.key")
 	server.TLSClientCert("test_certs", false)
 	opt := CRLOptions{
 		Ctx:              ctx,
-		ErrChan:          ch,
+		StatusChan:       ch,
 		CRLLocation:      "test_certs/ca.crl",
 		ReadInterval:     time.Minute,
 		FileExistTimeout: time.Minute,
