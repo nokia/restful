@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -56,6 +57,38 @@ func TestHTTPSMTLS(t *testing.T) {
 	assert.Error(NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).Get(context.Background(), "/NEF", nil))                             // Own cert not set
 }
 
+func copyFile(src, dst string, t *testing.T) {
+
+	// Open source file
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sourceFile.Close()
+
+	// Create destination file
+	destFile, err := os.Create(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer destFile.Close()
+
+	// Copy contents
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Optionally flush to disk
+	err = destFile.Sync()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func deleteFile(f string) {
+	_ = os.Remove(f)
+}
 func TestClientCertificateRevoked(t *testing.T) {
 	assert := assert.New(t)
 
@@ -80,16 +113,20 @@ func TestClientCertificateRevoked(t *testing.T) {
 		}
 	}()
 	opt := CRLOptions{
-		Ctx:              ctx,
-		StatusChan:       ch,
-		CRLLocation:      "test_certs/ca.crl",
-		ReadInterval:     time.Minute,
-		FileExistTimeout: time.Minute,
+		Ctx:          ctx,
+		StatusChan:   ch,
+		CRLLocation:  "test_certs/ca_new.crl",
+		ReadInterval: time.Second,
+		//FileExistTimeout: time.Minute,
 	}
 	c := NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs").CRL(opt)
-
+	c.Client.Transport.(*http.Transport).DisableKeepAlives = true
 	err = c.Get(context.Background(), "/NEF", nil)
-
+	assert.NoError(err) // file doesn't exist yet. it will next time
+	copyFile("test_certs/ca.crl", "test_certs/ca_new.crl", t)
+	defer deleteFile("test_certs/ca_new.crl")
+	time.Sleep(2 * time.Second)
+	err = c.Get(context.Background(), "/NEF/x", nil)
 	assert.Error(err) // Own cert set
 	assert.Contains(err.Error(), "certificate revoked: "+testCertSerial)
 	assert.True(errors.Is(err, ErrCertificateRevoked))

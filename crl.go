@@ -46,7 +46,9 @@ type CRLOptions struct {
 	// FileExistTimeout allows for the CRL file to not exist for an initial duration of time without reporting an error
 	FileExistTimeout time.Duration
 
-	// StatusChan is a channel where error reports or "nil" value are sent when reading CRL file
+	// StatusChan is a channel where the CRL status can be provided.
+	// Every ReadInterval, an error is sent on the channel if getting the CRL is not successful or if the NextUpdate in the
+	// latest CRL is in the past, or nil is sent in case of no error.
 	StatusChan chan (error)
 
 	// StrictValityCheck enables strict NextUpdate checking.
@@ -59,20 +61,31 @@ type CRLOptions struct {
 func setCRL(x clientOrServer, o CRLOptions) {
 	fileExistDeadline := time.Now().Add(o.FileExistTimeout)
 	// initial read
-	crl, nextUpdate, lastModification, err := readCRL(&o, fileExistDeadline, time.Time{})
+	crl, nextUpdate, lastModification, err := readCRL(o.CRLLocation, fileExistDeadline, time.Time{}, time.Time{})
 
 	if err == nil {
 		x.setCRL(crl, nextUpdate, o.StrictValityCheck)
+	} else {
+		// always initialize CRL pointer
+		x.setCRL(nil, time.Time{}, o.StrictValityCheck)
+		if o.StatusChan != nil {
+			o.StatusChan <- err
+		}
 	}
+
 	go func() {
 		ticker := time.NewTicker(o.ReadInterval)
 		for {
 			select {
 			case <-ticker.C:
-				crl, nextUpdate, lastModification, err = readCRL(&o, fileExistDeadline, lastModification)
+				crl, nextUpdate, lastModification, err = readCRL(o.CRLLocation, fileExistDeadline, nextUpdate, lastModification)
 				if err == nil && !lastModification.IsZero() {
 					x.setCRL(crl, nextUpdate, o.StrictValityCheck)
 				}
+				if o.StatusChan != nil {
+					o.StatusChan <- err
+				}
+
 			case <-o.Ctx.Done():
 				ticker.Stop()
 				return
@@ -85,17 +98,19 @@ func setCRL(x clientOrServer, o CRLOptions) {
 // It can send an error or nil the provided status channel when the status potentially changes.
 // Will not send error if the file at the provided path doesn't exist before the provided deadline.
 // If CRLLocation is a file, it is not re-read until it's last modification date is after lastKnownFileDate.
-func readCRL(o *CRLOptions, deadline time.Time, lastKnownFileDate time.Time) (map[string]struct{}, time.Time, time.Time, error) {
-	crlBytes, fileLastModified, err := getCRLBody(o.CRLLocation, lastKnownFileDate)
+func readCRL(location string, deadline, nextUpdate, lastModified time.Time) (map[string]struct{}, time.Time, time.Time, error) {
+	crlBytes, newLastModified, err := getCRLBody(location, lastModified)
 	if err != nil {
-		if !(time.Now().Before(deadline) && errors.Is(err, os.ErrNotExist)) && o.StatusChan != nil {
-			o.StatusChan <- err
+		if time.Now().Before(deadline) && errors.Is(err, os.ErrNotExist) {
+			return nil, time.Time{}, time.Time{}, nil
 		}
 		return nil, time.Time{}, time.Time{}, err
 	}
 	if crlBytes == nil {
-		// the file date has not changed since last read
-		return nil, time.Time{}, time.Time{}, nil
+		// the file date has not changed since last read.
+		// may be past nextUpdate
+		err := checkNextUpdate(nextUpdate)
+		return nil, time.Time{}, time.Time{}, err
 	}
 
 	// Handle optional PEM decoding
@@ -105,31 +120,34 @@ func readCRL(o *CRLOptions, deadline time.Time, lastKnownFileDate time.Time) (ma
 	revList, err := x509.ParseRevocationList(crlBytes)
 	if err != nil {
 		err = fmt.Errorf("%w: %s", ErrRevocationListReadError, err)
-		if o.StatusChan != nil {
-			o.StatusChan <- err
-		}
-		return nil, time.Time{}, fileLastModified, err
+		return nil, time.Time{}, newLastModified, err
 	}
-	nextUpdate := revList.NextUpdate
-	if nextUpdate.Before(time.Now()) {
-		err = fmt.Errorf("%w: revocation list nextupdate is outdated: %s", ErrRevocationListOutOfDate, revList.NextUpdate)
-		if o.StatusChan != nil {
-			o.StatusChan <- err
-		}
-		return nil, time.Time{}, fileLastModified, err
-	}
+	nextUpdate = revList.NextUpdate
 
 	crl := make(map[string]struct{})
 	for _, rc := range revList.RevokedCertificateEntries {
 		crl[rc.SerialNumber.String()] = struct{}{}
 	}
-	if o.StatusChan != nil {
-		o.StatusChan <- nil
+
+	err = checkNextUpdate(nextUpdate)
+	if err != nil {
+		return crl, nextUpdate, newLastModified, err
 	}
-	return crl, nextUpdate, fileLastModified, nil
+
+	return crl, nextUpdate, newLastModified, nil
 }
 
-func getCRLBody(location string, lastM time.Time) ([]byte, time.Time, error) {
+func checkNextUpdate(nextUpdate time.Time) error {
+	if nextUpdate.Before(time.Now()) {
+		return fmt.Errorf("%w: revocation list nextupdate is outdated: %s", ErrRevocationListOutOfDate, nextUpdate)
+	}
+	return nil
+}
+
+// getCRLbody returns the body and last modification time of the new CRL file,
+// or nothing, if the file has not been modified since the given timestamp.
+// If location is an URL, it will return the current time.
+func getCRLBody(location string, lastModified time.Time) ([]byte, time.Time, error) {
 	var crlBytes []byte
 	var err error
 	if strings.HasPrefix(location, "http://") {
@@ -150,13 +168,13 @@ func getCRLBody(location string, lastM time.Time) ([]byte, time.Time, error) {
 		if err != nil {
 			return nil, time.Time{}, fmt.Errorf("%w: couldn't read CRL body: %s", ErrRevocationListReadError, err)
 		}
-		return crlBytes, time.Time{}, nil
+		return crlBytes, time.Now(), nil
 	}
 	info, err := os.Stat(location)
 	if err != nil {
 		return nil, time.Time{}, fmt.Errorf("%w: couldn't read CRL file: %s", ErrRevocationListReadError, err)
 	}
-	if !info.ModTime().After(lastM) {
+	if !info.ModTime().After(lastModified) {
 		return nil, time.Time{}, nil
 	}
 	crlBytes, err = os.ReadFile(location)
@@ -173,7 +191,9 @@ func verifyPeerCert(crl *crl) func([][]byte, [][]*x509.Certificate) error {
 		if len(verifiedChains) == 0 {
 			return fmt.Errorf("no verified chains")
 		}
-
+		if crl == nil {
+			return nil
+		}
 		if crl.strictCheck && crl.nextUpdate.Before(time.Now()) {
 			return ErrRevocationListOutOfDate
 		}

@@ -65,11 +65,13 @@ func TestHTTPSServerCRL(t *testing.T) {
 	c := NewClient().TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs")
 
 	err := c.Get(context.Background(), "https://localhost"+addr+"/b", nil)
-	assert.Error(t, err)
-	server.setCRL(nil, time.Time{}, true)
+	assert.Error(t, err) // cert has been revoked
+	server.setCRL(nil, time.Now().Add(-10*time.Second), true)
 	err = c.Get(context.Background(), "https://localhost"+addr+"/b", nil)
-	assert.Error(t, err) //revocation list pass
+	assert.Error(t, err) //revocation list out of date
 	server.setCRL(nil, time.Time{}, false)
+	err = c.Get(context.Background(), "https://localhost"+addr+"/b", nil)
+	assert.NoError(t, err)
 }
 func TestHTTPSServerNoOOP(t *testing.T) {
 	ListenAndServeTLS(":-1", "test_certs/tls.crt", "test_certs/tls.key", nil)
