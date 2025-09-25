@@ -59,6 +59,9 @@ type CRLOptions struct {
 // set CRL for client or server.
 // runs a periodic loop to re-read CRL
 func setCRL(x clientOrServer, o CRLOptions) {
+	if o.Ctx == nil {
+		o.Ctx = context.Background()
+	}
 	fileExistDeadline := time.Now().Add(o.FileExistTimeout)
 	// initial read
 	crl, nextUpdate, lastModification, err := readCRL(o.CRLLocation, fileExistDeadline, time.Time{}, time.Time{})
