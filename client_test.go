@@ -756,7 +756,7 @@ func TestOauth2AccessTokenReqs(t *testing.T) {
 	assert.Error(t, err) // h2 is not allowed for clear text http URL.
 }
 
-func TestGetIpFromInterface(t *testing.T) {
+func TestGetIPFromInterface(t *testing.T) {
 	theUsedInterface := "eth1"
 	netInterfaces = func() ([]net.Interface, error) {
 		r := []net.Interface{{Name: "eth0"}, {Name: "eth1"}, {Name: "eth2"}}
@@ -776,13 +776,13 @@ func TestGetIpFromInterface(t *testing.T) {
 		return AddrOther, nil
 	}
 
-	ip := getIPFromInterface(theUsedInterface)
+	ip := GetIPFromInterface(theUsedInterface)
 	theIP := ip
 	assert.Equal(t, AddrTCP.String(), theIP.IPv4.String())
 }
 
-func TestGetIpFromInterfaceLocalhost(t *testing.T) {
-	ip := getIPFromInterface("lo")
+func TestGetIPFromInterfaceLocalhost(t *testing.T) {
+	ip := GetIPFromInterface("lo")
 	if ip.IPv4 != nil {
 		assert.Equal(t, net.IP{127, 0, 0, 1}, ip.IPv4.IP)
 	}
@@ -791,7 +791,7 @@ func TestGetIpFromInterfaceLocalhost(t *testing.T) {
 	}
 }
 
-func TestGetIpFromInterfaceNoName(t *testing.T) {
+func TestGetIPFromInterfaceNoName(t *testing.T) {
 	theUsedInterface := ""
 	netInterfaces = func() ([]net.Interface, error) {
 		r := []net.Interface{{Name: "eth0"}, {Name: "eth1"}, {Name: "eth2"}}
@@ -807,12 +807,12 @@ func TestGetIpFromInterfaceNoName(t *testing.T) {
 		return Addr, nil
 	}
 
-	ip := getIPFromInterface(theUsedInterface)
+	ip := GetIPFromInterface(theUsedInterface)
 	assert.Nil(t, ip.IPv4)
 	assert.Nil(t, ip.IPv6)
 }
 
-func TestGetIpFromInterfaceErrorAddr(t *testing.T) {
+func TestGetIPFromInterfaceErrorAddr(t *testing.T) {
 	theUsedInterface := "eth0"
 	netInterfaces = func() ([]net.Interface, error) {
 		r := []net.Interface{{Name: "eth0"}, {Name: "eth1"}, {Name: "eth2"}}
@@ -823,30 +823,30 @@ func TestGetIpFromInterfaceErrorAddr(t *testing.T) {
 		return nil, errors.New("new error")
 	}
 
-	ip := getIPFromInterface(theUsedInterface)
+	ip := GetIPFromInterface(theUsedInterface)
 	assert.Nil(t, ip.IPv4)
 	assert.Nil(t, ip.IPv6)
 }
 
-func TestGetIpFromInterfaceError(t *testing.T) {
+func TestGetIPFromInterfaceError(t *testing.T) {
 	theUsedInterface := "eth0"
 	netInterfaces = func() ([]net.Interface, error) {
 		return nil, errors.New("new error")
 	}
 
-	ip := getIPFromInterface(theUsedInterface)
+	ip := GetIPFromInterface(theUsedInterface)
 	assert.Nil(t, ip.IPv4)
 	assert.Nil(t, ip.IPv6)
 }
 
-func TestGetIpFromInterfaceNoInt(t *testing.T) {
+func TestGetIPFromInterfaceNoInt(t *testing.T) {
 	theUsedInterface := "eth0"
 	netInterfaces = func() ([]net.Interface, error) {
 		r := []net.Interface{}
 		return r, nil
 	}
 
-	ip := getIPFromInterface(theUsedInterface)
+	ip := GetIPFromInterface(theUsedInterface)
 	assert.Nil(t, ip.IPv4)
 	assert.Nil(t, ip.IPv6)
 }

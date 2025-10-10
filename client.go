@@ -165,7 +165,7 @@ func NewClientWInterface(networkInterface string) *Client {
 	t.MaxIdleConnsPerHost = 100
 	dialer := &net.Dialer{Timeout: DialTimeout, KeepAlive: 30 * time.Second}
 	if networkInterface != "" {
-		IPs := getIPFromInterface(networkInterface)
+		IPs := GetIPFromInterface(networkInterface)
 		t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			var conn net.Conn
 			var err error
@@ -254,7 +254,7 @@ func getDialTLSCallback(iface string, withTLS bool) func(context.Context, string
 		var conn net.Conn
 		var err error
 		if iface != "" {
-			IPs := getIPFromInterface(iface)
+			IPs := GetIPFromInterface(iface)
 			if IPs.IPv4 != nil {
 				dialer.LocalAddr = IPs.IPv4
 				conn, err = dialWithDialer(&dialer, network, addr, cfg, withTLS)
@@ -1038,9 +1038,9 @@ func (c *Client) SetMaxBytesToParse(max int) *Client {
 	return c
 }
 
-// getIPFromInterface return IPv4 and IPv6 addresses of the network interface.
+// GetIPFromInterface return IPv4 and IPv6 addresses of the network interface.
 // If there is no address than that IPfamily is nil.
-func getIPFromInterface(networkInterface string) (theIPs localIPs) {
+func GetIPFromInterface(networkInterface string) (theIPs localIPs) {
 	if networkInterface == "" {
 		return
 	}
