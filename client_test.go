@@ -923,8 +923,7 @@ func TestClients(t *testing.T) {
 		h2cServer.Close()
 	}()
 
-	h2Client := NewH2Client()
-	h2Client.Client.Transport.(*http2.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	h2Client := NewH2Client().Insecure()
 	h2cClient := NewH2CClient()
 
 	wg.Wait()
