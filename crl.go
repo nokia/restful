@@ -27,9 +27,12 @@ type clientOrServer interface {
 }
 
 var (
+	// ErrRevocationListReadError is when error happen during reading of revocation list
 	ErrRevocationListReadError = errors.New("error reading revocation list")
+	// ErrRevocationListOutOfDate is when the revocation list is out of date
 	ErrRevocationListOutOfDate = errors.New("revocation list out of date")
-	ErrCertificateRevoked      = errors.New("certificate revoked")
+	// ErrCertificateRevoked happens when the certificate revoked
+	ErrCertificateRevoked = errors.New("certificate revoked")
 )
 
 // CRLOptions defines the settings restful clients/servers can use for CRL verification
