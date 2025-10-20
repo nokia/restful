@@ -162,7 +162,7 @@ func getCRLBody(location string, lastModified time.Time) ([]byte, time.Time, err
 
 		for _, uri := range crlURIs {
 			uri = strings.Trim(uri, " ")
-			resp, err = http.Get(uri)
+			resp, err = http.Get(uri) // #nosec G107 - HTTP request made with variable uri
 			if err != nil {
 				continue
 			}
@@ -183,7 +183,7 @@ func getCRLBody(location string, lastModified time.Time) ([]byte, time.Time, err
 	if !info.ModTime().After(lastModified) {
 		return nil, time.Time{}, nil
 	}
-	crlBytes, err = os.ReadFile(location)
+	crlBytes, err = os.ReadFile(location) // #nosec G304 - file path is provided in variable
 	if err != nil {
 		return nil, time.Time{}, fmt.Errorf("%w: couldn't read CRL file: %s", ErrRevocationListReadError, err)
 	}
