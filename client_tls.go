@@ -28,7 +28,7 @@ func (c *Client) TLS(tlsConfig *tls.Config) *Client {
 	} else if transport1, ok := c.nonTracedTransport.(*http.Transport); ok {
 		transport1.TLSClientConfig = tlsConfig
 	} else { // most probably nil
-		c.setTransport(&http.Transport{TLSClientConfig: tlsConfig})
+		c.SetTransport(&http.Transport{TLSClientConfig: tlsConfig})
 	}
 	return c
 }
@@ -129,7 +129,7 @@ func (c *Client) haveTLSClientConfig() *tls.Config {
 	transport, ok := c.nonTracedTransport.(*http.Transport)
 	if !ok { // most probably nil
 		transport = &http.Transport{}
-		c.setTransport(transport)
+		c.SetTransport(transport)
 	}
 
 	if transport.TLSClientConfig == nil {

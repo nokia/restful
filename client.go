@@ -153,9 +153,16 @@ type Client struct {
 	LoadBalanceRandom bool
 }
 
-// setTransport sets the underlying transport, wrapping it with OTEL if needed.
-// It keeps track of the non-traced transport in nonTracedTransport field, as that cannot be retrieved from the OTEL object.
-func (c *Client) setTransport(transport http.RoundTripper) {
+// GetTransport returns the client's underlying transport.
+// It is not the same as reading client.Client.Transport, as that may be wrapped by OTEL,
+// while this function returns the actual transport used.
+func (c *Client) GetTransport() http.RoundTripper {
+	return c.nonTracedTransport
+}
+
+// SetTransport sets the underlying transport, wrapping it with OTEL if needed.
+// It is not the same as setting client.Client.Transport directly.
+func (c *Client) SetTransport(transport http.RoundTripper) {
 	c.nonTracedTransport = transport
 	if isTraced && tracer.GetOTel() {
 		c.Client.Transport = otelhttp.NewTransport(c.nonTracedTransport)
@@ -202,7 +209,7 @@ func NewClientWInterface(networkInterface string) *Client {
 	c.Client = &http.Client{
 		Timeout: 10 * time.Second,
 	}
-	c.setTransport(t)
+	c.SetTransport(t)
 
 	c.acceptProblemJSON = true /* backward compatible */
 	return c
@@ -222,7 +229,7 @@ func NewH2CClient() *Client {
 // The instance has a semi-permanent transport TCP connection.
 func NewH2ClientWInterface(networkInterface string) *Client {
 	c := &Client{Kind: KindH2, Client: &http.Client{}}
-	c.setTransport(newH2Transport(networkInterface))
+	c.SetTransport(newH2Transport(networkInterface))
 	return c
 }
 
@@ -231,7 +238,7 @@ func NewH2ClientWInterface(networkInterface string) *Client {
 // The instance has a semi-permanent transport TCP connection.
 func NewH2CClientWInterface(networkInterface string) *Client {
 	c := &Client{Kind: KindH2C, Client: &http.Client{}}
-	c.setTransport(newH2CTransport(networkInterface))
+	c.SetTransport(newH2CTransport(networkInterface))
 	return c
 }
 
