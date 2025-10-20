@@ -74,7 +74,8 @@ var (
 	netInterfaceAddrs = (*net.Interface).Addrs
 )
 
-type localIPs struct {
+// LocalIPs is a struct which can contain IPv4 or IPv6 address
+type LocalIPs struct {
 	IPv4 *net.TCPAddr
 	IPv6 *net.TCPAddr
 }
@@ -1040,7 +1041,7 @@ func (c *Client) SetMaxBytesToParse(max int) *Client {
 
 // GetIPFromInterface return IPv4 and IPv6 addresses of the network interface.
 // If there is no address than that IPfamily is nil.
-func GetIPFromInterface(networkInterface string) (theIPs localIPs) {
+func GetIPFromInterface(networkInterface string) (theIPs LocalIPs) {
 	if networkInterface == "" {
 		return
 	}
