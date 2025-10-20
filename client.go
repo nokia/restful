@@ -426,15 +426,27 @@ func (c *Client) SetOauth2Conf(config oauth2.Config, tokenClient *http.Client, g
 		}
 	}
 	c.oauth2.config = &config
-	if c.oauth2.client == nil && tokenClient != nil {
-		c.oauth2.client = tokenClient
+	if c.oauth2.client == nil {
+		if tokenClient != nil {
+			c.oauth2.client = tokenClient
+		} else if isTraced && tracer.GetOTel() {
+			tokenClient := *DefaultTokenClient
+			tokenClient.Transport = otelhttp.NewTransport(http.DefaultTransport)
+			c.oauth2.client = &tokenClient
+		}
 	}
 	return c
 }
 
 // SetOauth2H2 makes OAuth2 token client communicate using h2 transport with Authorization Server.
+//
+// Warning: That resets all the earlier transport settings of the token client.
 func (c *Client) SetOauth2H2() *Client {
-	c.oauth2.client = &http.Client{Timeout: 10 * time.Second, Transport: getH2Transport("")}
+	var transport http.RoundTripper = newH2Transport("")
+	if isTraced && tracer.GetOTel() {
+		transport = otelhttp.NewTransport(transport)
+	}
+	c.oauth2.client = &http.Client{Timeout: 10 * time.Second, Transport: transport}
 	return c
 }
 
