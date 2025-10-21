@@ -53,14 +53,15 @@ func testMsgPackDiscoveryAccepted(t testing.TB, iters int) {
 		err := GetRequestData(r, 0, &data)
 		assert.Nil(err)
 
-		if r.Method == "POST" {
+		switch r.Method {
+		case "POST":
 			if requestCount == 0 {
 				assert.Equal("application/json", r.Header.Get("content-type"))
 			} else {
 				assert.Equal("application/msgpack", r.Header.Get("content-type")) // In use
 			}
 			assert.Equal("a", data.Str)
-		} else if r.Method == "PUT" {
+		case "PUT":
 			assert.Equal("application/msgpack", r.Header.Get("content-type")) // In use
 			assert.Equal("b", data.Str)
 		}
@@ -108,13 +109,14 @@ func testMsgPackDiscoveryRejected(t testing.TB, iters int) {
 		assert.Nil(err)
 
 		assert.Equal("application/json", r.Header.Get("content-type")) // JSON is used all the time.
-		if r.Method == "POST" {
+		switch r.Method {
+		case "POST":
 			assert.True(acceptsMsgPack(r) || requestCount > 0) // Discovery
 			if requestCount == 0 {
 				r.Header.Set("Accept", "application/json")
 			}
 			assert.Equal("a", data.Str)
-		} else if r.Method == "PUT" {
+		case "PUT":
 			assert.False(acceptsMsgPack(r)) // Gave up
 			assert.Equal("b", data.Str)
 		}
@@ -161,20 +163,21 @@ func TestMethods(t *testing.T) {
 
 		// Answer
 		w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"str":"b"}`))
-		} else if r.Method == http.MethodHead {
+		case http.MethodHead:
 			w.Header().Set("LastModified", "1970-01-01T00:00:00")
 			w.WriteHeader(http.StatusOK)
-		} else if r.Method == http.MethodDelete {
+		case http.MethodDelete:
 			w.WriteHeader(http.StatusNoContent)
-		} else if r.Method == http.MethodPost {
+		case http.MethodPost:
 			assert.Equal("b", a.Str)
 			w.Header().Set("Location", "/users/1")
 			w.WriteHeader(http.StatusCreated)
 			w.Write([]byte(`{"str":"b"}`))
-		} else { // PUT / PATCH
+		default: // PUT / PATCH
 			assert.Equal("b", a.Str)
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"str":"b"}`))
@@ -920,8 +923,7 @@ func TestClients(t *testing.T) {
 		h2cServer.Close()
 	}()
 
-	h2Client := NewH2Client()
-	h2Client.Client.Transport.(*http2.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	h2Client := NewH2Client().Insecure()
 	h2cClient := NewH2CClient()
 
 	wg.Wait()

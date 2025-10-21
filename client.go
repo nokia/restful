@@ -143,12 +143,32 @@ type Client struct {
 		tokenMutex sync.RWMutex
 		client     *http.Client
 	}
+	nonTracedTransport http.RoundTripper // Store non-traced transport here, as OTEL wrapper does not allow retrieving the original transport settings. See setTransport().
+
 	msgpackUsage msgpackUsage
 
 	crl *crl
 
 	// LoadBalanceRandom is a flag that tells whether to choose random IP address from the list of IPs received in DNS response for the target URI.
 	LoadBalanceRandom bool
+}
+
+// GetTransport returns the client's underlying transport.
+// It is not the same as reading client.Client.Transport, as that may be wrapped by OTEL,
+// while this function returns the actual transport used.
+func (c *Client) GetTransport() http.RoundTripper {
+	return c.nonTracedTransport
+}
+
+// SetTransport sets the underlying transport, wrapping it with OTEL if needed.
+// It is not the same as setting client.Client.Transport directly.
+func (c *Client) SetTransport(transport http.RoundTripper) {
+	c.nonTracedTransport = transport
+	if isTraced && tracer.GetOTel() {
+		c.Client.Transport = otelhttp.NewTransport(c.nonTracedTransport)
+	} else {
+		c.Client.Transport = c.nonTracedTransport
+	}
 }
 
 // NewClient creates a RESTful client instance.
@@ -185,16 +205,11 @@ func NewClientWInterface(networkInterface string) *Client {
 		t.DialContext = dialer.DialContext
 	}
 
-	var rt http.RoundTripper = t
-	if isTraced && tracer.GetOTel() {
-		rt = otelhttp.NewTransport(t)
-	}
-
 	c := &Client{Kind: KindBasic}
 	c.Client = &http.Client{
-		Timeout:   10 * time.Second,
-		Transport: rt,
+		Timeout: 10 * time.Second,
 	}
+	c.SetTransport(t)
 
 	c.acceptProblemJSON = true /* backward compatible */
 	return c
@@ -213,12 +228,8 @@ func NewH2CClient() *Client {
 // NewH2ClientWInterface creates a RESTful client instance with the http2 protocol bound to that network interface.
 // The instance has a semi-permanent transport TCP connection.
 func NewH2ClientWInterface(networkInterface string) *Client {
-	c := &Client{Kind: KindH2}
-	var rt http.RoundTripper = getH2Transport(networkInterface)
-	if isTraced && tracer.GetOTel() {
-		rt = otelhttp.NewTransport(rt)
-	}
-	c.Client = &http.Client{Transport: rt}
+	c := &Client{Kind: KindH2, Client: &http.Client{}}
+	c.SetTransport(newH2Transport(networkInterface))
 	return c
 }
 
@@ -226,22 +237,18 @@ func NewH2ClientWInterface(networkInterface string) *Client {
 // In other words, the http2 clear text is the http2 but without TLS handshake.
 // The instance has a semi-permanent transport TCP connection.
 func NewH2CClientWInterface(networkInterface string) *Client {
-	c := &Client{Kind: KindH2C}
-	var rt http.RoundTripper = getH2CTransport(networkInterface)
-	if isTraced && tracer.GetOTel() {
-		rt = otelhttp.NewTransport(rt)
-	}
-	c.Client = &http.Client{Transport: rt}
+	c := &Client{Kind: KindH2C, Client: &http.Client{}}
+	c.SetTransport(newH2CTransport(networkInterface))
 	return c
 }
 
-func getH2Transport(iface string) *http2.Transport {
+func newH2Transport(iface string) *http2.Transport {
 	return &http2.Transport{
 		DialTLSContext: getDialTLSCallback(iface, true),
 	}
 }
 
-func getH2CTransport(iface string) *http2.Transport {
+func newH2CTransport(iface string) *http2.Transport {
 	return &http2.Transport{
 		AllowHTTP:      true,
 		DialTLSContext: getDialTLSCallback(iface, false),
@@ -426,15 +433,27 @@ func (c *Client) SetOauth2Conf(config oauth2.Config, tokenClient *http.Client, g
 		}
 	}
 	c.oauth2.config = &config
-	if c.oauth2.client == nil && tokenClient != nil {
-		c.oauth2.client = tokenClient
+	if c.oauth2.client == nil {
+		if tokenClient != nil {
+			c.oauth2.client = tokenClient
+		} else if isTraced && tracer.GetOTel() {
+			tokenClient := *DefaultTokenClient
+			tokenClient.Transport = otelhttp.NewTransport(http.DefaultTransport)
+			c.oauth2.client = &tokenClient
+		}
 	}
 	return c
 }
 
 // SetOauth2H2 makes OAuth2 token client communicate using h2 transport with Authorization Server.
+//
+// Warning: That resets all the earlier transport settings of the token client.
 func (c *Client) SetOauth2H2() *Client {
-	c.oauth2.client = &http.Client{Timeout: 10 * time.Second, Transport: getH2Transport("")}
+	var transport http.RoundTripper = newH2Transport("")
+	if isTraced && tracer.GetOTel() {
+		transport = otelhttp.NewTransport(transport)
+	}
+	c.oauth2.client = &http.Client{Timeout: 10 * time.Second, Transport: transport}
 	return c
 }
 

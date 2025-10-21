@@ -15,7 +15,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/net/http2"
 )
 
@@ -23,18 +22,13 @@ import (
 // Use if specific config is needed, e.g. server cert or whether to accept untrusted certs.
 // You may use it this way: client := New().TLS(...) or just client.TLS(...)
 func (c *Client) TLS(tlsConfig *tls.Config) *Client {
-	if transport2, ok := c.Client.Transport.(*http2.Transport); ok {
+	// Transport settings are stored in nonTracedTransport, as OTEL's wrapper does not allow retrieving the original transport settings.
+	if transport2, ok := c.nonTracedTransport.(*http2.Transport); ok {
 		transport2.TLSClientConfig = tlsConfig
-		return c
-	}
-	if transport, ok := c.Client.Transport.(*http.Transport); ok {
-		transport.TLSClientConfig = tlsConfig
-	} else {
-		if isTraced {
-			c.Client.Transport = otelhttp.NewTransport(&http.Transport{TLSClientConfig: tlsConfig})
-		} else {
-			c.Client.Transport = &http.Transport{TLSClientConfig: tlsConfig}
-		}
+	} else if transport1, ok := c.nonTracedTransport.(*http.Transport); ok {
+		transport1.TLSClientConfig = tlsConfig
+	} else { // most probably nil
+		c.SetTransport(&http.Transport{TLSClientConfig: tlsConfig})
 	}
 	return c
 }
@@ -122,7 +116,7 @@ func initialCertPool(loadSystemCerts bool) (*x509.CertPool, error) {
 
 func (c *Client) haveTLSClientConfig() *tls.Config {
 	// HTTP2
-	if transport2, ok := c.Client.Transport.(*http2.Transport); ok {
+	if transport2, ok := c.nonTracedTransport.(*http2.Transport); ok {
 		if transport2.TLSClientConfig == nil {
 			transport2.TLSClientConfig = &tls.Config{
 				MinVersion: tls.VersionTLS12,
@@ -132,10 +126,10 @@ func (c *Client) haveTLSClientConfig() *tls.Config {
 	}
 
 	// HTTP 1.x
-	transport, ok := c.Client.Transport.(*http.Transport)
-	if !ok {
+	transport, ok := c.nonTracedTransport.(*http.Transport)
+	if !ok { // most probably nil
 		transport = &http.Transport{}
-		c.Client.Transport = transport
+		c.SetTransport(transport)
 	}
 
 	if transport.TLSClientConfig == nil {
