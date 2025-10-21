@@ -728,11 +728,18 @@ func (c *Client) do(req *http.Request) (resp *http.Response, err error) {
 		err = ctxErr
 		return
 	}
+	start := time.Now()
 	resp, err = c.Client.Do(req)
+	duration := time.Since(start).Milliseconds()
 
 	// Workaround for https://github.com/golang/go/issues/36026
 	if err, ok := err.(net.Error); ok && err.Timeout() {
 		c.Client.CloseIdleConnections()
+	}
+	if err != nil {
+		RecordRequestLatency(req.Method, req.URL.Hostname(), float64(duration))
+		totalRequestCount.WithLabelValues(req.Method, req.URL.Hostname()).Inc()
+		totalRequestLatencyMs.WithLabelValues(req.Method, req.URL.Hostname()).Add(float64(duration))
 	}
 
 	return
