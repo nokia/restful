@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nokia/restful/messagepack"
 	"github.com/nokia/restful/trace/tracecommon"
 	"github.com/nokia/restful/trace/tracedata"
 	"github.com/nokia/restful/trace/traceotel"
@@ -751,10 +750,6 @@ func (c *Client) makeBodyBytes(data any) ([]byte, error) {
 		return nil, nil
 	}
 
-	if c.msgpackUsage == msgpackUse {
-		return messagepack.Marshal(data)
-	}
-
 	body, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
@@ -839,18 +834,6 @@ func (c *Client) sendRequestBytes(ctx context.Context, method string, target str
 	return c.Do(req)
 }
 
-func (c *Client) setMsgPackUse(resp *http.Response) {
-	if c.msgpackUsage == msgpackDisable {
-		return // Nothing to check and set
-	}
-
-	if isMsgPackContentType(GetBaseContentType(resp.Header)) {
-		c.msgpackUsage = msgpackUse // Use confirmed
-	} else {
-		c.msgpackUsage = msgpackDisable // Stop discovery
-	}
-}
-
 // SendRecv sends request with given data and returns response data.
 // Caller may define headers to be added to the request.
 // Received response is returned. E.g. resp.StatusCode.
@@ -861,8 +844,6 @@ func (c *Client) SendRecv(ctx context.Context, method string, target string, hea
 	if err != nil {
 		return nil, err
 	}
-
-	c.setMsgPackUse(resp)
 
 	return resp, GetResponseData(resp, c.maxBytesToParse, respData)
 }
@@ -890,8 +871,6 @@ func (c *Client) SendRecv2xx(ctx context.Context, method string, target string, 
 		}
 		return nil, NewError(fmt.Errorf("unexpected response: %s", resp.Status), resp.StatusCode, detail)
 	}
-
-	c.setMsgPackUse(resp)
 
 	return resp, GetResponseData(resp, c.maxBytesToParse, respData)
 }

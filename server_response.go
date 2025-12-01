@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/nokia/restful/messagepack"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -52,26 +51,6 @@ func sendResponse(w http.ResponseWriter, r *http.Request, data any, sanitizeJSON
 	if data == nil {
 		w.WriteHeader(okStatus)
 		return nil
-	}
-
-	useMsgPack := false
-	writeHeaders := w.Header()
-	if writeHeaders == nil || writeHeaders.Get(ContentTypeHeader) == "" {
-		useMsgPack = acceptsMsgPack(r)
-	} else if isMsgPackContentType(GetBaseContentType(writeHeaders)) {
-		useMsgPack = true
-	}
-
-	if useMsgPack {
-		b, err := messagepack.Marshal(data)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return err
-		}
-		w.Header().Set(ContentTypeHeader, ContentTypeMsgPack)
-		w.WriteHeader(okStatus)
-		_, err = w.Write(b)
-		return err
 	}
 
 	return SendJSONResponse(w, okStatus, data, sanitizeJSON)
@@ -140,16 +119,6 @@ func getProblemContentType(r *http.Request) string {
 		}
 	}
 	return ct
-}
-
-func acceptsMsgPack(r *http.Request) bool {
-	accepts := r.Header.Values(AcceptHeader)
-	for i := range accepts {
-		if isMsgPackContentType(accepts[i]) {
-			return true
-		}
-	}
-	return false
 }
 
 // SendProblemResponse sends response with problem text, and extends it to problem+json format if it is a plain string.

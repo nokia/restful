@@ -36,13 +36,6 @@ func GetBaseContentType(headers http.Header) string {
 	return BaseContentType(headers.Get(ContentTypeHeader))
 }
 
-func isMsgPackContentType(ct string) bool {
-	if len(ct) < len(ContentTypeMsgPack) {
-		return false
-	}
-	return ct[11:19] == "/msgpack"
-}
-
 func isJSONContentType(baseCT string) bool {
 	return strings.HasSuffix(baseCT, "json")
 }

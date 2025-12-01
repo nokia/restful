@@ -43,115 +43,6 @@ type structType struct {
 	Struct innerStruct `json:"struct"`
 }
 
-func testMsgPackDiscoveryAccepted(t testing.TB, iters int) {
-	assert := assert.New(t)
-
-	// Server
-	requestCount := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data structType
-		err := GetRequestData(r, 0, &data)
-		assert.Nil(err)
-
-		switch r.Method {
-		case "POST":
-			if requestCount == 0 {
-				assert.Equal("application/json", r.Header.Get("content-type"))
-			} else {
-				assert.Equal("application/msgpack", r.Header.Get("content-type")) // In use
-			}
-			assert.Equal("a", data.Str)
-		case "PUT":
-			assert.Equal("application/msgpack", r.Header.Get("content-type")) // In use
-			assert.Equal("b", data.Str)
-		}
-		assert.True(acceptsMsgPack(r))
-
-		// Answer
-		sendResponse(w, r, data, false)
-		requestCount++
-	}))
-	defer srv.Close()
-
-	respData := structType{}
-	ctx := context.Background()
-	client := NewClient().Root(srv.URL).MsgPack(true)
-	reqData1 := structType{Str: "a", Struct: innerStruct{Number: 1, Array: []byte{1, 2, 3}}}
-	reqData2 := structType{Str: "b", Struct: innerStruct{Number: 2, Array: []byte{4, 5, 6}}}
-
-	for i := 0; i < iters; i++ {
-		_, err := client.Post(ctx, "/", &reqData1, &respData)
-		assert.Nil(err)
-		assert.Equal(reqData1, respData)
-
-		_, err = client.Put(ctx, "/", &reqData2, &respData)
-		assert.Nil(err)
-		assert.Equal(reqData2, respData)
-	}
-}
-
-func Test_MsgPack_DiscoveryAccepted(t *testing.T) {
-	testMsgPackDiscoveryAccepted(t, 1)
-}
-
-func Benchmark_MsgPack_DiscoveryAccepted(b *testing.B) {
-	testMsgPackDiscoveryAccepted(b, 1000)
-}
-
-func testMsgPackDiscoveryRejected(t testing.TB, iters int) {
-	assert := assert.New(t)
-
-	// Server
-	requestCount := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data structType
-		err := GetRequestData(r, 0, &data)
-		assert.Nil(err)
-
-		assert.Equal("application/json", r.Header.Get("content-type")) // JSON is used all the time.
-		switch r.Method {
-		case "POST":
-			assert.True(acceptsMsgPack(r) || requestCount > 0) // Discovery
-			if requestCount == 0 {
-				r.Header.Set("Accept", "application/json")
-			}
-			assert.Equal("a", data.Str)
-		case "PUT":
-			assert.False(acceptsMsgPack(r)) // Gave up
-			assert.Equal("b", data.Str)
-		}
-
-		// Answer
-		sendResponse(w, r, data, false)
-		requestCount++
-	}))
-	defer srv.Close()
-
-	respData := structType{}
-	ctx := context.Background()
-	client := NewClient().Root(srv.URL).MsgPack(true)
-	reqData1 := structType{Str: "a", Struct: innerStruct{Number: 1, Array: []byte{1, 2, 3}}}
-	reqData2 := structType{Str: "b", Struct: innerStruct{Number: 2, Array: []byte{4, 5, 6}}}
-
-	for i := 0; i < iters; i++ {
-		_, err := client.Post(ctx, "/", &reqData1, &respData)
-		assert.Nil(err)
-		assert.Equal(reqData1, respData)
-
-		_, err = client.Put(ctx, "/", &reqData2, &respData)
-		assert.Nil(err)
-		assert.Equal(reqData2, respData)
-	}
-}
-
-func Test_MsgPack_DiscoveryRejected(t *testing.T) {
-	testMsgPackDiscoveryRejected(t, 1)
-}
-
-func Benchmark_MsgPack_DiscoveryRejected(b *testing.B) {
-	testMsgPackDiscoveryRejected(b, 1000)
-}
-
 func TestMethods(t *testing.T) {
 	assert := assert.New(t)
 
@@ -280,7 +171,6 @@ func TestRetry(t *testing.T) {
 	retries := 4
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal("hello", r.Header.Get("User-Agent"))
-		assert.False(acceptsMsgPack(r))
 
 		if r.Method == "POST" {
 			body, err := io.ReadAll(r.Body)
