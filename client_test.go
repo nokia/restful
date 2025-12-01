@@ -43,7 +43,7 @@ type structType struct {
 	Struct innerStruct `json:"struct"`
 }
 
-func TestMethods(t *testing.T) {
+func testMethods(t *testing.T) {
 	assert := assert.New(t)
 
 	// Server
@@ -134,6 +134,17 @@ func TestMethods(t *testing.T) {
 	assert.Nil(err)
 	err = Delete(ctx, locationStr)
 	assert.Nil(err)
+}
+
+func TestMethods(t *testing.T) {
+	testMethods(t)
+}
+
+func TestMethodsBuffered(t *testing.T) {
+	BufIO = true
+	defer func() { BufIO = false }()
+
+	testMethods(t)
 }
 
 func TestHttpNotAllowed(t *testing.T) {
@@ -765,7 +776,6 @@ func TestCientInterface(t *testing.T) {
 }
 
 func startH2Server(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
-	defer wg.Done()
 	server := &http.Server{
 		Addr:    "localhost:8443",
 		Handler: mux,
@@ -775,6 +785,7 @@ func startH2Server(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
 	}
 
 	go func() {
+		wg.Done()
 		if err := server.ListenAndServeTLS("test_certs/tls.crt", "test_certs/tls.key"); err != nil && err != http.ErrServerClosed {
 			fmt.Printf("Failed to start server: %v", err)
 		}
@@ -783,13 +794,13 @@ func startH2Server(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
 }
 
 func startH2CServer(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
-	defer wg.Done()
 	server := &http.Server{
 		Addr:    "localhost:8440",
 		Handler: h2c.NewHandler(mux, &http2.Server{}),
 	}
 
 	go func() {
+		wg.Done()
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			fmt.Printf("Failed to start server: %v", err)
 		}
@@ -808,6 +819,7 @@ func TestClients(t *testing.T) {
 	wg.Add(2)
 	h2Server := startH2Server(mux, &wg)
 	h2cServer := startH2CServer(mux, &wg)
+
 	defer func() {
 		h2Server.Close()
 		h2cServer.Close()
@@ -817,6 +829,7 @@ func TestClients(t *testing.T) {
 	h2cClient := NewH2CClient()
 
 	wg.Wait()
+	time.Sleep(10 * time.Millisecond) // wg does not ensure that servers are ready, only that the listening may be started.
 
 	tests := []struct {
 		name      string
