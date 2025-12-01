@@ -31,6 +31,7 @@ const unsetFraction = float64(-32.0)
 // OtelEnabled tells if OpenTelemetry tracing was activated.
 // If OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is set, then tracing is activated automatically.
 // You may set OTEL_TRACES_SAMPLER and OTEL_TRACES_SAMPLER_ARG to set the sampling type and fraction.
+// You may fine-tune batch exporting parameters with OTEL_BSP_* environment variables.
 // See also
 //   - https://opentelemetry.io/docs/specs/otel/protocol/exporter/
 //   - https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/
@@ -69,6 +70,9 @@ func SetOTel(enabled bool, tp *sdktrace.TracerProvider) {
 		}
 		traceotel.SetTraceProvider(tp)
 		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, b3.New(), b3.New(b3.WithInjectEncoding(b3.B3MultipleHeader))))
+	} else {
+		traceotel.SetTraceProvider(sdktrace.NewTracerProvider(sdktrace.WithSampler(sdktrace.NeverSample()), sdktrace.WithSpanProcessor(nil)))
+		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator())
 	}
 }
 
