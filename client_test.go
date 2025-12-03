@@ -875,7 +875,6 @@ func TestCientInterface(t *testing.T) {
 }
 
 func startH2Server(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
-	defer wg.Done()
 	server := &http.Server{
 		Addr:    "localhost:8443",
 		Handler: mux,
@@ -885,6 +884,7 @@ func startH2Server(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
 	}
 
 	go func() {
+		wg.Done()
 		if err := server.ListenAndServeTLS("test_certs/tls.crt", "test_certs/tls.key"); err != nil && err != http.ErrServerClosed {
 			fmt.Printf("Failed to start server: %v", err)
 		}
@@ -893,13 +893,13 @@ func startH2Server(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
 }
 
 func startH2CServer(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
-	defer wg.Done()
 	server := &http.Server{
 		Addr:    "localhost:8440",
 		Handler: h2c.NewHandler(mux, &http2.Server{}),
 	}
 
 	go func() {
+		wg.Done()
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			fmt.Printf("Failed to start server: %v", err)
 		}
@@ -927,6 +927,7 @@ func TestClients(t *testing.T) {
 	h2cClient := NewH2CClient()
 
 	wg.Wait()
+	time.Sleep(10 * time.Millisecond) // wg does not ensure that servers are ready, only that the listening may be started.
 
 	tests := []struct {
 		name      string
