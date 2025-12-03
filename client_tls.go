@@ -153,11 +153,43 @@ func (c *Client) TLSRootCerts(path string, loadSystemCerts bool) *Client {
 	return c
 }
 
+type TLSOwnCertOpts struct {
+	Certificate string
+	PrivateKey  string
+}
+
 // TLSOwnCerts loads PEM certificate + key from given directory and sets TLS config accordingly.
-// Cert + key is used at mutual TLS (mTLS) connection when client authenticates itself.
-// File names should be tls.crt and tls.key (see `kubectl create secret tls`).
-func (c *Client) TLSOwnCerts(dir string) *Client {
-	cert, err := tls.LoadX509KeyPair(dir+"/tls.crt", dir+"/tls.key")
+// That allows the client to authenticate itself using mutual TLS (mTLS).
+//
+// If only the dir is specified, then looks for tls.crt and tls.key files in that dir.
+// You may also specify custom file names by using TLSOwnCertOpts.
+// In that case the key and cert file paths are appended to the provided directory.
+//
+// Example usages:
+//
+//	client = client.TLSOwnCerts("/path/to/certs")
+//
+//	client = client.TLSOwnCerts("/path/to/certs", TLSOwnCertOpts{Certificate: "mycert.crt", PrivateKey:  "mykey.key"})
+//
+//	client.TLSOwnCerts("/path/to/certs", TLSOwnCertOpts{Certificate: "/certs/mycert.pem", PrivateKey:  "/key/mykey.pem"})
+func (c *Client) TLSOwnCerts(dir string, opts ...TLSOwnCertOpts) *Client {
+	var certificateFile, privateKeyFile string
+	if len(opts) > 0 {
+		if opts[0].Certificate == "" {
+			opts[0].Certificate = "tls.crt"
+		}
+		certificateFile = dir + opts[0].Certificate
+
+		if opts[0].PrivateKey == "" {
+			opts[0].PrivateKey = "tls.key"
+		}
+		privateKeyFile = dir + opts[0].PrivateKey
+	} else {
+		certificateFile = dir + "/tls.crt"
+		privateKeyFile = dir + "/tls.key"
+	}
+
+	cert, err := tls.LoadX509KeyPair(certificateFile, privateKeyFile)
 	if err != nil {
 		log.Errorf("Cannot load client cert+key: %v", err)
 	} else {
