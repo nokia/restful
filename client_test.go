@@ -927,7 +927,7 @@ func TestClients(t *testing.T) {
 	h2cClient := NewH2CClient()
 
 	wg.Wait()
-	time.Sleep(10 * time.Millisecond) // wg does not ensure that servers are ready, only that the listening may be started.
+	time.Sleep(100 * time.Millisecond) // wg does not ensure that servers are ready, only that the listening may be started.
 
 	tests := []struct {
 		name      string

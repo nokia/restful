@@ -53,8 +53,9 @@ func TestHTTPSMTLS(t *testing.T) {
 	srv.URL = strings.ReplaceAll(srv.URL, "127.0.0.1", "localhost")
 	defer srv.Close()
 
-	assert.NoError(NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs").Get(context.Background(), "/NEF", nil)) // Own cert set
-	assert.Error(NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).Get(context.Background(), "/NEF", nil))                             // Own cert not set
+	assert.NoError(NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs").Get(context.Background(), "/NEF", nil))                                                                // Own cert set
+	assert.NoError(NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs", TLSOwnCertOpts{Certificate: "tls.crt", PrivateKey: "tls.key"}).Get(context.Background(), "/NEF", nil)) // Own cert set
+	assert.Error(NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).Get(context.Background(), "/NEF", nil))                                                                                            // Own cert not set
 }
 
 func copyFile(src, dst string, t *testing.T) {
@@ -209,4 +210,51 @@ func TestHTTPSCertFail(t *testing.T) {
 func TestAppendCert(t *testing.T) {
 	appendCert("kutyafüle", nil)
 	appendCert("client_tls_test.go", nil)
+}
+
+func TestCatDirFile(t *testing.T) {
+	tests := []struct {
+		name     string
+		dir      string
+		file     string
+		expected string
+	}{
+		{
+			name:     "dir without slash, file without slash",
+			dir:      "/etc/certs",
+			file:     "tls.crt",
+			expected: "/etc/certs/tls.crt",
+		},
+		{
+			name:     "dir with slash, file without slash",
+			dir:      "/etc/certs/",
+			file:     "tls.crt",
+			expected: "/etc/certs/tls.crt",
+		},
+		{
+			name:     "dir without slash, file with slash",
+			dir:      "/etc/certs",
+			file:     "/tls.crt",
+			expected: "/etc/certs/tls.crt",
+		},
+		{
+			name:     "dir with slash, file with slash (sad)",
+			dir:      "/etc/certs/",
+			file:     "/tls.crt",
+			expected: "/etc/certs//tls.crt",
+		},
+		{
+			name:     "empty dir (relative)",
+			dir:      "",
+			file:     "tls.crt",
+			expected: "tls.crt",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := catDirFile(tt.dir, tt.file)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

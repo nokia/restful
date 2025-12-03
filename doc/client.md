@@ -87,10 +87,12 @@ client := restful.NewClient().TLSRootCerts("/etc/cacerts", false)
 
 ### Mutual TLS
 
-Mutual TLS is an advanced security solution for private networks. The server authenticates the client, too.
+When Mutual TLS is used, the server authenticates the client, too.
+Most of the time the client certificate is signed by a private CA that is known to the server.
 
 Load CA certs and load own `tls.key` and `tls.crt` files.
 File naming follows Kubernetes TLS secret solution, e.g., used at `kubectl create secret tls` command.
+You may use further options to define file directories and names.
 
 ```go
 client := restful.NewClient()
@@ -100,7 +102,7 @@ client.TLSOwnCerts("/etc/own_tls")
 
 ❗ Note that once the client loaded the key + cert, it is in the memory.
 Any update (e.g., cert-manager.io) will not affect that client.
-You may restart your app, or in the cloud, you may issue `kubectl rollout restart deploy/xxx`.
+You may restart your app, e.g. issue `kubectl rollout restart deploy xxx` when using K8s.
 
 ## MessagePack
 

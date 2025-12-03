@@ -153,9 +153,18 @@ func (c *Client) TLSRootCerts(path string, loadSystemCerts bool) *Client {
 	return c
 }
 
+// TLSOwnCertOpts allows specifying custom file paths for client certificate and private key.
 type TLSOwnCertOpts struct {
 	Certificate string
 	PrivateKey  string
+}
+
+func catDirFile(dir, file string) string {
+	dirEndsWithSlash := strings.HasSuffix(dir, "/")
+	if dir != "" && !dirEndsWithSlash && !strings.HasPrefix(file, "/") {
+		return dir + "/" + file
+	}
+	return dir + file
 }
 
 // TLSOwnCerts loads PEM certificate + key from given directory and sets TLS config accordingly.
@@ -178,15 +187,14 @@ func (c *Client) TLSOwnCerts(dir string, opts ...TLSOwnCertOpts) *Client {
 		if opts[0].Certificate == "" {
 			opts[0].Certificate = "tls.crt"
 		}
-		certificateFile = dir + opts[0].Certificate
-
+		certificateFile = catDirFile(dir, opts[0].Certificate)
 		if opts[0].PrivateKey == "" {
 			opts[0].PrivateKey = "tls.key"
 		}
-		privateKeyFile = dir + opts[0].PrivateKey
+		privateKeyFile = catDirFile(dir, opts[0].PrivateKey)
 	} else {
-		certificateFile = dir + "/tls.crt"
-		privateKeyFile = dir + "/tls.key"
+		certificateFile = catDirFile(dir, "tls.crt")
+		privateKeyFile = catDirFile(dir, "tls.key")
 	}
 
 	cert, err := tls.LoadX509KeyPair(certificateFile, privateKeyFile)
