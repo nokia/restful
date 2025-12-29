@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+// TLSConfig returns raw TLS config used by the server
+func (s *Server) TLSConfig() *tls.Config {
+	return s.server.TLSConfig
+}
+
 // TLSClientCert adds client certs to server, enabling mutual TLS (mTLS).
 // If path is a directory then scans for files recursively. If path is not set then defaults to /etc.
 // If loadSystemCerts is true, clients with CA from system CA pool are accepted, too.
