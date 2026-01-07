@@ -6,6 +6,7 @@ package restful
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
 	"os"
 	"os/signal"
@@ -43,7 +44,11 @@ var ServerReadTimeout = 60 * time.Second
 func NewServer() *Server {
 	server := Server{server: &http.Server{
 		ReadHeaderTimeout: ServerReadHeaderTimeout,
-		ReadTimeout:       ServerReadTimeout}}
+		ReadTimeout:       ServerReadTimeout,
+		TLSConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}}
 
 	return &server
 }

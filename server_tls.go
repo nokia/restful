@@ -22,9 +22,6 @@ func (s *Server) TLSConfig() *tls.Config {
 // As the role of mTLS is to authorize certain clients to connect, enable system CAs only if those are reasonable for auth.
 // File names should match *.crt or *.pem.
 func (s *Server) TLSClientCert(path string, loadSystemCerts bool) *Server {
-	if s.server.TLSConfig == nil {
-		s.server.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
-	}
 	s.server.TLSConfig.ClientCAs = NewCertPool(path, loadSystemCerts)
 	s.server.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
