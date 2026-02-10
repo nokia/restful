@@ -17,6 +17,7 @@ var reEmptyString = regexp.MustCompile(`"[^"]+":"",?`)
 // SanitizeJSONString clears empty entries from string of JSON.
 // Note that normally one should use "omitempty" in structures, and use pointers for arrays and structs.
 // So sanitizing is not really needed.
+// Deprecated.
 func SanitizeJSONString(s string) string {
 	s = reNull.ReplaceAllString(s, "$1")
 	s = reEmptyArray.ReplaceAllString(s, "")
@@ -35,6 +36,7 @@ func SanitizeJSONString(s string) string {
 }
 
 // SanitizeJSONBytes clears empty entries from byte array of JSON.
+// Deprecated.
 func SanitizeJSONBytes(b []byte) []byte {
 	return []byte(SanitizeJSONString(string(b)))
 }

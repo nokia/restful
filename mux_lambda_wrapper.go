@@ -19,6 +19,7 @@ var LambdaMaxBytesToParse = 0
 
 // LambdaSanitizeJSON defines whether to sanitize JSON of Lambda return or SendResp.
 // See SanitizeJSONString for details.
+// Deprecated.
 var LambdaSanitizeJSON = false
 
 // LambdaValidator tells if incoming request is to be validated.

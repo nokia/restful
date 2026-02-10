@@ -393,6 +393,7 @@ func (c *Client) Timeout(timeout time.Duration) *Client {
 
 // SanitizeJSON enables JSON sanitization.
 // See details at SanitizeJSONString.
+// Deprecated.
 func (c *Client) SanitizeJSON() *Client {
 	c.sanitizeJSON = true
 	return c
