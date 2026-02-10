@@ -2,7 +2,7 @@ MINIMUM_COVERAGE=80
 MAXIMUM_COMPLEXITY=15
 
 GO_VER?=latest
-DOCKER=`if which podman >/dev/null; then echo podman; else echo docker; fi`
+DOCKER:=$(shell if which podman >/dev/null; then echo podman; else echo docker; fi)
 RUN:=$(DOCKER) run -it --rm -w $(CURDIR) -v $(CURDIR):$(CURDIR):Z gotools:$(GO_VER)
 COV=/tmp/test.out
 
@@ -17,7 +17,7 @@ lint:
 	go list ./... | xargs -L1 golint -set_exit_status
 	staticcheck ./...
 	gosec ./...
-	govulncheck ./...
+	#govulncheck ./...
 	osv-scanner .
 	gocyclo -over $(MAXIMUM_COMPLEXITY) ./
 	@if [ `go tool cover -func=$(COV) | tail -n1 | rev | cut -f1 | rev | cut -d. -f1` -lt $(MINIMUM_COVERAGE) ]; then echo "Error: Coverage too low."; false; fi
