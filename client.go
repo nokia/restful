@@ -333,6 +333,8 @@ func (c *Client) AcceptProblemJSON(acceptProblemJSON bool) *Client {
 // Restful Lambda server responds with msgpack if Accept header indicates its support automatically.
 // This is an EXPERIMENTAL feature.
 // Detailed at https://github.com/nokia/restful/issues/30
+//
+// Deprecated. This feature will be dropped in the near-future.
 func (c *Client) MsgPack(allowed bool) *Client {
 	if allowed {
 		c.msgpackUsage = msgpackDiscover
