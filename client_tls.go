@@ -156,7 +156,7 @@ func (c *Client) TLSRootCerts(path string, loadSystemCerts bool) *Client {
 // TLSOwnCertOpts allows specifying custom file paths for client certificate and private key.
 type TLSOwnCertOpts struct {
 	Certificate string
-	PrivateKey  string
+	PrivateKey  string // #nosec G117: exported, so that the client can specify the private key path
 }
 
 func catDirFile(dir, file string) string {
