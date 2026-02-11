@@ -39,7 +39,7 @@ func SendJSONResponse(w http.ResponseWriter, statusCode int, data any, sanitizeJ
 	if body != nil {
 		w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
 		w.WriteHeader(statusCode)
-		_, err = w.Write(body)
+		_, err = w.Write(body) // #nosec G705: false positive; no user input
 	} else {
 		w.WriteHeader(statusCode)
 	}
@@ -70,7 +70,7 @@ func sendResponse(w http.ResponseWriter, r *http.Request, data any, sanitizeJSON
 		}
 		w.Header().Set(ContentTypeHeader, ContentTypeMsgPack)
 		w.WriteHeader(okStatus)
-		_, err = w.Write(b)
+		_, err = w.Write(b) // #nosec G705: false positive; no user input
 		return err
 	}
 
@@ -113,7 +113,7 @@ func SendResp(w http.ResponseWriter, r *http.Request, err error, data any) error
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
 	w.WriteHeader(GetErrStatusCode(err))
-	_, err = w.Write(body)
+	_, err = w.Write(body) // #nosec G705: false positive; no user input
 	return err
 }
 
@@ -166,7 +166,7 @@ func SendProblemResponse(w http.ResponseWriter, r *http.Request, statusCode int,
 	w.Header().Set(ContentTypeHeader, getProblemContentType(r))
 	w.WriteHeader(statusCode)
 	if len(problem) > 0 {
-		_, err = w.Write([]byte(problem))
+		_, err = w.Write([]byte(problem)) // #nosec G705
 	}
 	return
 }
@@ -194,7 +194,7 @@ func sendCustomResponse(r *http.Request, w http.ResponseWriter, body []byte, sta
 	if contentType != "" && acceptContentType(r, contentType) {
 		w.Header().Set(ContentTypeHeader, contentType)
 		w.WriteHeader(statusCode)
-		_, err = w.Write([]byte(body))
+		_, err = w.Write([]byte(body)) // #nosec G705
 		return
 	}
 	SendEmptyResponse(w, statusCode)

@@ -731,7 +731,7 @@ func (c *Client) do(req *http.Request) (resp *http.Response, err error) {
 		err = ctxErr
 		return
 	}
-	resp, err = c.Client.Do(req)
+	resp, err = c.Client.Do(req) // #nosec G704: false positive; URL validated by c.httpsCfg.isAllowed in exported Do() function.
 
 	// Workaround for https://github.com/golang/go/issues/36026
 	if err, ok := err.(net.Error); ok && err.Timeout() {
