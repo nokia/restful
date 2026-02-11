@@ -91,6 +91,9 @@ func (route *Route) Schemes(schemes ...string) *Route {
 //	s.HandleFunc("/users", handleAllUsers)
 //
 // Subrouter takes the existing Monitors of the parent route and apply them to the handle functions.
+// Method-not-allowed requests on the subrouter respond with 405, same as the main router.
 func (route *Route) Subrouter() *Router {
-	return &Router{router: route.route.Subrouter(), monitors: route.monitors}
+	sub := route.route.Subrouter()
+	sub.MethodNotAllowedHandler = methodNotAllowedHandler()
+	return &Router{router: sub, monitors: route.monitors}
 }

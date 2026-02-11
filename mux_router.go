@@ -34,8 +34,18 @@ type Router struct {
 }
 
 // NewRouter creates new Router instance.
+// When a request matches a route path but not its HTTP method, the router responds with 405 Method Not Allowed.
 func NewRouter() *Router {
-	return &Router{router: mux.NewRouter()}
+	r := mux.NewRouter()
+	r.MethodNotAllowedHandler = methodNotAllowedHandler()
+	return &Router{router: r}
+}
+
+// methodNotAllowedHandler returns an http.Handler that responds with 405 Method Not Allowed.
+func methodNotAllowedHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	})
 }
 
 // Monitor wraps handler function, creating a middleware in a safe and convenient fashion.
