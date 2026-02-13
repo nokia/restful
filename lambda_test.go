@@ -375,6 +375,31 @@ func TestBadCT(t *testing.T) {
 	assert.Contains(respBody, `"unexpected`)
 }
 
+func TestMethodNotAllowedHandler(t *testing.T) {
+	assert := assert.New(t)
+
+	customBody := "custom method not allowed"
+	customHeader := "X-Custom-405"
+	r := NewRouter().
+		MethodNotAllowedHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set(customHeader, "true")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_, _ = w.Write([]byte(customBody))
+		}))
+
+	r.HandleFunc("/foo", dup).Methods(http.MethodPost)
+
+	req, err := http.NewRequest(http.MethodGet, "/foo", bytes.NewReader([]byte(`{"s":"x","i":1}`)))
+	assert.NoError(err)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	assert.Equal(http.StatusMethodNotAllowed, rr.Code)
+	assert.Equal("true", rr.Header().Get(customHeader))
+	assert.Equal(customBody, rr.Body.String())
+}
+
 func TestRouterGarbage(t *testing.T) {
 	assert.Panics(t, func() { NewRouter().HandleFunc("", t) })
 	r := NewRouter()
