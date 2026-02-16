@@ -53,7 +53,7 @@ func (r *Router) DisallowUnknownFields() *Router {
 }
 
 // MethodNotAllowedHandler sets the handler invoked when a request matches a route path but not its HTTP method.
-// The default handler responds with 405 Method Not Allowed and no body.
+// Caution: if same path is set for multiple handlerfunction with different Methods, setting MethodNotAllowedHandler is not advised.
 func (r *Router) MethodNotAllowedHandler(handler http.Handler) *Router {
 	r.router.MethodNotAllowedHandler = handler
 	return r
