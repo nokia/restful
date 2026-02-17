@@ -78,6 +78,14 @@ func (l *Lambda) RequestVars() map[string]string {
 	return l.vars
 }
 
+// RequestBodyQueryParameter returns values of the request body query parameters.
+func (l *Lambda) RequestBodyQueryParameter() url.Values {
+	if err := l.r.ParseForm(); err != nil {
+		return nil
+	}
+	return l.r.PostForm
+}
+
 // RequestQueryStringParameter returns value of given path parameter of received HTTP request.
 func (l *Lambda) RequestQueryStringParameter(parameter string) string {
 	return l.r.URL.Query().Get(parameter)
