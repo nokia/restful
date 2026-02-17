@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestRequestBodyQueryParameter_FormURLEncoded(t *testing.T) {
+func TestRequestBodyQueryParameters_FormURLEncoded(t *testing.T) {
 	body := "foo=bar&num=123&multi=a&multi=b"
 
 	req, err := http.NewRequest(http.MethodPost, "http://example.com/test", io.NopCloser(strings.NewReader(body)))
