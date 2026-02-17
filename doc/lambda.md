@@ -145,7 +145,7 @@ Form Serialization is typically used in HTTP POST requests. Form bodies are seri
 
 ```go
 func messageHandler(ctx context.Context) error {
-    if restful.L(ctx).RequestBodyQueryParameters().Get("key") == "" {
+    if bodyValues := restful.L(ctx).RequestBodyQueryParameters(); bodyValues != nil && bodyValues.Get("key") == "" {
         return restful.NewError(nil, http.StatusBadRequest, "missing indentifier")
     }
     return nil
