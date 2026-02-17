@@ -18,7 +18,7 @@ func TestRequestBodyQueryParameter_FormURLEncoded(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	l := newLambda(newTestFakeWriter(), req, nil)
-	values := l.RequestBodyQueryParameter()
+	values := l.RequestBodyQueryParameters()
 	if values == nil {
 		t.Fatalf("expected non-nil values")
 	}
