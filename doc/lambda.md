@@ -123,6 +123,36 @@ func main() {
 }
 ```
 
+
+
+
+## Example of reading Query String serialized data from request URL
+
+Query String Serialization is typically used in HTTP GET requests. Query strings are serialized as `key=value` pairs in the URL, separated by `&`, using URL encoding (the same encoding rules commonly used by `application/x-www-form-urlencoded`).
+
+```go
+func messageHandler(ctx context.Context) error {
+    if restful.L(ctx).RequestQueryStringParameter("key") == "" {
+        return restful.NewError(nil, http.StatusBadRequest, "missing indentifier")
+    }
+    return nil
+}
+```
+
+## Example of reading Form serialized data from request body
+
+Form Serialization is typically used in HTTP POST requests. Form bodies are serialized as `key=value` pairs in the request body, separated by `&`, with `Content-Type: application/x-www-form-urlencoded`.
+
+```go
+func messageHandler(ctx context.Context) error {
+    if restful.L(ctx).RequestBodyQueryParameters().Get("key") == "" {
+        return restful.NewError(nil, http.StatusBadRequest, "missing indentifier")
+    }
+    return nil
+}
+```
+
+
 ## Router, Port defined, Context propagation
 
 ```go
