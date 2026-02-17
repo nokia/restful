@@ -52,6 +52,13 @@ func (r *Router) DisallowUnknownFields() *Router {
 	return r.Monitor(disallowUnknownFieldsToCtx, nil)
 }
 
+// MethodNotAllowedHandler sets the handler invoked when a request matches a route path but not its HTTP method.
+// Caution: if same path is set for multiple handlerfunction with different Methods, setting MethodNotAllowedHandler is not advised.
+func (r *Router) MethodNotAllowedHandler(handler http.Handler) *Router {
+	r.router.MethodNotAllowedHandler = handler
+	return r
+}
+
 // HandleFunc assigns an HTTP path to a function.
 // The function can be compatible with type http.HandlerFunc or a restful's Lambda.
 // E.g. r.HandleFunc("/users/{id:[0-9]+}", myFunc)
