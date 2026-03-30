@@ -38,7 +38,9 @@ func loggerPost(w http.ResponseWriter, r *http.Request, statusCode int) {
 	v := r.Context().Value(loggerCtxName)
 	if v != nil {
 		if traceStr, ok := v.(string); ok {
-			log.Debugf("[%s] Sent rsp: %d", traceStr, statusCode)
+			// Use WithContext so that OTel Logrus hooks can enrich the log entry
+			// with trace_id and span_id fields automatically.
+			log.WithContext(r.Context()).Debugf("[%s] Sent rsp: %d", traceStr, statusCode)
 		}
 	}
 }
@@ -55,7 +57,8 @@ func loggerPre(w http.ResponseWriter, r *http.Request) *http.Request {
 		trace := traceFromContextOrRequestOrRandom(r)
 		traceStr := trace.String()
 		r = r.WithContext(context.WithValue(r.Context(), loggerCtxName, traceStr)) // Add trace string to req context, to be retrieved at response logging.
-		log.Debugf("[%s] Recv req: %s %s", traceStr, r.Method, r.URL.Path)
+		// Use WithContext so that OTel Logrus hooks can inject trace_id/span_id.
+		log.WithContext(r.Context()).Debugf("[%s] Recv req: %s %s", traceStr, r.Method, r.URL.Path)
 	}
 	return r
 }
@@ -63,6 +66,8 @@ func loggerPre(w http.ResponseWriter, r *http.Request) *http.Request {
 // Logger wraps original handler and returns a handler that logs requests and responses separately
 // when they happen.
 // Logs contain the received or generated semi-random trace IDs to be able to correlate requests and responses.
+// When OTel tracing is active and a Logrus OTel hook is registered, each log entry will also carry
+// the trace_id and span_id fields, enabling full correlation with distributed traces.
 //
 //   - If path matches LivenessProbePath or HealthCheckPath then it does not log anything
 //     and responds with 200 OK without any further processing.
