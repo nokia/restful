@@ -160,14 +160,26 @@ func (c *Client) GetTransport() http.RoundTripper {
 	return c.nonTracedTransport
 }
 
-// SetTransport sets the underlying transport, wrapping it with OTEL if needed.
+// SetTransport sets the underlying transport, wrapping it with OTel and a
+// logging transport if needed.
+//
+// Transport wrapping order (outermost → innermost):
+//
+//	otelhttp.Transport → loggingTransport → actual transport
+//
+// loggingTransport sits inside the OTel wrapper so that by the time
+// RoundTrip is called the OTel client span is already active on the
+// context. This lets the logger read the real span ID without creating
+// any extra spans.
+//
 // It is not the same as setting client.Client.Transport directly.
 func (c *Client) SetTransport(transport http.RoundTripper) {
 	c.nonTracedTransport = transport
+	logT := &loggingTransport{wrapped: transport}
 	if isTraced && tracer.GetOTel() {
-		c.Client.Transport = otelhttp.NewTransport(c.nonTracedTransport)
+		c.Client.Transport = otelhttp.NewTransport(logT)
 	} else {
-		c.Client.Transport = c.nonTracedTransport
+		c.Client.Transport = logT
 	}
 }
 
@@ -494,6 +506,8 @@ func traceFromContextOrRequestOrRandom(req *http.Request) (trace tracedata.Trace
 
 // doSpan spans the context.
 // Note that this span is created only once, even if there are retries.
+// When OTel is active the real span is managed by otelhttp / loggingTransport;
+// doSpan is only used for legacy (non-OTel) correlation IDs.
 func doSpan(req *http.Request) (*http.Request, string, func()) {
 	trace := traceFromContextOrRequestOrRandom(req)
 
@@ -655,9 +669,11 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 
+	// doSpan propagates trace headers and spans for legacy / non-OTel paths.
+	// When OTel is active, loggingTransport picks up the real span IDs instead.
 	req, spanStr, spanEndFunc := doSpan(req)
 
-	resp, err := c.doLog(spanStr, req, targetForLog)
+	resp, err := c.doWithRetry(req, spanStr, targetForLog)
 
 	resp, err = c.doMonitorPost(req, resp, err)
 
@@ -671,8 +687,6 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 func (c *Client) doWithRetry(req *http.Request, spanStr, targetForLog string) (*http.Response, error) {
 	originalHost := req.URL.Hostname()
 	targetForLog = c.setLoadBalanceTarget(req, targetForLog, originalHost)
-
-	log.Debugf("[%s] Sent req: %s %s", spanStr, req.Method, targetForLog)
 
 	clonedBody := c.cloneBody(req)
 	resp, err := c.do(req)
@@ -688,20 +702,10 @@ func (c *Client) doWithRetry(req *http.Request, spanStr, targetForLog string) (*
 		clonedBody = c.cloneBody(req)
 
 		time.Sleep(c.calcBackoff(retries))
-		log.Debugf("[%s] Send rty(%d): %s %s: err=%v", spanStr, retries, req.Method, targetForLog, err)
+		log.WithContext(req.Context()).Debugf("[%s] Send rty(%d): %s %s: err=%v", spanStr, retries, req.Method, targetForLog, err)
 		resp, err = c.do(req)
 	}
 
-	return resp, err
-}
-
-func (c *Client) doLog(spanStr string, req *http.Request, targetForLog string) (*http.Response, error) {
-	resp, err := c.doWithRetry(req, spanStr, targetForLog)
-	if err != nil {
-		log.Debugf("[%s] Fail req: %s %s", spanStr, req.Method, targetForLog)
-	} else {
-		log.Debugf("[%s] Recv rsp: %s", spanStr, resp.Status)
-	}
 	return resp, err
 }
 
