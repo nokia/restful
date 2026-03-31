@@ -121,7 +121,7 @@ func TestClientCertificateRevoked(t *testing.T) {
 		//FileExistTimeout: time.Minute,
 	}
 	c := NewClient().Root(srv.URL).TLSRootCerts("test_certs", false).TLSOwnCerts("test_certs").CRL(opt)
-	c.Client.Transport.(*http.Transport).DisableKeepAlives = true
+	c.GetTransport().(*http.Transport).DisableKeepAlives = true
 	err = c.Get(context.Background(), "/NEF", nil)
 	assert.NoError(err) // file doesn't exist yet. it will next time
 	copyFile("test_certs/ca.crl", "test_certs/ca_new.crl", t)
