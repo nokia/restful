@@ -200,15 +200,16 @@ func verifyPeerCert(crl *crl) func([][]byte, [][]*x509.Certificate) error {
 		if crl == nil {
 			return nil
 		}
+
+		crl.mu.RLock()
+		defer crl.mu.RUnlock()
+
 		if crl.strictCheck && crl.nextUpdate.Before(time.Now()) {
 			return ErrRevocationListOutOfDate
 		}
 
 		// Parse leaf certificate
 		leaf := verifiedChains[0][0]
-
-		crl.mu.RLock()
-		defer crl.mu.RUnlock()
 
 		if len(crl.serials) > 0 {
 
