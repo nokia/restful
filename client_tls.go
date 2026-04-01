@@ -38,7 +38,7 @@ func (c *Client) TLS(tlsConfig *tls.Config) *Client {
 // Errors are delivered through *errChan*
 func (c *Client) CRL(o CRLOptions) *Client {
 	setCRL(c, o)
-	c.haveTLSClientConfig().VerifyPeerCertificate = verifyPeerCert(c.crl)
+	c.haveTLSClientConfig().VerifyPeerCertificate = verifyPeerCert(c.crl) // #nosec G123: CRL should be set before dialing.
 	return c
 }
 

@@ -14,8 +14,9 @@ import (
 )
 
 // LambdaMaxBytesToParse defines the maximum length of the request content allowed to be parsed.
-// If zero then no limits imposed.
-var LambdaMaxBytesToParse = 0
+// If zero then no limits imposed. Default is 64MB, which is awfully large.
+// You may want to set it to a smaller value, such as 4KiB, to prevent DoS attacks.
+var LambdaMaxBytesToParse = 64 * 1024 * 1024
 
 // LambdaSanitizeJSON defines whether to sanitize JSON of Lambda return or SendResp.
 // See SanitizeJSONString for details.

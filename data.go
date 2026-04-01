@@ -167,7 +167,7 @@ func GetRequestData(req *http.Request, maxBytes int, data any) error {
 		}
 		return formDecoder.Decode(data, req.PostForm)
 	case ContentTypeMultipartForm:
-		if err := req.ParseMultipartForm(int64(maxBytes)); err != nil {
+		if err := req.ParseMultipartForm(int64(maxBytes)); err != nil { // #nosec G120: use maxBytes parameter
 			return NewError(err, http.StatusNotAcceptable, "Bad form")
 		}
 		return formDecoder.Decode(data, req.PostForm)
