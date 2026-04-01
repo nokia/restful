@@ -49,6 +49,7 @@ func TestRandom(t *testing.T) {
 	trace := NewRandom()
 	assert.False(trace.IsReceived())
 	assert.Len(trace.TraceID(), 32)
+	assert.Len(trace.SpanID(), 16)
 }
 
 func TestEmpty(t *testing.T) {

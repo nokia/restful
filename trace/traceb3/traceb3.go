@@ -107,7 +107,7 @@ func NewRandom() *TraceB3 {
 }
 
 func newTraceB3WithID(traceID string, debug bool) *TraceB3 {
-	b3 := TraceB3{traceID: traceID, singleLine: true, random: true}
+	b3 := TraceB3{traceID: traceID, spanID: tracecommon.NewSpanID(), singleLine: true, random: true}
 	if debug {
 		b3.sampled = "d"
 	}
