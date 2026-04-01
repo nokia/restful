@@ -3,7 +3,12 @@ MAXIMUM_COMPLEXITY=15
 
 GO_VER?=latest
 DOCKER:=$(shell if which podman >/dev/null; then echo podman; else echo docker; fi)
-RUN:=$(DOCKER) run -it --rm -w $(CURDIR) -v $(CURDIR):$(CURDIR):Z gotools:$(GO_VER)
+
+ifeq ($(CI),true)
+RUN:=$(DOCKER) run --rm -w $(CURDIR) -v $(CURDIR):$(CURDIR) gotools:$(GO_VER)
+else
+RUN:=$(DOCKER) run --rm -w $(CURDIR) -v $(CURDIR):$(CURDIR):Z gotools:$(GO_VER)
+endif
 COV=/tmp/test.out
 
 .PHONY: all

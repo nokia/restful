@@ -1,0 +1,21 @@
+# Runs the same checks as `make all` (gotools image + test + lint).
+name: CI
+
+on:
+  push:
+    paths-ignore:
+      - "doc/**"
+  pull_request:
+    paths-ignore:
+      - "doc/**"
+
+jobs:
+  all:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: make all (gotools image + test + lint)
+        env:
+          CI: true
+        run: make all
