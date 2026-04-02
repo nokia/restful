@@ -23,7 +23,7 @@ func TestSendResponse(t *testing.T) {
 		w.Header().Set("Location", "https://me/path")
 		var a structType
 		a.Str = "hello"
-		SendJSONResponse(w, 201, &a, true)
+		SendJSONResponse(w, 201, &a)
 	})))
 	defer srv.Close()
 

@@ -18,11 +18,6 @@ import (
 // You may want to set it to a smaller value, such as 4KiB, to prevent DoS attacks.
 var LambdaMaxBytesToParse = 64 * 1024 * 1024
 
-// LambdaSanitizeJSON defines whether to sanitize JSON of Lambda return or SendResp.
-// See SanitizeJSONString for details.
-// Deprecated.
-var LambdaSanitizeJSON = false
-
 // LambdaValidator tells if incoming request is to be validated.
 // Validation is done by https://github.com/go-playground/validator.
 // See its documentation for details.
