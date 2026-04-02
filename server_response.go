@@ -13,7 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func getJSONBody(data any, sanitizeJSON bool) ([]byte, error) {
+func getJSONBody(data any) ([]byte, error) {
 	if data == nil {
 		return nil, nil // Otherwise "null" (4 bytes) would be returned.
 	}
@@ -22,20 +22,17 @@ func getJSONBody(data any, sanitizeJSON bool) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if sanitizeJSON {
-		body = SanitizeJSONBytes(body)
-		if len(body) == 2 && body[0] == '{' && body[1] == '}' {
-			return nil, nil
-		}
-	}
 
 	return body, nil
 }
 
-// SendJSONResponse sends an HTTP response with an optionally sanitized JSON data.
+// SendJSONResponse sends an HTTP response with a JSON data.
 // Caller may set additional headers like `w.Header().Set("Location", "https://me")` before calling this function.
-func SendJSONResponse(w http.ResponseWriter, statusCode int, data any, sanitizeJSON bool) (err error) {
-	body, err := getJSONBody(data, sanitizeJSON)
+//
+// Warning: The last boolean parameter is ignored. It is there for temporary backward compatibility only.
+// It will be removed in the near-future.
+func SendJSONResponse(w http.ResponseWriter, statusCode int, data any, _ ...bool) (err error) {
+	body, err := getJSONBody(data)
 	if body != nil {
 		w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
 		w.WriteHeader(statusCode)
@@ -46,7 +43,7 @@ func SendJSONResponse(w http.ResponseWriter, statusCode int, data any, sanitizeJ
 	return err
 }
 
-func sendResponse(w http.ResponseWriter, r *http.Request, data any, sanitizeJSON bool) (err error) {
+func sendResponse(w http.ResponseWriter, r *http.Request, data any) (err error) {
 	okStatus := getOkStatus(w, r, data)
 
 	if data == nil {
@@ -74,13 +71,16 @@ func sendResponse(w http.ResponseWriter, r *http.Request, data any, sanitizeJSON
 		return err
 	}
 
-	return SendJSONResponse(w, okStatus, data, sanitizeJSON)
+	return SendJSONResponse(w, okStatus, data)
 }
 
 // SendResponse sends an HTTP response with a JSON data.
 // Caller may set additional headers like `w.Header().Set("Location", "https://me")` before calling this function.
+//
+// Same as SendJSONResponse. It will be removed in the near-future.
+// Deprecated.
 func SendResponse(w http.ResponseWriter, statusCode int, data any) error {
-	return SendJSONResponse(w, statusCode, data, false)
+	return SendJSONResponse(w, statusCode, data)
 }
 
 func getOkStatus(w http.ResponseWriter, r *http.Request, data any) int {
@@ -95,19 +95,19 @@ func getOkStatus(w http.ResponseWriter, r *http.Request, data any) int {
 }
 
 // SendResp sends an HTTP response with data.
-// On no error 200/201/204 sent according to the request.
-// On error send response depending on whether the error is created by NewError and the client supports RFC 7807.
+// If the supplied err is nil, 200/201/204 is sent according to the request and if response data is supplied.
+// If err is not nil, a response is sent depending on whether the supplied error is created by NewError and the client supports RFC 7807.
 // Caller may set additional headers like `w.Header().Set("Location", "https://me")` before calling this function.
 func SendResp(w http.ResponseWriter, r *http.Request, err error, data any) error {
 	if err == nil {
-		return sendResponse(w, r, data, LambdaSanitizeJSON)
+		return sendResponse(w, r, data)
 	}
 
 	if errStr := err.Error(); errStr != "" { // In some cases status like 404 does not indicate error, just a plain result. E.g. on a distributed cache query.
 		log.Error(errStr)
 	}
 
-	body, _ := getJSONBody(data, LambdaSanitizeJSON)
+	body, _ := getJSONBody(data)
 	if body == nil {
 		return SendProblemDetails(w, r, err)
 	}
@@ -124,6 +124,11 @@ func SendEmptyResponse(w http.ResponseWriter, statusCode int) {
 }
 
 // SendLocationResponse sends an empty "201 Created" HTTP response with Location header.
+//
+// Looking at the APIs of various bodies, it seems that 201 Created responses usually send back the JSON description of the created resource.
+// So, this function is practically never used. Thus, it will be removed in the near-future.
+// One can use SendEmptyResponse instead.
+// Deprecated.
 func SendLocationResponse(w http.ResponseWriter, location string) {
 	w.Header().Set("Location", location)
 	SendEmptyResponse(w, http.StatusCreated)
@@ -201,7 +206,7 @@ func sendCustomResponse(r *http.Request, w http.ResponseWriter, body []byte, sta
 	return nil
 }
 
-// SendProblemDetails adds detailed problem description to JSON body, if available. See RFC 7807.
+// SendProblemDetails sends a response adding detailed problem description to JSON body, if available. See RFC 7807.
 func SendProblemDetails(w http.ResponseWriter, r *http.Request, err error) error {
 	if restErr, ok := err.(*restError); ok {
 		if len(restErr.body) != 0 {

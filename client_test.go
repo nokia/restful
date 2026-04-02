@@ -33,14 +33,14 @@ type strType struct {
 
 type innerStruct struct {
 	String string            `json:"string,omitempty"`
-	Array  []byte            `json:"array"`
-	Map    map[string]string `json:"map"`
+	Array  []byte            `json:"array,omitempty"`
+	Map    map[string]string `json:"map,omitempty"`
 	Number int               `json:"number,omitempty"`
 }
 
 type structType struct {
-	Str    string      `json:"str,omitempty"`
-	Struct innerStruct `json:"struct"`
+	Str    string       `json:"str,omitempty"`
+	Struct *innerStruct `json:"struct,omitempty"`
 }
 
 func testMsgPackDiscoveryAccepted(t testing.TB, iters int) {
@@ -68,7 +68,7 @@ func testMsgPackDiscoveryAccepted(t testing.TB, iters int) {
 		assert.True(acceptsMsgPack(r))
 
 		// Answer
-		sendResponse(w, r, data, false)
+		sendResponse(w, r, data)
 		requestCount++
 	}))
 	defer srv.Close()
@@ -76,8 +76,8 @@ func testMsgPackDiscoveryAccepted(t testing.TB, iters int) {
 	respData := structType{}
 	ctx := context.Background()
 	client := NewClient().Root(srv.URL).MsgPack(true)
-	reqData1 := structType{Str: "a", Struct: innerStruct{Number: 1, Array: []byte{1, 2, 3}}}
-	reqData2 := structType{Str: "b", Struct: innerStruct{Number: 2, Array: []byte{4, 5, 6}}}
+	reqData1 := structType{Str: "a", Struct: &innerStruct{Number: 1, Array: []byte{1, 2, 3}}}
+	reqData2 := structType{Str: "b", Struct: &innerStruct{Number: 2, Array: []byte{4, 5, 6}}}
 
 	for i := 0; i < iters; i++ {
 		_, err := client.Post(ctx, "/", &reqData1, &respData)
@@ -122,7 +122,7 @@ func testMsgPackDiscoveryRejected(t testing.TB, iters int) {
 		}
 
 		// Answer
-		sendResponse(w, r, data, false)
+		sendResponse(w, r, data)
 		requestCount++
 	}))
 	defer srv.Close()
@@ -130,8 +130,8 @@ func testMsgPackDiscoveryRejected(t testing.TB, iters int) {
 	respData := structType{}
 	ctx := context.Background()
 	client := NewClient().Root(srv.URL).MsgPack(true)
-	reqData1 := structType{Str: "a", Struct: innerStruct{Number: 1, Array: []byte{1, 2, 3}}}
-	reqData2 := structType{Str: "b", Struct: innerStruct{Number: 2, Array: []byte{4, 5, 6}}}
+	reqData1 := structType{Str: "a", Struct: &innerStruct{Number: 1, Array: []byte{1, 2, 3}}}
+	reqData2 := structType{Str: "b", Struct: &innerStruct{Number: 2, Array: []byte{4, 5, 6}}}
 
 	for i := 0; i < iters; i++ {
 		_, err := client.Post(ctx, "/", &reqData1, &respData)
@@ -188,7 +188,7 @@ func TestMethods(t *testing.T) {
 	reqData := strType{Str: "b"}
 	respData := strType{}
 	ctx := context.Background()
-	client := NewClient().Root(srv.URL).SanitizeJSON().HTTPS(&HTTPSConfig{AllowLocalhostHTTP: true})
+	client := NewClient().Root(srv.URL).HTTPS(&HTTPSConfig{AllowLocalhostHTTP: true})
 	location, err := client.Post(ctx, "/users", &reqData, &respData)
 	assert.Nil(err)
 	locationStr := location.String()
@@ -414,7 +414,7 @@ func TestMethodsError(t *testing.T) {
 	reqData := strType{Str: "b"}
 	respData := strType{}
 	ctx := context.Background()
-	client := NewClient().Root(srv.URL).SanitizeJSON()
+	client := NewClient().Root(srv.URL)
 	client.SetMaxBytesToParse(100000)
 	location, err := client.Post(ctx, "/users", &reqData, &respData)
 	assert.NotNil(err)

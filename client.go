@@ -125,7 +125,6 @@ type Client struct {
 	// Changing its value does not change client kind.
 	Kind              string
 	httpsCfg          *HTTPSConfig
-	sanitizeJSON      bool
 	rootURL           string
 	userAgent         string
 	username          string
@@ -402,14 +401,6 @@ func (c *Client) Retry(retries int, backoffInit time.Duration, backoffMax time.D
 // However, Timeout specified here applies to a single attempt, i.e. if Retry is used, then applies to each attempt separately, while context applies to all attempts together.
 func (c *Client) Timeout(timeout time.Duration) *Client {
 	c.Client.Timeout = timeout
-	return c
-}
-
-// SanitizeJSON enables JSON sanitization.
-// See details at SanitizeJSONString.
-// Deprecated.
-func (c *Client) SanitizeJSON() *Client {
-	c.sanitizeJSON = true
 	return c
 }
 
@@ -767,9 +758,6 @@ func (c *Client) makeBodyBytes(data any) ([]byte, error) {
 		return nil, err
 	}
 
-	if c.sanitizeJSON {
-		body = SanitizeJSONBytes(body)
-	}
 	if len(body) <= len("{}") {
 		return nil, nil
 	}
