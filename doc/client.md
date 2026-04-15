@@ -104,6 +104,21 @@ client.TLSOwnCerts("/etc/own_tls")
 Any update (e.g., cert-manager.io) will not affect that client.
 You may restart your app, e.g. issue `kubectl rollout restart deploy xxx` when using K8s.
 
+### OAuth2
+
+Restful client uses [Golang's oauth2 package](https://github.com/golang/oauth2). That creates its own client to obtain the necessary access token for the request you want to make.
+
+```go
+client := restful.NewClient().SetOauth2Conf(oauth2.Config{...}, nil /*optional client*/)
+_, err := client.Post(ctx, "https://api.example.com", &reqData, &respData)
+```
+
+Client Credentials grant example:
+
+```go
+client := restful.NewClient().SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "https://as.example.com/auth"}}, nil)
+```
+
 ## MessagePack
 
 MessagePack is substantially cheaper to parse compared to JSON.
