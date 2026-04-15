@@ -22,7 +22,12 @@ type structType struct {
 
 var src = structType{Str: "hello", Struct: innerStruct{Number: 1, Array: []byte{1, 2, 3}}}
 
-const parallelIters = 1000
+const (
+	// The constants are tweaked to simulate workloads with not very high parallel Marshal/Unmarshal operations,
+	// but a lot of times. That may reflect on buffer reuse techniques.
+	parallelIters   = 10
+	sequentialIters = 1000
+)
 
 func Test_MsgPack(t *testing.T) {
 	bytes, err := Marshal(&src)
@@ -33,15 +38,17 @@ func Test_MsgPack(t *testing.T) {
 	assert.Equal(t, src, dst)
 }
 
-func Benchmark_MsgPack_Parallel(b *testing.B) {
+func Benchmark_MsgPack(b *testing.B) {
 	var wg sync.WaitGroup
 	wg.Add(parallelIters)
 
-	for i := 0; i < parallelIters; i++ {
+	for range parallelIters {
 		go func() {
-			bytes, _ := Marshal(&src)
-			var dst structType
-			Unmarshal(bytes, &dst)
+			for range sequentialIters {
+				bytes, _ := Marshal(&src)
+				var dst structType
+				Unmarshal(bytes, &dst)
+			}
 			wg.Done()
 		}()
 	}
@@ -53,11 +60,13 @@ func Benchmark_Json(b *testing.B) {
 	var wg sync.WaitGroup
 	wg.Add(parallelIters)
 
-	for i := 0; i < parallelIters; i++ {
+	for range parallelIters {
 		go func() {
-			bytes, _ := json.Marshal(&src)
-			var dst structType
-			json.Unmarshal(bytes, &dst)
+			for range sequentialIters {
+				bytes, _ := json.Marshal(&src)
+				var dst structType
+				json.Unmarshal(bytes, &dst)
+			}
 			wg.Done()
 		}()
 	}
