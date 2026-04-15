@@ -4,13 +4,14 @@
 
 package messagepack
 
-/* Provides Marshal/Unmarshal similar to msgpack's own. The major difference is that it uses `json` tags. */
+/* Provides Marshal/Unmarshal similar to msgpack's own.
+ * The major difference is that it uses `json` tags, while msgpack.Marshal resets the tags to be used right away. */
 
 import (
 	"bytes"
 	"io"
 
-	"github.com/vmihailenco/msgpack/v5"
+	"github.com/Basekick-Labs/msgpack/v6"
 )
 
 func resetEncoder(enc *msgpack.Encoder, w io.Writer) {

@@ -120,7 +120,7 @@ C->>S: PUT: CT:application/msgpack, Accept:application/msgpack,application/json,
 S->>C: 200: CT=application/msgpack, body=msgpack
 ```
 
-Warning! MessagePack (msgpack) is EXPERIMENTAL. As does not seem to deliver the anticipated performance boost, it is DEPRECATED. It will be removed in the near-future.
+Warning! MessagePack (msgpack) is EXPERIMENTAL. It may be removed at any point.
 
 ## Broadcast goodies
 
