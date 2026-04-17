@@ -14,6 +14,9 @@ import (
 	"time"
 )
 
+// defaultCRLHTTPTimeout bounds a single CRL HTTP(S) fetch when CRLOptions.Ctx has no deadline.
+const defaultCRLHTTPTimeout = 90 * time.Second
+
 type crl struct {
 	mu          sync.RWMutex
 	serials     map[string]struct{}
@@ -67,7 +70,7 @@ func setCRL(x clientOrServer, o CRLOptions) {
 	}
 	fileExistDeadline := time.Now().Add(o.FileExistTimeout)
 	// initial read
-	crl, nextUpdate, lastModification, err := readCRL(o.CRLLocation, fileExistDeadline, time.Time{}, time.Time{})
+	crl, nextUpdate, lastModification, err := readCRL(o.Ctx, o.CRLLocation, fileExistDeadline, time.Time{}, time.Time{})
 
 	if err == nil {
 		x.setCRL(crl, nextUpdate, o.StrictValityCheck)
@@ -84,7 +87,7 @@ func setCRL(x clientOrServer, o CRLOptions) {
 		for {
 			select {
 			case <-ticker.C:
-				crl, nextUpdate, lastModification, err = readCRL(o.CRLLocation, fileExistDeadline, nextUpdate, lastModification)
+				crl, nextUpdate, lastModification, err = readCRL(o.Ctx, o.CRLLocation, fileExistDeadline, nextUpdate, lastModification)
 				if err == nil && !lastModification.IsZero() {
 					x.setCRL(crl, nextUpdate, o.StrictValityCheck)
 				}
@@ -104,8 +107,8 @@ func setCRL(x clientOrServer, o CRLOptions) {
 // It can send an error or nil the provided status channel when the status potentially changes.
 // Will not send error if the file at the provided path doesn't exist before the provided deadline.
 // If CRLLocation is a file, it is not re-read until it's last modification date is after lastKnownFileDate.
-func readCRL(location string, deadline, nextUpdate, lastModified time.Time) (map[string]struct{}, time.Time, time.Time, error) {
-	crlBytes, newLastModified, err := getCRLBody(location, lastModified)
+func readCRL(ctx context.Context, location string, deadline, nextUpdate, lastModified time.Time) (map[string]struct{}, time.Time, time.Time, error) {
+	crlBytes, newLastModified, err := getCRLBody(ctx, location, lastModified)
 	if err != nil {
 		if time.Now().Before(deadline) && errors.Is(err, os.ErrNotExist) {
 			return nil, time.Time{}, time.Time{}, nil
@@ -150,31 +153,65 @@ func checkNextUpdate(nextUpdate time.Time) error {
 	return nil
 }
 
+func isHTTPDistributionPoint(location string) bool {
+	loc := strings.TrimSpace(location)
+	low := strings.ToLower(loc)
+	return strings.HasPrefix(low, "http://") || strings.HasPrefix(low, "https://")
+}
+
+func contextWithOptionalHTTPTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, defaultCRLHTTPTimeout)
+}
+
+// fetchCRLHTTP performs one GET, honoring ctx and always closing the response body.
+func fetchCRLHTTP(ctx context.Context, uri string) ([]byte, error) {
+	reqCtx, cancel := contextWithOptionalHTTPTimeout(ctx)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, uri, nil) // #nosec G107 - URI from CRL distribution point config
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return nil, fmt.Errorf("unexpected HTTP status %d", resp.StatusCode)
+	}
+	return io.ReadAll(resp.Body)
+}
+
 // getCRLbody returns the body and last modification time of the new CRL file,
 // or nothing, if the file has not been modified since the given timestamp.
 // If location is an URL, it will return the current time.
-func getCRLBody(location string, lastModified time.Time) ([]byte, time.Time, error) {
+func getCRLBody(ctx context.Context, location string, lastModified time.Time) ([]byte, time.Time, error) {
 	var crlBytes []byte
 	var err error
-	if strings.HasPrefix(location, "http://") {
+	if isHTTPDistributionPoint(location) {
 		crlURIs := strings.Split(location, ",")
-		var resp *http.Response
-
-		for _, uri := range crlURIs {
-			uri = strings.Trim(uri, " ")
-			resp, err = http.Get(uri) // #nosec G107 - HTTP request made with variable uri
-			if err != nil {
+		var lastErr error
+		for _, rawURI := range crlURIs {
+			uri := strings.TrimSpace(rawURI)
+			if uri == "" || !isHTTPDistributionPoint(uri) {
 				continue
 			}
+			crlBytes, err = fetchCRLHTTP(ctx, uri)
+			if err == nil {
+				return crlBytes, time.Now(), nil
+			}
+			lastErr = err
 		}
-		if err != nil {
-			return nil, time.Time{}, fmt.Errorf("%w: couldn't download CRL: %s", ErrRevocationListReadError, err)
+		if lastErr == nil {
+			lastErr = errors.New("no fetchable http(s) CRL URI in list")
 		}
-		crlBytes, err = io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, time.Time{}, fmt.Errorf("%w: couldn't read CRL body: %s", ErrRevocationListReadError, err)
-		}
-		return crlBytes, time.Now(), nil
+		return nil, time.Time{}, fmt.Errorf("%w: couldn't download CRL: %s", ErrRevocationListReadError, lastErr)
 	}
 	info, err := os.Stat(location)
 	if err != nil {
