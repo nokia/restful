@@ -44,6 +44,7 @@ type CRLOptions struct {
 	Ctx context.Context
 
 	// CRLLocation is the file name or comma-separated HTTP distribution point URI list where the revocation list shall be from
+	// The first successfully fetched valid CRL list will be used.
 	CRLLocation string
 
 	// ReadInterval is the time interval the CRL information is retrieved from the distribution list or re-read from the file
@@ -197,6 +198,7 @@ func getCRLBody(ctx context.Context, location string, lastModified time.Time) ([
 	if isHTTPDistributionPoint(location) {
 		crlURIs := strings.Split(location, ",")
 		var lastErr error
+		// retrieve from first valid CRL URI
 		for _, rawURI := range crlURIs {
 			uri := strings.TrimSpace(rawURI)
 			if uri == "" || !isHTTPDistributionPoint(uri) {
