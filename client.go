@@ -51,23 +51,21 @@ const (
 	KindH2C   = "h2c"
 )
 
-// Grant represents the flow how oauth2 access tokens are retrieved.
-type Grant string
+// Grant represents the flow how OAuth2 access tokens are retrieved.
+type Grant int
 
 const (
-	// GrantClientCredentials represents oauth2 client credentials grant
-	GrantClientCredentials Grant = "client_credentials"
-	// GrantRefreshToken represents oauth2 refresh token grant
-	GrantRefreshToken Grant = "refresh_token"
-	// GrantPasswordCredentials represents oauth2 password credentials grant
-	GrantPasswordCredentials Grant = "password"
-)
+	// GrantPasswordCredentials represents OAuth2 Password Credentials Grant
+	// See https://tools.ietf.org/html/rfc6749#section-4.3 for details.
+	GrantPasswordCredentials Grant = iota
 
-var supportedGrant = map[Grant]bool{
-	GrantClientCredentials:   true,
-	GrantPasswordCredentials: true,
-	GrantRefreshToken:        true,
-}
+	// GrantClientCredentials represents OAuth2 Client Credentials Grant
+	// See https://tools.ietf.org/html/rfc6749#section-4.4 for details.
+	GrantClientCredentials
+
+	// grantInvalid is the last item here, not exported.
+	grantInvalid
+)
 
 var (
 	netInterfaces     = net.Interfaces
@@ -414,6 +412,22 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 	return c
 }
 
+func (c *Client) determineGrant(config oauth2.Config, grant ...Grant) Grant {
+	if len(grant) > 0 && grant[0] < grantInvalid {
+		return grant[0]
+	}
+
+	if config.ClientID != "" && config.ClientSecret != "" {
+		return GrantClientCredentials
+	}
+
+	if c.username != "" && c.password != "" {
+		return GrantPasswordCredentials
+	}
+
+	return grantInvalid
+}
+
 // SetOauth2Conf initializes OAuth2 configuration with given grant.
 // Depending on specific setup, custom http.Client can be added to obtain access tokens.
 // Either on first request to be sent or later when the obtained access token is expired.
@@ -421,6 +435,19 @@ func (c *Client) SetBasicAuth(username, password string) *Client {
 // Make sure encrypted transport is used, e.g. the link is https.
 // If client's HTTPS() has been called earlier, then token URL is checked accordingly.
 // If token URL does not meet those requirements, then client credentials auth is not activated and error log is printed.
+//
+// Grant type is optional. But it is better setting that explicitly.
+// If on the token request a refresh token is returned, then refresh token grant will be applied when needed.
+//
+//   - For Client Credentials flow fill the config with the appropriate parameters.
+//   - For Password Credentials flow call SetBasicAuth() with the username and password, and then call this function with the URLs.
+//
+// Example:
+//
+//	client := restful.NewClient().SetOauth2Conf(oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: "https://as.example.com/token"}}, nil, restful.GrantPasswordCredentials)
+//	client.SetBasicAuth("username", "password")
+//
+//	client := restful.NewClient().SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "https://as.example.com/token"}}, nil, restful.GrantClientCredentials)
 func (c *Client) SetOauth2Conf(config oauth2.Config, tokenClient *http.Client, grant ...Grant) *Client {
 	if c.httpsCfg != nil {
 		tokenURL, err := url.Parse(config.Endpoint.TokenURL)
@@ -433,11 +460,9 @@ func (c *Client) SetOauth2Conf(config oauth2.Config, tokenClient *http.Client, g
 			log.Error("token URL is not valid: ", err)
 		}
 	}
-	if len(grant) > 0 {
-		if supportedGrant[grant[0]] {
-			c.oauth2.grantType = grant[0]
-		}
-	}
+
+	c.oauth2.grantType = c.determineGrant(config, grant...)
+
 	c.oauth2.config = &config
 	if c.oauth2.client == nil {
 		if tokenClient != nil {
@@ -561,16 +586,16 @@ func (c *Client) obtainOauth2Token(ctx context.Context) error {
 		var err error
 		switch c.oauth2.grantType {
 		case GrantPasswordCredentials:
-			token, err = c.oauth2.config.PasswordCredentialsToken(ctx, c.username, c.password)
-		case GrantRefreshToken:
 			if c.oauth2.token.RefreshToken == "" {
 				token, err = c.oauth2.config.PasswordCredentialsToken(ctx, c.username, c.password)
-				break
+			} else {
+				token, err = c.oauth2.config.TokenSource(oauthCtx, &c.oauth2.token).Token()
 			}
-			token, err = c.oauth2.config.TokenSource(oauthCtx, &c.oauth2.token).Token()
-		default:
+		case GrantClientCredentials:
 			conf := clientcredentials.Config{ClientID: c.oauth2.config.ClientID, ClientSecret: c.oauth2.config.ClientSecret, TokenURL: c.oauth2.config.Endpoint.TokenURL, Scopes: c.oauth2.config.Scopes}
 			token, err = conf.TokenSource(oauthCtx).Token()
+		default:
+			return ErrUnknownGrantType
 		}
 		if err != nil {
 			log.Error(err)
