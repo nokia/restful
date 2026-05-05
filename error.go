@@ -19,6 +19,9 @@ var (
 	// ErrNonHTTPSURL means that using non-https URL not allowed.
 	ErrNonHTTPSURL = errors.New("non-https URL not allowed")
 
+	// ErrUnknownGrantType is returned if the grant type is unknown.
+	ErrUnknownGrantType = errors.New("unknown grant type")
+
 	// ErrUnexpectedContentType is returned if content-type is unexpected.
 	// It may be wrapped, so use errors.Is() for checking.
 	ErrUnexpectedContentType = errors.New("unexpected Content-Type")

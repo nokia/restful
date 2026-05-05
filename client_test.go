@@ -714,11 +714,10 @@ func TestOauth2AccessTokenReqs(t *testing.T) {
 	ctx := context.Background()
 	req, _ := http.NewRequest("GET", "http://127.0.0.1", nil)
 
-	// Test client with invalid grant, defaulting to client credentials
-	client := NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"127.0.0.1"}}).SetOauth2Conf(oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}}, nil, "garbage")
+	// Test client with invalid grant and no guessable grant from the other params
+	client := NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"127.0.0.1"}}).SetOauth2Conf(oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}}, nil, 7)
 	err := client.setOauth2Auth(ctx, req)
-	assert.NoError(t, err)
-	assert.Equal(t, client.oauth2.token.AccessToken, accessToken)
+	assert.Error(t, err)
 
 	// Test client with password credentials grant
 	client = NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"127.0.0.1"}}).SetOauth2Conf(oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}}, nil, GrantPasswordCredentials)
@@ -731,7 +730,7 @@ func TestOauth2AccessTokenReqs(t *testing.T) {
 	req.Header.Del("Authorization")
 
 	// Test client with refresh token grant
-	client = NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"127.0.0.1"}}).SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}, Scopes: []string{"openid", "profile"}}, nil, GrantRefreshToken)
+	client = NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"127.0.0.1"}}).SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}, Scopes: []string{"openid", "profile"}}, nil, GrantPasswordCredentials)
 	assert.Equal(t, len(client.oauth2.config.Scopes), 2)
 	client.SetBasicAuth("user", "pass")
 	assert.Equal(t, client.oauth2.token.RefreshToken, "")
