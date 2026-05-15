@@ -22,8 +22,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"golang.org/x/oauth2"
 )
 
@@ -251,6 +249,30 @@ func TestHttpNotAllowed(t *testing.T) {
 	assert.Equal(ErrNonHTTPSURL, NewClient().HTTPS(&HTTPSConfig{}).Root("http://localhost").Get(context.Background(), "/", nil))
 	assert.Equal(ErrNonHTTPSURL, NewClient().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{"remote"}}).Root("http://localhost").Get(context.Background(), "/", nil))
 	assert.Equal(ErrNonHTTPSURL, NewClient().HTTPS(&HTTPSConfig{AllowLocalhostHTTP: true}).Root("http://remote").Get(context.Background(), "/", nil))
+}
+
+func urlParse(s string) *url.URL {
+	url, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return url
+}
+
+func TestIsAllowedPrivateNetwork(t *testing.T) {
+	assert := assert.New(t)
+	{
+		hc := &HTTPSConfig{AllowPrivateHTTP: true}
+		assert.True(hc.isAllowed(urlParse("http://192.168.1.1")))
+		assert.True(hc.isAllowed(urlParse("http://10.0.0.1")))
+		assert.True(hc.isAllowed(urlParse("http://172.16.0.1")))
+	}
+	{
+		hc := &HTTPSConfig{AllowPrivateHTTP: false}
+		assert.False(hc.isAllowed(urlParse("http://192.168.1.1")))
+		assert.False(hc.isAllowed(urlParse("http://10.0.0.1")))
+		assert.False(hc.isAllowed(urlParse("http://172.16.0.1")))
+	}
 }
 
 func TestGetTooLongAnswer(t *testing.T) {
@@ -874,12 +896,15 @@ func TestCientInterface(t *testing.T) {
 }
 
 func startH2Server(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
+	protocols := http.Protocols{}
+	protocols.SetHTTP2(true)
 	server := &http.Server{
 		Addr:    "localhost:8443",
 		Handler: mux,
 		TLSConfig: &tls.Config{
 			NextProtos: []string{"h2"},
 		},
+		Protocols: &protocols,
 	}
 
 	go func() {
@@ -892,9 +917,12 @@ func startH2Server(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
 }
 
 func startH2CServer(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
+	protocols := http.Protocols{}
+	protocols.SetUnencryptedHTTP2(true)
 	server := &http.Server{
-		Addr:    "localhost:8440",
-		Handler: h2c.NewHandler(mux, &http2.Server{}),
+		Addr:      "localhost:8440",
+		Handler:   mux,
+		Protocols: &protocols,
 	}
 
 	go func() {
