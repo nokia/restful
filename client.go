@@ -85,7 +85,12 @@ type HTTPSConfig struct {
 	AllowHTTP bool
 	// AllowLocalhostHTTP flag tells whether to allow cleartext HTTP transport for localhost connections.
 	// If AllowHttp is true, then that overrides this flag.
+	// Works for IP address targets and hostname "localhost" only.
 	AllowLocalhostHTTP bool
+	// AllowPrivateHTTP flag tells whether to allow cleartext HTTP transport for private network connections.
+	// If AllowHttp is true, then that overrides this flag.
+	// Works for IP address targets only.
+	AllowPrivateHTTP bool
 	// AllowedHTTPHosts lets hostnames defined which are allowed to be accessed by cleartext HTTP.
 	// If AllowHttp is true, then this setting is not considered.
 	AllowedHTTPHosts []string
@@ -101,7 +106,8 @@ func (hc *HTTPSConfig) isAllowed(target *url.URL) bool {
 		target.Scheme == "https" ||
 		hc.AllowHTTP ||
 		slices.Contains(hc.AllowedHTTPHosts, hostname) ||
-		(hc.AllowLocalhostHTTP && isLocalhost(hostname))
+		(hc.AllowLocalhostHTTP && isLocalhost(hostname)) ||
+		(hc.AllowPrivateHTTP && isPrivateNetwork(hostname))
 }
 
 type msgpackUsage int
@@ -725,10 +731,19 @@ func (c *Client) doWithRetry(req *http.Request, spanStr, targetForLog string) (*
 	return resp, err
 }
 
+func isPrivateNetwork(hostname string) bool {
+	ip := net.ParseIP(hostname)
+	if ip == nil { // Not IP address
+		return false
+	}
+	return ip.IsPrivate()
+}
+
 func isLocalhost(hostname string) bool {
 	ip := net.ParseIP(hostname)
 	if ip == nil { // Not IP address
-		return strings.ToLower(hostname) == "localhost"
+		hostname = strings.ToLower(hostname)
+		return hostname == "localhost" || hostname == "127.1"
 	}
 	return ip.IsLoopback()
 }
