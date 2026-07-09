@@ -208,7 +208,7 @@ func compileCached(pattern string) *regexp.Regexp {
 }
 
 func (r *Router) allowedMethodsForPath(path string) []string {
-	set := map[string]struct{}{}
+	allowed := make([]string, 0, 9)
 	_ = r.router.Walk(func(route *mux.Route, _ *mux.Router, _ []*mux.Route) error {
 		methods, err := route.GetMethods()
 		if err != nil || len(methods) == 0 {
@@ -219,18 +219,12 @@ func (r *Router) allowedMethodsForPath(path string) []string {
 			return nil
 		}
 		if compileCached(re).MatchString(path) {
-			for _, m := range methods {
-				set[m] = struct{}{}
-			}
+			allowed = append(allowed, methods...)
 		}
 		return nil
 	})
-	out := make([]string, 0, len(set))
-	for m := range set {
-		out = append(out, m)
-	}
-	sort.Strings(out)
-	return out
+	sort.Strings(allowed)
+	return slices.Compact(allowed)
 }
 
 func (r *Router) handleNoRouteMatch(w http.ResponseWriter, req *http.Request) {

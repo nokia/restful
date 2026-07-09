@@ -40,7 +40,11 @@ func loggerPost(w http.ResponseWriter, r *http.Request, statusCode int) {
 		if traceStr, ok := v.(string); ok {
 			// Use WithContext so that OTel Logrus hooks can enrich the log entry
 			// with trace_id and span_id fields automatically.
-			log.WithContext(r.Context()).Debugf("[%s] Sent rsp: %d", traceStr, statusCode)
+			if statusCode == 404 || statusCode == 405 { // 404/405 are client errors; log at error level for production visibility.
+				log.WithContext(r.Context()).Errorf("[%s] Sent rsp: %d %s %s", traceStr, statusCode, r.Method, r.URL.Path)
+			} else {
+				log.WithContext(r.Context()).Debugf("[%s] Sent rsp: %d", traceStr, statusCode)
+			}
 		}
 	}
 }
