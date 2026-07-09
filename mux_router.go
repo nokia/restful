@@ -6,6 +6,11 @@ package restful
 
 import (
 	"net/http"
+	"regexp"
+	"slices"
+	"sort"
+	"strings"
+	"sync"
 
 	"github.com/gorilla/mux"
 )
@@ -29,13 +34,21 @@ var (
 
 // Router routes requests to lambda functions.
 type Router struct {
-	router   *mux.Router
-	monitors monitors
+	router              *mux.Router
+	monitors            monitors
+	userNotFoundHandler http.Handler // optional caller-supplied handler for genuine 404s
 }
 
 // NewRouter creates new Router instance.
+// By default, requests whose path matches a registered route but whose HTTP method
+// does not receive 405 Method Not Allowed (with an Allow header) instead of 404.
 func NewRouter() *Router {
-	return &Router{router: mux.NewRouter()}
+	r := &Router{router: mux.NewRouter()}
+	// mux's NotFoundHandler/MethodNotAllowedHandler point at our dispatchers.
+	// These are NOT the same as r.userNotFoundHandler (the caller override).
+	r.router.NotFoundHandler = http.HandlerFunc(r.handleNoRouteMatch)
+	r.router.MethodNotAllowedHandler = http.HandlerFunc(r.handleMethodNotAllowed)
+	return r
 }
 
 // Monitor wraps handler function, creating a middleware in a safe and convenient fashion.
@@ -52,10 +65,19 @@ func (r *Router) DisallowUnknownFields() *Router {
 	return r.Monitor(disallowUnknownFieldsToCtx, nil)
 }
 
-// MethodNotAllowedHandler sets the handler invoked when a request matches a route path but not its HTTP method.
+// MethodNotAllowedHandler overrides the default handler invoked when a request matches a
+// route path but not its HTTP method. The default returns 405 with an Allow header.
 // Caution: if same path is set for multiple handlerfunction with different Methods, setting MethodNotAllowedHandler is not advised.
 func (r *Router) MethodNotAllowedHandler(handler http.Handler) *Router {
 	r.router.MethodNotAllowedHandler = handler
+	return r
+}
+
+// NotFoundHandler sets the handler invoked when no route matches the request path
+// (a genuine 404). If the path matches a route with a different method, 405 is
+// returned instead and this handler is NOT called.
+func (r *Router) NotFoundHandler(handler http.Handler) *Router {
+	r.userNotFoundHandler = handler
 	return r
 }
 
@@ -172,4 +194,65 @@ func (r *Router) ListenAndServeMTLS(addr, certFile, keyFile, clientCerts string,
 // ServeHTTP serves HTTP request with matching handler.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.router.ServeHTTP(w, req)
+}
+
+var pathRegexpCache sync.Map // map[string]*regexp.Regexp
+
+func compileCached(pattern string) *regexp.Regexp {
+	if cached, ok := pathRegexpCache.Load(pattern); ok {
+		return cached.(*regexp.Regexp)
+	}
+	re := regexp.MustCompile(pattern)
+	actual, _ := pathRegexpCache.LoadOrStore(pattern, re)
+	return actual.(*regexp.Regexp)
+}
+
+func (r *Router) allowedMethodsForPath(path string) []string {
+	set := map[string]struct{}{}
+	_ = r.router.Walk(func(route *mux.Route, _ *mux.Router, _ []*mux.Route) error {
+		methods, err := route.GetMethods()
+		if err != nil || len(methods) == 0 {
+			return nil
+		}
+		re, err := route.GetPathRegexp()
+		if err != nil {
+			return nil
+		}
+		if compileCached(re).MatchString(path) {
+			for _, m := range methods {
+				set[m] = struct{}{}
+			}
+		}
+		return nil
+	})
+	out := make([]string, 0, len(set))
+	for m := range set {
+		out = append(out, m)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (r *Router) handleNoRouteMatch(w http.ResponseWriter, req *http.Request) {
+	allowed := r.allowedMethodsForPath(req.URL.Path)
+	if len(allowed) > 0 && !slices.Contains(allowed, req.Method) {
+		write405(w, allowed)
+		return
+	}
+	if r.userNotFoundHandler != nil {
+		r.userNotFoundHandler.ServeHTTP(w, req)
+		return
+	}
+	http.NotFound(w, req)
+}
+
+func (r *Router) handleMethodNotAllowed(w http.ResponseWriter, req *http.Request) {
+	write405(w, r.allowedMethodsForPath(req.URL.Path))
+}
+
+func write405(w http.ResponseWriter, allowed []string) {
+	if len(allowed) > 0 {
+		w.Header().Set("Allow", strings.Join(allowed, ", "))
+	}
+	w.WriteHeader(http.StatusMethodNotAllowed)
 }

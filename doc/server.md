@@ -79,6 +79,25 @@ srv := restful.NewServer().Addr(":8443").Handler(handler).TLSServerCert("/etc/ow
 srv.ListenAndServe()
 ```
 
+## Method Not Allowed (405) and Not Found (404)
+
+`restful.NewRouter()` installs default handlers so that:
+
+- A request whose **path matches** a registered route but whose **HTTP method does not** receives **405 Method Not Allowed** with an RFC 7231 `Allow` header listing the permitted methods.
+- A request whose path does not match any route receives **404 Not Found**.
+
+This works even when routes are registered inside `PathPrefix(...).Subrouter()` groups, where gorilla/mux alone would return 404 for a wrong method.
+
+Override the genuine-404 handler with `NotFoundHandler(h)`. Override the method-mismatch handler with `MethodNotAllowedHandler(h)`; when set, the custom handler replaces the default 405 response (including the `Allow` header logic).
+
+```go
+r := restful.NewRouter()
+r.NotFoundHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+    restful.SendProblemResponse(w, req, http.StatusNotFound, "not found")
+}))
+r.HandleFunc("/items", listItems).Methods(http.MethodGet)
+```
+
 Mutual TLS is very similar, just client CAs are provided.
 Client CA can be a PEM file or a directory containing PEM files case-insensitively matching `*.crt` or `*.pem`.
 
