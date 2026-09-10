@@ -1,6 +1,6 @@
 module github.com/nokia/restful
 
-go 1.26.3
+go 1.27.0
 
 require (
 	github.com/go-playground/validator/v10 v10.30.4

@@ -19,8 +19,8 @@ import (
 )
 
 type strint struct {
-	S string
-	I int `json:"i" validate:"lt=1000"`
+	S string `json:"s"`
+	I int    `json:"i" validate:"lt=1000"`
 }
 
 func dupCtx(ctx context.Context, si strint) (strint, error) {
@@ -90,7 +90,7 @@ func TestNonContext(t *testing.T) {
 		r.ServeHTTP(rr, req)
 		respBody := rr.Body.String()
 		assert.Equal(200, rr.Code)
-		assert.Equal(`{"S":"ss","i":4}`, respBody)
+		assert.Equal(`{"s":"ss","i":4}`, respBody)
 	}
 	{ // Scalar bad method
 		req, err := http.NewRequest("GET", "/dup", bytes.NewReader(reqBody))
@@ -110,7 +110,7 @@ func TestNonContext(t *testing.T) {
 		r.ServeHTTP(rr, req)
 		respBody := rr.Body.String()
 		assert.Equal(200, rr.Code)
-		assert.Equal(`{"S":"ss","i":4}`, respBody)
+		assert.Equal(`{"s":"ss","i":4}`, respBody)
 	}
 	{ // Error
 		req, err := http.NewRequest("POST", "/err", bytes.NewReader(reqBody))
@@ -160,7 +160,7 @@ func TestContext(t *testing.T) {
 		assert.Equal("POST", rr.Header().Get("Request-method"))
 		assert.Contains(rr.Header().Get("Request-URL"), "/context/42?q=hello%20world")
 		assert.Equal("42", rr.Header().Get("Request-path-id"))
-		assert.Equal(`{"S":"ss","i":4}`, respBody)
+		assert.Equal(`{"s":"ss","i":4}`, respBody)
 	}
 	{ // Context; without http layer
 		headers := make(http.Header)
@@ -351,7 +351,7 @@ func TestDefaultRouter(t *testing.T) {
 	DefaultServeMux.router.ServeHTTP(rr, req)
 	respBody := rr.Body.String()
 	assert.Equal(200, rr.Code)
-	assert.Equal(`{"S":"ss","i":4}`, respBody)
+	assert.Equal(`{"s":"ss","i":4}`, respBody)
 }
 
 func TestBadCT(t *testing.T) {
