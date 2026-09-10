@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nokia/restful/messagepack"
 	"github.com/nokia/restful/trace/tracecommon"
 	"github.com/nokia/restful/trace/tracedata"
 	"github.com/nokia/restful/trace/traceotel"
@@ -110,15 +109,6 @@ func (hc *HTTPSConfig) isAllowed(target *url.URL) bool {
 		(hc.AllowPrivateHTTP && isPrivateNetwork(hostname))
 }
 
-type msgpackUsage int
-
-// msgpack constants show the status of msgpack usage
-const (
-	msgpackDisable msgpackUsage = iota
-	msgpackDiscover
-	msgpackUse
-)
-
 // Client is an instance of RESTful client.
 type Client struct {
 	// Client is the http.Client instance used by restful.Client.
@@ -147,8 +137,6 @@ type Client struct {
 		client     *http.Client
 	}
 	nonTracedTransport http.RoundTripper // Store non-traced transport here, as OTEL wrapper does not allow retrieving the original transport settings. See setTransport().
-
-	msgpackUsage msgpackUsage
 
 	crl *crl
 
@@ -339,23 +327,6 @@ func (c *Client) CheckRedirect(checkRedirect func(req *http.Request, via []*http
 // I.e. tells the server whether your client wants RFC 7807 answers.
 func (c *Client) AcceptProblemJSON(acceptProblemJSON bool) *Client {
 	c.acceptProblemJSON = acceptProblemJSON
-	return c
-}
-
-// MsgPack enables/disables msgpack usage instead of JSON content.
-// If enabled, the first request is still using JSON, but indicates msgpack support in Accept header.
-// If the response content-type is msgpack, then the client encodes further requests using msgpack.
-// Restful Lambda server responds with msgpack if Accept header indicates its support automatically.
-// This is an EXPERIMENTAL feature.
-// Detailed at https://github.com/nokia/restful/issues/30
-//
-// Deprecated. This feature will be dropped in the near-future.
-func (c *Client) MsgPack(allowed bool) *Client {
-	if allowed {
-		c.msgpackUsage = msgpackDiscover
-	} else {
-		c.msgpackUsage = msgpackDisable
-	}
 	return c
 }
 
@@ -789,10 +760,6 @@ func (c *Client) makeBodyBytes(data any) ([]byte, error) {
 		return nil, nil
 	}
 
-	if c.msgpackUsage == msgpackUse {
-		return messagepack.Marshal(data)
-	}
-
 	body, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
@@ -807,11 +774,6 @@ func (c *Client) makeBodyBytes(data any) ([]byte, error) {
 
 func (c *Client) addCT(req *http.Request, method string, headers http.Header, body []byte) {
 	if headers == nil || headers.Get(ContentTypeHeader) == "" {
-		if c.msgpackUsage == msgpackUse {
-			req.Header.Set(ContentTypeHeader, ContentTypeMsgPack)
-			return
-		}
-
 		if method == http.MethodPatch {
 			if len(body) != 0 && body[0] == '[' && bytes.Contains(body, []byte(`"op"`)) {
 				req.Header.Set(ContentTypeHeader, ContentTypePatchJSON)
@@ -862,9 +824,6 @@ func (c *Client) sendRequestBytes(ctx context.Context, method string, target str
 
 	if req.Header.Get(AcceptHeader) == "" {
 		// No priority (q) defined. Peer might choose the first one.
-		if c.msgpackUsage != msgpackDisable {
-			req.Header.Add(AcceptHeader, ContentTypeMsgPack)
-		}
 		req.Header.Add(AcceptHeader, ContentTypeApplicationJSON)
 		if c.acceptProblemJSON {
 			req.Header.Add(AcceptHeader, ContentTypeProblemJSON)
@@ -872,18 +831,6 @@ func (c *Client) sendRequestBytes(ctx context.Context, method string, target str
 	}
 
 	return c.Do(req)
-}
-
-func (c *Client) setMsgPackUse(resp *http.Response) {
-	if c.msgpackUsage == msgpackDisable {
-		return // Nothing to check and set
-	}
-
-	if isMsgPackContentType(GetBaseContentType(resp.Header)) {
-		c.msgpackUsage = msgpackUse // Use confirmed
-	} else {
-		c.msgpackUsage = msgpackDisable // Stop discovery
-	}
 }
 
 // SendRecv sends request with given data and returns response data.
@@ -896,8 +843,6 @@ func (c *Client) SendRecv(ctx context.Context, method string, target string, hea
 	if err != nil {
 		return nil, err
 	}
-
-	c.setMsgPackUse(resp)
 
 	return resp, GetResponseData(resp, c.maxBytesToParse, respData)
 }
@@ -925,8 +870,6 @@ func (c *Client) SendRecv2xx(ctx context.Context, method string, target string, 
 		}
 		return nil, NewError(fmt.Errorf("unexpected response: %s", resp.Status), resp.StatusCode, detail)
 	}
-
-	c.setMsgPackUse(resp)
 
 	return resp, GetResponseData(resp, c.maxBytesToParse, respData)
 }

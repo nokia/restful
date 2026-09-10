@@ -4,7 +4,7 @@
 
 Client class is designed to send HTTP requests and receive their responses.
 Similar to `http.Client` class, with the difference of strong data structure support.
-Performs Marshal/Unmarshal automatically to send/receive JSON (or MessagePack).
+Performs Marshal/Unmarshal automatically to send/receive JSON.
 
 Functions often have a context parameter. That is used for generic purposes, such as canceling a request or defining a timeout.
 Furthermore, RESTful's Server and Lambda class may add tracing information which is then propagated by this client.
@@ -118,24 +118,6 @@ Client Credentials grant example:
 ```go
 client := restful.NewClient().SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "https://as.example.com/auth"}}, nil)
 ```
-
-## MessagePack
-
-MessagePack is substantially cheaper to parse compared to JSON.
-Otherwise equivalent.
-If `client.MsgPack(true)` is called, the client discovers if the server supports MessagePack.
-
-```mermaid
-sequenceDiagram
-note over C: MessagePack discovery phase
-C->>S: POST: CT:application/json, Accept:application/msgpack,application/json, body=JSON
-S->>C: 201: CT=application/msgpack, body=msgpack
-note over C: MessagePack is known to be supported
-C->>S: PUT: CT:application/msgpack, Accept:application/msgpack,application/json, body=msgpack
-S->>C: 200: CT=application/msgpack, body=msgpack
-```
-
-Warning! MessagePack (msgpack) is EXPERIMENTAL. It may be removed at any point.
 
 ## Broadcast goodies
 

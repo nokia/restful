@@ -20,7 +20,6 @@ const (
 	ContentTypePatchJSON       = "application/json-patch+json"  // RFC 6902
 	ContentTypeMergeJSON       = "application/merge-patch+json" // RFC 7386
 	ContentTypeForm            = "application/x-www-form-urlencoded"
-	ContentTypeMsgPack         = "application/msgpack"
 	ContentTypeMultipartForm   = "multipart/form-data"
 )
 
@@ -34,13 +33,6 @@ func BaseContentType(contentType string) string {
 // E.g.: "Content-Type: application/JSON; charset=ISO-8859-1" --> "application/json"
 func GetBaseContentType(headers http.Header) string {
 	return BaseContentType(headers.Get(ContentTypeHeader))
-}
-
-func isMsgPackContentType(ct string) bool {
-	if len(ct) < len(ContentTypeMsgPack) {
-		return false
-	}
-	return ct[11:19] == "/msgpack"
 }
 
 func isJSONContentType(baseCT string) bool {
