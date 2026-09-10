@@ -7,8 +7,7 @@ package restful
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -28,7 +27,6 @@ import (
 	"github.com/nokia/restful/trace/tracer"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"golang.org/x/net/http2"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 )
@@ -245,69 +243,45 @@ func NewH2CClientWInterface(networkInterface string) *Client {
 	return c
 }
 
-func newH2Transport(iface string) *http2.Transport {
-	return &http2.Transport{
-		DialTLSContext: getDialTLSCallback(iface, true),
+func newH2Transport(iface string) *http.Transport {
+	protocols := new(http.Protocols)
+	protocols.SetHTTP2(true) // HTTP/2 only: ALPN is h2 from the start, no HTTP/1.1.
+	return newHTTP2Transport(iface, protocols)
+}
+
+func newH2CTransport(iface string) *http.Transport {
+	protocols := new(http.Protocols)
+	protocols.SetUnencryptedHTTP2(true) // prior-knowledge h2c; no HTTP/1.1 upgrade.
+	return newHTTP2Transport(iface, protocols)
+}
+
+func newHTTP2Transport(iface string, protocols *http.Protocols) *http.Transport {
+	return &http.Transport{
+		Protocols:   protocols,
+		DialContext: h2DialContext(iface),
 	}
 }
 
-func newH2CTransport(iface string) *http2.Transport {
-	return &http2.Transport{
-		AllowHTTP:      true,
-		DialTLSContext: getDialTLSCallback(iface, false),
-	}
-}
-
-func getDialTLSCallback(iface string, withTLS bool) func(context.Context, string, string, *tls.Config) (net.Conn, error) {
-	return func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+func h2DialContext(iface string) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
 		dialer := net.Dialer{Timeout: DialTimeout}
+		if iface == "" {
+			return dialer.DialContext(ctx, network, addr)
+		}
 
+		ips := GetIPFromInterface(iface)
 		var conn net.Conn
 		var err error
-		if iface != "" {
-			IPs := GetIPFromInterface(iface)
-			if IPs.IPv4 != nil {
-				dialer.LocalAddr = IPs.IPv4
-				conn, err = dialWithDialer(&dialer, network, addr, cfg, withTLS)
-			}
-
-			// Try IPv6 if IPv4 is unavailable or connection fails.
-			if IPs.IPv4 == nil || (IPs.IPv6 != nil && err != nil && !errDeadlineOrCancel(err)) {
-				dialer.LocalAddr = IPs.IPv6
-				conn, err = dialWithDialer(&dialer, network, addr, cfg, withTLS)
-			}
-		} else {
-			conn, err = dialWithDialer(&dialer, network, addr, cfg, withTLS)
+		if ips.IPv4 != nil {
+			dialer.LocalAddr = ips.IPv4
+			conn, err = dialer.DialContext(ctx, network, addr)
 		}
-
-		if err != nil {
-			return nil, err
+		if ips.IPv4 == nil || (ips.IPv6 != nil && err != nil && !errDeadlineOrCancel(err)) {
+			dialer.LocalAddr = ips.IPv6
+			return dialer.DialContext(ctx, network, addr)
 		}
-
-		// Skip TLS dial if it is the H2C
-		if withTLS {
-			if err := conn.(*tls.Conn).Handshake(); err != nil {
-				return nil, err
-			}
-			if !cfg.InsecureSkipVerify {
-				if err := conn.(*tls.Conn).VerifyHostname(cfg.ServerName); err != nil {
-					return nil, err
-				}
-			}
-			state := conn.(*tls.Conn).ConnectionState()
-			if p := state.NegotiatedProtocol; p != http2.NextProtoTLS {
-				return nil, fmt.Errorf("http2: unexpected ALPN protocol %q; want %q", p, http2.NextProtoTLS)
-			}
-		}
-		return conn, nil
+		return conn, err
 	}
-}
-
-func dialWithDialer(dialer *net.Dialer, network, addr string, cfg *tls.Config, withTLS bool) (net.Conn, error) {
-	if withTLS {
-		return tls.DialWithDialer(dialer, network, addr, cfg)
-	}
-	return dialer.Dial(network, addr)
 }
 
 // UserAgent to be sent as User-Agent HTTP header. If not set then default Go client settings are used.
@@ -584,6 +558,19 @@ func (c *Client) obtainOauth2Token(ctx context.Context) error {
 }
 
 func (c *Client) setOauth2Auth(ctx context.Context, req *http.Request) error {
+	if c.oauth2.client != nil {
+		if tr, ok := c.oauth2.client.Transport.(*http.Transport); ok && tr.Protocols.HTTP2() {
+			if c.oauth2.config.Endpoint.TokenURL != "" {
+				tokenURL, err := url.Parse(c.oauth2.config.Endpoint.TokenURL)
+				if err == nil {
+					if c.httpsCfg == nil || !c.httpsCfg.isAllowed(tokenURL) {
+						return ErrNonHTTPSURL
+					}
+				}
+			}
+		}
+	}
+
 	// Reader lock
 	c.oauth2.tokenMutex.RLock()
 	defer c.oauth2.tokenMutex.RUnlock()

@@ -827,6 +827,10 @@ func startH2CServer(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
 func TestClients(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.ProtoMajor != 2 {
+			http.Error(w, "expected HTTP/2 from the start, got "+r.Proto, http.StatusHTTPVersionNotSupported)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		response := map[string]string{"message": "Hello, world!"}
 		json.NewEncoder(w).Encode(response)
@@ -879,6 +883,124 @@ func TestClients(t *testing.T) {
 		})
 	}
 }
+
+func TestH2TransportIsHTTP2Only(t *testing.T) {
+	tests := []struct {
+		name        string
+		client      *Client
+		transport   http.RoundTripper
+		unencrypted bool
+	}{
+		{name: "H2Client", client: NewH2Client(), transport: NewH2Client().GetTransport(), unencrypted: false},
+		{name: "H2CClient", client: NewH2CClient(), transport: NewH2CClient().GetTransport(), unencrypted: true},
+		{name: "H2ClientWInterface", client: NewH2ClientWInterface("lo"), transport: NewH2ClientWInterface("lo").GetTransport(), unencrypted: false},
+		{name: "H2CClientWInterface", client: NewH2CClientWInterface("lo"), transport: NewH2CClientWInterface("lo").GetTransport(), unencrypted: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.NotNil(t, test.transport)
+			tr, ok := (test.transport).(*http.Transport)
+			assert.True(t, ok)
+			assert.NotNil(t, tr.Protocols)
+			assert.False(t, tr.Protocols.HTTP1(), "HTTP/1 should not be supported")
+			if test.unencrypted {
+				assert.True(t, tr.Protocols.UnencryptedHTTP2(), "Unencrypted HTTP/2 should be supported")
+			} else {
+				assert.True(t, tr.Protocols.HTTP2(), "HTTP/2 should be supported")
+				assert.False(t, tr.Protocols.UnencryptedHTTP2(), "Unencrypted HTTP/2 should not be supported")
+			}
+		})
+	}
+}
+
+func TestH2ClientRejectsHTTP1(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Must not be here, TLS ALPN must have failed")
+	}))
+	defer srv.Close()
+
+	// Each request must fail with TLS ALPN error, as the client wants h2 while the server does not support that.
+	err := NewH2Client().Insecure().Get(context.Background(), srv.URL, nil)
+	assert.Error(t, err)
+
+	err = NewH2ClientWInterface("lo").Insecure().Get(context.Background(), srv.URL, nil)
+	assert.Error(t, err)
+}
+
+func TestH2CClientRejectsHTTP1(t *testing.T) {
+	seen := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, 2, r.ProtoMajor)
+		assert.NotEqual(t, "h2c", r.Header.Get("Upgrade"), "prior-knowledge h2c must not send HTTP/1.1 Upgrade")
+		assert.Equal(t, "PRI", r.Method, "HTTP/1.1 servers may see the HTTP/2 connection preface, not an upgraded GET")
+		seen = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	// Each request must fail with TLS ALPN error, as the client wants h2c while the server does not support that.
+	err := NewH2CClient().Get(context.Background(), srv.URL, nil)
+	assert.Error(t, err)
+	assert.True(t, seen)
+
+	seen = false
+	err = NewH2CClientWInterface("lo").Get(context.Background(), srv.URL, nil)
+	assert.Error(t, err)
+	assert.True(t, seen)
+}
+
+func insecureOauth2H2TokenTransport(c *Client) {
+	tr, ok := c.oauth2.client.Transport.(*http.Transport)
+	if !ok {
+		return
+	}
+	tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402 -- httptest certificate
+}
+
+func TestOauth2H2AccessToken(t *testing.T) {
+	authSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, 2, r.ProtoMajor)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"h2-token","expires_in":60,"token_type":"Bearer"}`))
+	}))
+	authSrv.EnableHTTP2 = true
+	authSrv.StartTLS()
+	defer authSrv.Close()
+
+	client := NewClient().HTTPS(nil).SetOauth2Conf(oauth2.Config{
+		ClientID:     "id",
+		ClientSecret: "secret",
+		Endpoint:     oauth2.Endpoint{TokenURL: authSrv.URL},
+	}, nil).SetOauth2H2()
+	insecureOauth2H2TokenTransport(client)
+
+	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
+	err := client.setOauth2Auth(context.Background(), req)
+	assert.NoError(t, err)
+	assert.Equal(t, "h2-token", client.oauth2.token.AccessToken)
+}
+
+func TestOauth2H2RejectsHTTP1TokenServer(t *testing.T) {
+	authSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"h1-token","expires_in":60,"token_type":"Bearer"}`))
+	}))
+	defer authSrv.Close()
+
+	client := NewClient().HTTPS(nil).SetOauth2Conf(oauth2.Config{
+		ClientID:     "id",
+		ClientSecret: "secret",
+		Endpoint:     oauth2.Endpoint{TokenURL: authSrv.URL},
+	}, nil).SetOauth2H2()
+	insecureOauth2H2TokenTransport(client)
+
+	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
+	err := client.setOauth2Auth(context.Background(), req)
+	assert.Error(t, err)
+	assert.Empty(t, client.oauth2.token.AccessToken)
+}
+
 func TestEnableLoadBalanceRandom(t *testing.T) {
 	client := NewClient()
 	assert.False(t, client.LoadBalanceRandom, "LoadBalanceRandom should be false by default")
