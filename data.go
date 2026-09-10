@@ -5,17 +5,17 @@
 package restful
 
 import (
-	"bytes"
+	"bufio"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/schema"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -94,29 +94,30 @@ func GetDataBytesForContentType(headers http.Header, ioBody io.ReadCloser, maxBy
 }
 
 func getData(ctx context.Context, headers http.Header, ioBody io.ReadCloser, maxBytes int, data any, request bool) error {
-	if data == nil {
-		_ = ioBody.Close()
-		return nil
-	}
-
-	body, err := GetDataBytes(headers, ioBody, maxBytes)
-	if err != nil {
-		if request {
-			return NewError(err, http.StatusInternalServerError, "Failed to read request")
+	if data == nil || headers.Get("Content-Length") == "0" {
+		if ioBody != nil {
+			_, _ = io.Copy(io.Discard, ioBody)
+			_ = ioBody.Close()
 		}
-		return err
+		return nil
 	}
-
-	if len(body) == 0 {
+	if ioBody == nil {
 		return nil
 	}
 
-	recvdContentType := GetBaseContentType(headers)
-	return getDataJSON(ctx, body, data, request, recvdContentType)
+	return getDataJSON(ctx, headers, ioBody, maxBytes, data, request, GetBaseContentType(headers))
 }
 
-func getDataJSON(ctx context.Context, body []byte, data any, request bool, recvdContentType string) error {
+func getDataJSON(ctx context.Context, headers http.Header, ioBody io.ReadCloser, maxBytes int, data any, request bool, recvdContentType string) error {
+	defer ioBody.Close()
+
+	br := bufio.NewReader(ioBody)
+	if _, err := br.Peek(1); errors.Is(err, io.EOF) {
+		return nil
+	}
+
 	if !isJSONContentType(recvdContentType) {
+		_, _ = io.ReadAll(br)
 		err := fmt.Errorf("unexpected Content-Type: '%s'; not JSON", recvdContentType)
 		if request {
 			return NewError(err, http.StatusBadRequest)
@@ -124,20 +125,47 @@ func getDataJSON(ctx context.Context, body []byte, data any, request bool, recvd
 		return err
 	}
 
-	if recvdContentType == ContentTypeProblemJSON {
-		log.Debug("Problem: ", string(body))
+	limitedBody, err := wrapBodyReader(headers, br, maxBytes)
+	if err != nil {
+		if request {
+			return NewError(err, http.StatusInternalServerError, "Failed to read request")
+		}
+		return err
 	}
+	br = bufio.NewReader(limitedBody)
 
-	ioBody := io.NopCloser(bytes.NewReader(body))
-	d := json.NewDecoder(ioBody)
+	var opts []json.Options
 	if DisallowUnknownFields || ctx.Value(disallowUnknownFieldsCtxName) != nil {
-		d.DisallowUnknownFields()
+		opts = append(opts, json.RejectUnknownMembers(true))
 	}
-	err := d.Decode(data)
-	if err != nil && request {
-		return NewError(err, http.StatusBadRequest, "Invalid JSON content")
+	err = json.UnmarshalRead(br, data, opts...)
+	if err != nil {
+		if maxBytes > 0 && strings.Contains(err.Error(), "request body too large") {
+			readErr := fmt.Errorf("too long content: > %d", maxBytes)
+			if request {
+				return NewError(readErr, http.StatusInternalServerError, "Failed to read request")
+			}
+			return readErr
+		}
+		if request {
+			return NewError(err, http.StatusBadRequest, "Invalid JSON content")
+		}
 	}
 	return err
+}
+
+func wrapBodyReader(headers http.Header, ioBody io.Reader, maxBytes int) (io.ReadCloser, error) {
+	if maxBytes <= 0 {
+		return io.NopCloser(ioBody), nil
+	}
+
+	cl, err := strconv.Atoi(headers.Get("Content-length"))
+	if err == nil && cl > maxBytes {
+		_, _ = io.ReadAll(ioBody)
+		return nil, fmt.Errorf("too big Content-Length: %d > %d", cl, maxBytes)
+	}
+
+	return http.MaxBytesReader(nil, io.NopCloser(ioBody), int64(maxBytes)), nil
 }
 
 // GetRequestData returns request data from HTTP request.

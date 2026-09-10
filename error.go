@@ -5,7 +5,7 @@
 package restful
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"net/http"
 	"strings"
@@ -48,7 +48,7 @@ type ProblemDetails struct {
 	Detail        string         `json:"detail,omitempty"`
 	Cause         string         `json:"cause,omitempty"`
 	Instance      string         `json:"instance,omitempty"`
-	Status        int            `json:"status,omitempty"`
+	Status        int            `json:"status,omitzero"`
 	InvalidParams []InvalidParam `json:"invalidParams,omitempty"`
 }
 

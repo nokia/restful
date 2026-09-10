@@ -5,25 +5,12 @@
 package restful
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
-
-func getJSONBody(data any) ([]byte, error) {
-	if data == nil {
-		return nil, nil // Otherwise "null" (4 bytes) would be returned.
-	}
-
-	body, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-
-	return body, nil
-}
 
 // SendJSONResponse sends an HTTP response with a JSON data.
 // Caller may set additional headers like `w.Header().Set("Location", "https://me")` before calling this function.
@@ -31,26 +18,14 @@ func getJSONBody(data any) ([]byte, error) {
 // Warning: The last boolean parameter is ignored. It is there for temporary backward compatibility only.
 // It will be removed in the near-future.
 func SendJSONResponse(w http.ResponseWriter, statusCode int, data any, _ ...bool) (err error) {
-	body, err := getJSONBody(data)
-	if body != nil {
-		w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
-		w.WriteHeader(statusCode)
-		_, err = w.Write(body) // #nosec G705: false positive; no user input
-	} else {
-		w.WriteHeader(statusCode)
-	}
-	return err
-}
-
-func sendResponse(w http.ResponseWriter, r *http.Request, data any) (err error) {
-	okStatus := getOkStatus(w, r, data)
-
 	if data == nil {
-		w.WriteHeader(okStatus)
+		w.WriteHeader(statusCode)
 		return nil
 	}
 
-	return SendJSONResponse(w, okStatus, data)
+	w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
+	w.WriteHeader(statusCode)
+	return json.MarshalWrite(w, data) // #nosec G705: false positive; no user input
 }
 
 // SendResponse sends an HTTP response with a JSON data.
@@ -79,21 +54,19 @@ func getOkStatus(w http.ResponseWriter, r *http.Request, data any) int {
 // Caller may set additional headers like `w.Header().Set("Location", "https://me")` before calling this function.
 func SendResp(w http.ResponseWriter, r *http.Request, err error, data any) error {
 	if err == nil {
-		return sendResponse(w, r, data)
+		return SendJSONResponse(w, getOkStatus(w, r, data), data)
 	}
 
 	if errStr := err.Error(); errStr != "" { // In some cases status like 404 does not indicate error, just a plain result. E.g. on a distributed cache query.
 		log.Error(errStr)
 	}
 
-	body, _ := getJSONBody(data)
-	if body == nil {
+	if data == nil {
 		return SendProblemDetails(w, r, err)
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
 	w.WriteHeader(GetErrStatusCode(err))
-	_, err = w.Write(body) // #nosec G705: false positive; no user input
-	return err
+	return json.MarshalWrite(w, data) // #nosec G705: false positive; no user input
 }
 
 // SendEmptyResponse sends an empty HTTP response.
