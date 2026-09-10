@@ -15,7 +15,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/net/http2"
 )
 
 // TLS sets TLS setting for client. Returns object instance, just in case you need that.
@@ -23,10 +22,8 @@ import (
 // You may use it this way: client := New().TLS(...) or just client.TLS(...)
 func (c *Client) TLS(tlsConfig *tls.Config) *Client {
 	// Transport settings are stored in nonTracedTransport, as OTEL's wrapper does not allow retrieving the original transport settings.
-	if transport2, ok := c.nonTracedTransport.(*http2.Transport); ok {
-		transport2.TLSClientConfig = tlsConfig
-	} else if transport1, ok := c.nonTracedTransport.(*http.Transport); ok {
-		transport1.TLSClientConfig = tlsConfig
+	if transport, ok := c.nonTracedTransport.(*http.Transport); ok {
+		transport.TLSClientConfig = tlsConfig
 	} else { // most probably nil
 		c.SetTransport(&http.Transport{TLSClientConfig: tlsConfig})
 	}
@@ -115,17 +112,6 @@ func initialCertPool(loadSystemCerts bool) (*x509.CertPool, error) {
 }
 
 func (c *Client) haveTLSClientConfig() *tls.Config {
-	// HTTP2
-	if transport2, ok := c.nonTracedTransport.(*http2.Transport); ok {
-		if transport2.TLSClientConfig == nil {
-			transport2.TLSClientConfig = &tls.Config{
-				MinVersion: tls.VersionTLS12,
-			}
-		}
-		return transport2.TLSClientConfig
-	}
-
-	// HTTP 1.x
 	transport, ok := c.nonTracedTransport.(*http.Transport)
 	if !ok { // most probably nil
 		transport = &http.Transport{}

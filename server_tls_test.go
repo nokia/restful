@@ -33,6 +33,25 @@ func TestHTTPSServer(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestHTTPSServerH2(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/h2", func(w http.ResponseWriter, r *http.Request) {
+		if r.ProtoMajor != 2 {
+			http.Error(w, "expected HTTP/2, got "+r.Proto, http.StatusHTTPVersionNotSupported)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	addr := "127.0.0.1:18444"
+	server := NewServer().Addr(addr).Handler(mux).TLSServerCert("test_certs/tls.crt", "test_certs/tls.key")
+	go server.ListenAndServe()
+	defer server.Close()
+
+	client := NewH2Client().TLSRootCerts("test_certs", false)
+	err := client.Get(context.Background(), "https://localhost:18444/h2", nil)
+	assert.NoError(t, err)
+}
+
 func TestHTTPSServerCRL(t *testing.T) {
 	http.HandleFunc("/b", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(204)
