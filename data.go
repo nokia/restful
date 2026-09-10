@@ -15,7 +15,6 @@ import (
 	"strconv"
 
 	"github.com/gorilla/schema"
-	"github.com/nokia/restful/messagepack"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -113,14 +112,6 @@ func getData(ctx context.Context, headers http.Header, ioBody io.ReadCloser, max
 	}
 
 	recvdContentType := GetBaseContentType(headers)
-	if isMsgPackContentType(recvdContentType) {
-		err = messagepack.Unmarshal(body, data)
-		if err != nil && request {
-			return NewError(err, http.StatusBadRequest, "Invalid msgpack content")
-		}
-		return err
-	}
-
 	return getDataJSON(ctx, body, data, request, recvdContentType)
 }
 
