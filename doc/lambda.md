@@ -165,7 +165,6 @@ func validateUser(ctx context.Context, usr user) error {
 
 func newServer() *restful.Router {
     r := restful.NewRouter()
-    r.DisallowUnknownFields() // If an unknown field is present, then JSON decoding fails.
     r.HandleFunc("/users", validateUser).Methods(http.MethodPost, http.MethodPut)
     return r
 }
@@ -184,6 +183,7 @@ func TestValidateUser(t *testing.T) {
 
 Notes:
 
+* You may control JSON marshaling and unmarshaling using `restful.JSONOptions`.
 * You can test your lambda directly, using `NewTestCtx()`.
 * Creating your own router instance is great when you test your code.
   You can call `ServeHTTP()` with standard [httptest](https://golang.org/pkg/net/http/httptest/) package.

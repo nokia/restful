@@ -30,124 +30,18 @@ type strType struct {
 }
 
 type innerStruct struct {
-	String string            `json:"string,omitempty"`
-	Array  []byte            `json:"array,omitempty"`
-	Map    map[string]string `json:"map,omitempty"`
-	Number int               `json:"number,omitempty"`
+	String    string            `json:"string,omitempty"`
+	Ints      []int             `json:"ints,omitzero"`
+	IntsOrNo  []int             `json:"intsOrNo,omitempty"`
+	IntsOrNil []int             `json:"intsOrNil"` // no omitempty
+	Bytes     []byte            `json:"bytes,omitempty"`
+	Map       map[string]string `json:"map,omitempty"`
+	Number    int               `json:"number,omitzero"`
 }
 
 type structType struct {
 	Str    string       `json:"str,omitempty"`
 	Struct *innerStruct `json:"struct,omitempty"`
-}
-
-func testMsgPackDiscoveryAccepted(t testing.TB, iters int) {
-	assert := assert.New(t)
-
-	// Server
-	requestCount := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data structType
-		err := GetRequestData(r, 0, &data)
-		assert.Nil(err)
-
-		switch r.Method {
-		case "POST":
-			if requestCount == 0 {
-				assert.Equal("application/json", r.Header.Get("content-type"))
-			} else {
-				assert.Equal("application/msgpack", r.Header.Get("content-type")) // In use
-			}
-			assert.Equal("a", data.Str)
-		case "PUT":
-			assert.Equal("application/msgpack", r.Header.Get("content-type")) // In use
-			assert.Equal("b", data.Str)
-		}
-		assert.True(acceptsMsgPack(r))
-
-		// Answer
-		sendResponse(w, r, data)
-		requestCount++
-	}))
-	defer srv.Close()
-
-	respData := structType{}
-	ctx := context.Background()
-	client := NewClient().Root(srv.URL).MsgPack(true)
-	reqData1 := structType{Str: "a", Struct: &innerStruct{Number: 1, Array: []byte{1, 2, 3}}}
-	reqData2 := structType{Str: "b", Struct: &innerStruct{Number: 2, Array: []byte{4, 5, 6}}}
-
-	for i := 0; i < iters; i++ {
-		_, err := client.Post(ctx, "/", &reqData1, &respData)
-		assert.Nil(err)
-		assert.Equal(reqData1, respData)
-
-		_, err = client.Put(ctx, "/", &reqData2, &respData)
-		assert.Nil(err)
-		assert.Equal(reqData2, respData)
-	}
-}
-
-func Test_MsgPack_DiscoveryAccepted(t *testing.T) {
-	testMsgPackDiscoveryAccepted(t, 1)
-}
-
-func Benchmark_MsgPack_DiscoveryAccepted(b *testing.B) {
-	testMsgPackDiscoveryAccepted(b, 1000)
-}
-
-func testMsgPackDiscoveryRejected(t testing.TB, iters int) {
-	assert := assert.New(t)
-
-	// Server
-	requestCount := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data structType
-		err := GetRequestData(r, 0, &data)
-		assert.Nil(err)
-
-		assert.Equal("application/json", r.Header.Get("content-type")) // JSON is used all the time.
-		switch r.Method {
-		case "POST":
-			assert.True(acceptsMsgPack(r) || requestCount > 0) // Discovery
-			if requestCount == 0 {
-				r.Header.Set("Accept", "application/json")
-			}
-			assert.Equal("a", data.Str)
-		case "PUT":
-			assert.False(acceptsMsgPack(r)) // Gave up
-			assert.Equal("b", data.Str)
-		}
-
-		// Answer
-		sendResponse(w, r, data)
-		requestCount++
-	}))
-	defer srv.Close()
-
-	respData := structType{}
-	ctx := context.Background()
-	client := NewClient().Root(srv.URL).MsgPack(true)
-	reqData1 := structType{Str: "a", Struct: &innerStruct{Number: 1, Array: []byte{1, 2, 3}}}
-	reqData2 := structType{Str: "b", Struct: &innerStruct{Number: 2, Array: []byte{4, 5, 6}}}
-
-	for i := 0; i < iters; i++ {
-		_, err := client.Post(ctx, "/", &reqData1, &respData)
-		assert.Nil(err)
-		assert.Equal(reqData1, respData)
-
-		_, err = client.Put(ctx, "/", &reqData2, &respData)
-		assert.Nil(err)
-		assert.Equal(reqData2, respData)
-	}
-}
-
-func Test_MsgPack_DiscoveryRejected(t *testing.T) {
-	testMsgPackDiscoveryRejected(t, 1)
-}
-
-func Benchmark_MsgPack_DiscoveryRejected(b *testing.B) {
-	testMsgPackDiscoveryRejected(b, 1000)
 }
 
 func TestMethods(t *testing.T) {
@@ -243,6 +137,42 @@ func TestMethods(t *testing.T) {
 	assert.Nil(err)
 }
 
+func TestSendRequest(t *testing.T) {
+	// Find similar test cases in server_response_test.go
+	testCases := []struct {
+		in  structType
+		out string
+	}{
+		{in: structType{}, out: `{}`},
+		{in: structType{Str: "hello", Struct: nil}, out: `{"str":"hello"}`},
+		{in: structType{Struct: &innerStruct{}}, out: `{"struct":{"intsOrNil":null}}`},
+		{in: structType{Struct: &innerStruct{Ints: []int{}, IntsOrNo: []int{}, IntsOrNil: []int{}}}, out: `{"struct":{"ints":[],"intsOrNil":[]}}`},
+		{in: structType{Struct: &innerStruct{Ints: []int{1}, IntsOrNo: []int{1}, IntsOrNil: []int{1}, Bytes: []byte{1}}}, out: `{"struct":{"ints":[1],"intsOrNo":[1],"intsOrNil":[1],"bytes":"AQ=="}}`},
+	}
+
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("testCase %d", i), func(t *testing.T) {
+			assert := assert.New(t)
+
+			// Server
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(ContentTypeApplicationJSON, r.Header.Get(ContentTypeHeader))
+				payload, err := io.ReadAll(r.Body)
+				assert.NoError(err)
+				assert.Equal(testCase.out, string(payload))
+				w.WriteHeader(http.StatusCreated)
+			}))
+			defer srv.Close()
+
+			// Client
+			resp, err := NewClient().SendRequest(context.Background(), http.MethodPost, srv.URL, nil, &testCase.in)
+			assert.NoError(err)
+			assert.Equal(http.StatusCreated, resp.StatusCode)
+			resp.Body.Close()
+		})
+	}
+}
+
 func TestHttpNotAllowed(t *testing.T) {
 	assert := assert.New(t)
 	assert.Equal(ErrNonHTTPSURL, NewClient().HTTPS(nil).Root("http://localhost").Get(context.Background(), "/", nil))
@@ -302,7 +232,6 @@ func TestRetry(t *testing.T) {
 	retries := 4
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal("hello", r.Header.Get("User-Agent"))
-		assert.False(acceptsMsgPack(r))
 
 		if r.Method == "POST" {
 			body, err := io.ReadAll(r.Body)
@@ -937,6 +866,10 @@ func startH2CServer(mux *http.ServeMux, wg *sync.WaitGroup) *http.Server {
 func TestClients(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.ProtoMajor != 2 {
+			http.Error(w, "expected HTTP/2 from the start, got "+r.Proto, http.StatusHTTPVersionNotSupported)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		response := map[string]string{"message": "Hello, world!"}
 		json.NewEncoder(w).Encode(response)
@@ -989,6 +922,124 @@ func TestClients(t *testing.T) {
 		})
 	}
 }
+
+func TestH2TransportIsHTTP2Only(t *testing.T) {
+	tests := []struct {
+		name        string
+		client      *Client
+		transport   http.RoundTripper
+		unencrypted bool
+	}{
+		{name: "H2Client", client: NewH2Client(), transport: NewH2Client().GetTransport(), unencrypted: false},
+		{name: "H2CClient", client: NewH2CClient(), transport: NewH2CClient().GetTransport(), unencrypted: true},
+		{name: "H2ClientWInterface", client: NewH2ClientWInterface("lo"), transport: NewH2ClientWInterface("lo").GetTransport(), unencrypted: false},
+		{name: "H2CClientWInterface", client: NewH2CClientWInterface("lo"), transport: NewH2CClientWInterface("lo").GetTransport(), unencrypted: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.NotNil(t, test.transport)
+			tr, ok := (test.transport).(*http.Transport)
+			assert.True(t, ok)
+			assert.NotNil(t, tr.Protocols)
+			assert.False(t, tr.Protocols.HTTP1(), "HTTP/1 should not be supported")
+			if test.unencrypted {
+				assert.True(t, tr.Protocols.UnencryptedHTTP2(), "Unencrypted HTTP/2 should be supported")
+			} else {
+				assert.True(t, tr.Protocols.HTTP2(), "HTTP/2 should be supported")
+				assert.False(t, tr.Protocols.UnencryptedHTTP2(), "Unencrypted HTTP/2 should not be supported")
+			}
+		})
+	}
+}
+
+func TestH2ClientRejectsHTTP1(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Must not be here, TLS ALPN must have failed")
+	}))
+	defer srv.Close()
+
+	// Each request must fail with TLS ALPN error, as the client wants h2 while the server does not support that.
+	err := NewH2Client().Insecure().Get(context.Background(), srv.URL, nil)
+	assert.Error(t, err)
+
+	err = NewH2ClientWInterface("lo").Insecure().Get(context.Background(), srv.URL, nil)
+	assert.Error(t, err)
+}
+
+func TestH2CClientRejectsHTTP1(t *testing.T) {
+	seen := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, 2, r.ProtoMajor)
+		assert.NotEqual(t, "h2c", r.Header.Get("Upgrade"), "prior-knowledge h2c must not send HTTP/1.1 Upgrade")
+		assert.Equal(t, "PRI", r.Method, "HTTP/1.1 servers may see the HTTP/2 connection preface, not an upgraded GET")
+		seen = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	// Each request must fail with TLS ALPN error, as the client wants h2c while the server does not support that.
+	err := NewH2CClient().Get(context.Background(), srv.URL, nil)
+	assert.Error(t, err)
+	assert.True(t, seen)
+
+	seen = false
+	err = NewH2CClientWInterface("lo").Get(context.Background(), srv.URL, nil)
+	assert.Error(t, err)
+	assert.True(t, seen)
+}
+
+func insecureOauth2H2TokenTransport(c *Client) {
+	tr, ok := c.oauth2.client.Transport.(*http.Transport)
+	if !ok {
+		return
+	}
+	tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402 -- httptest certificate
+}
+
+func TestOauth2H2AccessToken(t *testing.T) {
+	authSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, 2, r.ProtoMajor)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"h2-token","expires_in":60,"token_type":"Bearer"}`))
+	}))
+	authSrv.EnableHTTP2 = true
+	authSrv.StartTLS()
+	defer authSrv.Close()
+
+	client := NewClient().HTTPS(nil).SetOauth2Conf(oauth2.Config{
+		ClientID:     "id",
+		ClientSecret: "secret",
+		Endpoint:     oauth2.Endpoint{TokenURL: authSrv.URL},
+	}, nil).SetOauth2H2()
+	insecureOauth2H2TokenTransport(client)
+
+	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
+	err := client.setOauth2Auth(context.Background(), req)
+	assert.NoError(t, err)
+	assert.Equal(t, "h2-token", client.oauth2.token.AccessToken)
+}
+
+func TestOauth2H2RejectsHTTP1TokenServer(t *testing.T) {
+	authSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"h1-token","expires_in":60,"token_type":"Bearer"}`))
+	}))
+	defer authSrv.Close()
+
+	client := NewClient().HTTPS(nil).SetOauth2Conf(oauth2.Config{
+		ClientID:     "id",
+		ClientSecret: "secret",
+		Endpoint:     oauth2.Endpoint{TokenURL: authSrv.URL},
+	}, nil).SetOauth2H2()
+	insecureOauth2H2TokenTransport(client)
+
+	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
+	err := client.setOauth2Auth(context.Background(), req)
+	assert.Error(t, err)
+	assert.Empty(t, client.oauth2.token.AccessToken)
+}
+
 func TestEnableLoadBalanceRandom(t *testing.T) {
 	client := NewClient()
 	assert.False(t, client.LoadBalanceRandom, "LoadBalanceRandom should be false by default")

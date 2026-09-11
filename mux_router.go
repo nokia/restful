@@ -45,9 +45,10 @@ func (r *Router) Monitor(pre MonitorFuncPre, post MonitorFuncPost) *Router {
 	return r
 }
 
-// DisallowUnknownFields instructs JSON decoder to fail if unknown field in found in the received message.
+// DisallowUnknownFields instructs JSON decoder to fail if unknown field is found in the received message.
 // By default unknown fields are ignored.
 // See also JSON schema and OpenAPI Specification `additionalProperties: false`.
+// You are encouraged to append `json.RejectUnknownMembers(true)` to `JSONOptions` instead.
 func (r *Router) DisallowUnknownFields() *Router {
 	return r.Monitor(disallowUnknownFieldsToCtx, nil)
 }

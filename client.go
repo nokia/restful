@@ -1,4 +1,4 @@
-// Copyright 2021-2024 Nokia
+// Copyright 2021-2026 Nokia
 // Licensed under the BSD 3-Clause License.
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -7,8 +7,7 @@ package restful
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -22,14 +21,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nokia/restful/messagepack"
 	"github.com/nokia/restful/trace/tracecommon"
 	"github.com/nokia/restful/trace/tracedata"
 	"github.com/nokia/restful/trace/traceotel"
 	"github.com/nokia/restful/trace/tracer"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"golang.org/x/net/http2"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 )
@@ -110,15 +107,6 @@ func (hc *HTTPSConfig) isAllowed(target *url.URL) bool {
 		(hc.AllowPrivateHTTP && isPrivateNetwork(hostname))
 }
 
-type msgpackUsage int
-
-// msgpack constants show the status of msgpack usage
-const (
-	msgpackDisable msgpackUsage = iota
-	msgpackDiscover
-	msgpackUse
-)
-
 // Client is an instance of RESTful client.
 type Client struct {
 	// Client is the http.Client instance used by restful.Client.
@@ -147,8 +135,6 @@ type Client struct {
 		client     *http.Client
 	}
 	nonTracedTransport http.RoundTripper // Store non-traced transport here, as OTEL wrapper does not allow retrieving the original transport settings. See setTransport().
-
-	msgpackUsage msgpackUsage
 
 	crl *crl
 
@@ -257,69 +243,45 @@ func NewH2CClientWInterface(networkInterface string) *Client {
 	return c
 }
 
-func newH2Transport(iface string) *http2.Transport {
-	return &http2.Transport{
-		DialTLSContext: getDialTLSCallback(iface, true),
+func newH2Transport(iface string) *http.Transport {
+	protocols := new(http.Protocols)
+	protocols.SetHTTP2(true) // HTTP/2 only: ALPN is h2 from the start, no HTTP/1.1.
+	return newHTTP2Transport(iface, protocols)
+}
+
+func newH2CTransport(iface string) *http.Transport {
+	protocols := new(http.Protocols)
+	protocols.SetUnencryptedHTTP2(true) // prior-knowledge h2c; no HTTP/1.1 upgrade.
+	return newHTTP2Transport(iface, protocols)
+}
+
+func newHTTP2Transport(iface string, protocols *http.Protocols) *http.Transport {
+	return &http.Transport{
+		Protocols:   protocols,
+		DialContext: h2DialContext(iface),
 	}
 }
 
-func newH2CTransport(iface string) *http2.Transport {
-	return &http2.Transport{
-		AllowHTTP:      true,
-		DialTLSContext: getDialTLSCallback(iface, false),
-	}
-}
-
-func getDialTLSCallback(iface string, withTLS bool) func(context.Context, string, string, *tls.Config) (net.Conn, error) {
-	return func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+func h2DialContext(iface string) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
 		dialer := net.Dialer{Timeout: DialTimeout}
+		if iface == "" {
+			return dialer.DialContext(ctx, network, addr)
+		}
 
+		ips := GetIPFromInterface(iface)
 		var conn net.Conn
 		var err error
-		if iface != "" {
-			IPs := GetIPFromInterface(iface)
-			if IPs.IPv4 != nil {
-				dialer.LocalAddr = IPs.IPv4
-				conn, err = dialWithDialer(&dialer, network, addr, cfg, withTLS)
-			}
-
-			// Try IPv6 if IPv4 is unavailable or connection fails.
-			if IPs.IPv4 == nil || (IPs.IPv6 != nil && err != nil && !errDeadlineOrCancel(err)) {
-				dialer.LocalAddr = IPs.IPv6
-				conn, err = dialWithDialer(&dialer, network, addr, cfg, withTLS)
-			}
-		} else {
-			conn, err = dialWithDialer(&dialer, network, addr, cfg, withTLS)
+		if ips.IPv4 != nil {
+			dialer.LocalAddr = ips.IPv4
+			conn, err = dialer.DialContext(ctx, network, addr)
 		}
-
-		if err != nil {
-			return nil, err
+		if ips.IPv4 == nil || (ips.IPv6 != nil && err != nil && !errDeadlineOrCancel(err)) {
+			dialer.LocalAddr = ips.IPv6
+			return dialer.DialContext(ctx, network, addr)
 		}
-
-		// Skip TLS dial if it is the H2C
-		if withTLS {
-			if err := conn.(*tls.Conn).Handshake(); err != nil {
-				return nil, err
-			}
-			if !cfg.InsecureSkipVerify {
-				if err := conn.(*tls.Conn).VerifyHostname(cfg.ServerName); err != nil {
-					return nil, err
-				}
-			}
-			state := conn.(*tls.Conn).ConnectionState()
-			if p := state.NegotiatedProtocol; p != http2.NextProtoTLS {
-				return nil, fmt.Errorf("http2: unexpected ALPN protocol %q; want %q", p, http2.NextProtoTLS)
-			}
-		}
-		return conn, nil
+		return conn, err
 	}
-}
-
-func dialWithDialer(dialer *net.Dialer, network, addr string, cfg *tls.Config, withTLS bool) (net.Conn, error) {
-	if withTLS {
-		return tls.DialWithDialer(dialer, network, addr, cfg)
-	}
-	return dialer.Dial(network, addr)
 }
 
 // UserAgent to be sent as User-Agent HTTP header. If not set then default Go client settings are used.
@@ -339,23 +301,6 @@ func (c *Client) CheckRedirect(checkRedirect func(req *http.Request, via []*http
 // I.e. tells the server whether your client wants RFC 7807 answers.
 func (c *Client) AcceptProblemJSON(acceptProblemJSON bool) *Client {
 	c.acceptProblemJSON = acceptProblemJSON
-	return c
-}
-
-// MsgPack enables/disables msgpack usage instead of JSON content.
-// If enabled, the first request is still using JSON, but indicates msgpack support in Accept header.
-// If the response content-type is msgpack, then the client encodes further requests using msgpack.
-// Restful Lambda server responds with msgpack if Accept header indicates its support automatically.
-// This is an EXPERIMENTAL feature.
-// Detailed at https://github.com/nokia/restful/issues/30
-//
-// Deprecated. This feature will be dropped in the near-future.
-func (c *Client) MsgPack(allowed bool) *Client {
-	if allowed {
-		c.msgpackUsage = msgpackDiscover
-	} else {
-		c.msgpackUsage = msgpackDisable
-	}
 	return c
 }
 
@@ -613,6 +558,19 @@ func (c *Client) obtainOauth2Token(ctx context.Context) error {
 }
 
 func (c *Client) setOauth2Auth(ctx context.Context, req *http.Request) error {
+	if c.oauth2.client != nil {
+		if tr, ok := c.oauth2.client.Transport.(*http.Transport); ok && tr.Protocols.HTTP2() {
+			if c.oauth2.config.Endpoint.TokenURL != "" {
+				tokenURL, err := url.Parse(c.oauth2.config.Endpoint.TokenURL)
+				if err == nil {
+					if c.httpsCfg == nil || !c.httpsCfg.isAllowed(tokenURL) {
+						return ErrNonHTTPSURL
+					}
+				}
+			}
+		}
+	}
+
 	// Reader lock
 	c.oauth2.tokenMutex.RLock()
 	defer c.oauth2.tokenMutex.RUnlock()
@@ -789,17 +747,9 @@ func (c *Client) makeBodyBytes(data any) ([]byte, error) {
 		return nil, nil
 	}
 
-	if c.msgpackUsage == msgpackUse {
-		return messagepack.Marshal(data)
-	}
-
-	body, err := json.Marshal(data)
+	body, err := json.Marshal(data, JSONOptions...)
 	if err != nil {
 		return nil, err
-	}
-
-	if len(body) <= len("{}") {
-		return nil, nil
 	}
 
 	return body, nil
@@ -807,11 +757,6 @@ func (c *Client) makeBodyBytes(data any) ([]byte, error) {
 
 func (c *Client) addCT(req *http.Request, method string, headers http.Header, body []byte) {
 	if headers == nil || headers.Get(ContentTypeHeader) == "" {
-		if c.msgpackUsage == msgpackUse {
-			req.Header.Set(ContentTypeHeader, ContentTypeMsgPack)
-			return
-		}
-
 		if method == http.MethodPatch {
 			if len(body) != 0 && body[0] == '[' && bytes.Contains(body, []byte(`"op"`)) {
 				req.Header.Set(ContentTypeHeader, ContentTypePatchJSON)
@@ -862,9 +807,6 @@ func (c *Client) sendRequestBytes(ctx context.Context, method string, target str
 
 	if req.Header.Get(AcceptHeader) == "" {
 		// No priority (q) defined. Peer might choose the first one.
-		if c.msgpackUsage != msgpackDisable {
-			req.Header.Add(AcceptHeader, ContentTypeMsgPack)
-		}
 		req.Header.Add(AcceptHeader, ContentTypeApplicationJSON)
 		if c.acceptProblemJSON {
 			req.Header.Add(AcceptHeader, ContentTypeProblemJSON)
@@ -872,18 +814,6 @@ func (c *Client) sendRequestBytes(ctx context.Context, method string, target str
 	}
 
 	return c.Do(req)
-}
-
-func (c *Client) setMsgPackUse(resp *http.Response) {
-	if c.msgpackUsage == msgpackDisable {
-		return // Nothing to check and set
-	}
-
-	if isMsgPackContentType(GetBaseContentType(resp.Header)) {
-		c.msgpackUsage = msgpackUse // Use confirmed
-	} else {
-		c.msgpackUsage = msgpackDisable // Stop discovery
-	}
 }
 
 // SendRecv sends request with given data and returns response data.
@@ -896,8 +826,6 @@ func (c *Client) SendRecv(ctx context.Context, method string, target string, hea
 	if err != nil {
 		return nil, err
 	}
-
-	c.setMsgPackUse(resp)
 
 	return resp, GetResponseData(resp, c.maxBytesToParse, respData)
 }
@@ -925,8 +853,6 @@ func (c *Client) SendRecv2xx(ctx context.Context, method string, target string, 
 		}
 		return nil, NewError(fmt.Errorf("unexpected response: %s", resp.Status), resp.StatusCode, detail)
 	}
-
-	c.setMsgPackUse(resp)
 
 	return resp, GetResponseData(resp, c.maxBytesToParse, respData)
 }
