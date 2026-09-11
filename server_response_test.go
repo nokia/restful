@@ -8,6 +8,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,29 +17,43 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSendResponse(t *testing.T) {
-	assert := assert.New(t)
+func TestSendJSONResponse(t *testing.T) {
+	// Find similar test cases in client_test.go
+	testCases := []struct {
+		in  structType
+		out string
+	}{
+		{in: structType{}, out: `{}`},
+		{in: structType{Str: "hello", Struct: nil}, out: `{"str":"hello"}`},
+		{in: structType{Struct: &innerStruct{}}, out: `{"struct":{"intsOrNil":null}}`},
+		{in: structType{Struct: &innerStruct{Ints: []int{}, IntsOrNo: []int{}, IntsOrNil: []int{}}}, out: `{"struct":{"ints":[],"intsOrNil":[]}}`},
+		{in: structType{Struct: &innerStruct{Ints: []int{1}, IntsOrNo: []int{1}, IntsOrNil: []int{1}, Bytes: []byte{1}}}, out: `{"struct":{"ints":[1],"intsOrNo":[1],"intsOrNil":[1],"bytes":"AQ=="}}`},
+	}
 
-	// Server
-	srv := httptest.NewServer(Logger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Location", "https://me/path")
-		var a structType
-		a.Str = "hello"
-		SendJSONResponse(w, 201, &a)
-	})))
-	defer srv.Close()
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("testCase %d", i), func(t *testing.T) {
+			assert := assert.New(t)
 
-	var a strType
-	resp, err := NewClient().SendRecv2xx(context.Background(), http.MethodGet, srv.URL, nil, nil, &a)
-	assert.Nil(err)
-	assert.Equal(http.StatusCreated, resp.StatusCode)
-	assert.Equal("application/json", resp.Header.Get("Content-type"))
-	location, err := resp.Location()
-	assert.Nil(err)
-	assert.NotNil(location)
-	assert.Equal("https://me/path", location.String())
-	assert.Equal("hello", a.Str)
-	assert.Equal(int64(15), resp.ContentLength)
+			// Server
+			srv := httptest.NewServer(Logger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				SendJSONResponse(w, 201, &testCase.in)
+			})))
+			defer srv.Close()
+
+			// Client``
+			req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
+			assert.NoError(err)
+			req.Header.Set(AcceptHeader, ContentTypeApplicationJSON)
+			client := http.Client{}
+			resp, err := client.Do(req)
+			assert.NoError(err)
+			assert.Equal(http.StatusCreated, resp.StatusCode)
+			assert.Equal("application/json", resp.Header.Get("Content-type"))
+			payload, err := io.ReadAll(resp.Body)
+			assert.NoError(err)
+			assert.Equal(testCase.out, string(payload))
+		})
+	}
 }
 
 func TestSendEmptyResponse(t *testing.T) {

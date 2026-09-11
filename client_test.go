@@ -30,10 +30,13 @@ type strType struct {
 }
 
 type innerStruct struct {
-	String string            `json:"string,omitempty"`
-	Array  []byte            `json:"array,omitempty"`
-	Map    map[string]string `json:"map,omitempty"`
-	Number int               `json:"number,omitempty"`
+	String    string            `json:"string,omitempty"`
+	Ints      []int             `json:"ints,omitzero"`
+	IntsOrNo  []int             `json:"intsOrNo,omitempty"`
+	IntsOrNil []int             `json:"intsOrNil"` // no omitempty
+	Bytes     []byte            `json:"bytes,omitempty"`
+	Map       map[string]string `json:"map,omitempty"`
+	Number    int               `json:"number,omitzero"`
 }
 
 type structType struct {
@@ -132,6 +135,42 @@ func TestMethods(t *testing.T) {
 	assert.Nil(err)
 	err = Delete(ctx, locationStr)
 	assert.Nil(err)
+}
+
+func TestSendRequest(t *testing.T) {
+	// Find similar test cases in server_response_test.go
+	testCases := []struct {
+		in  structType
+		out string
+	}{
+		{in: structType{}, out: `{}`},
+		{in: structType{Str: "hello", Struct: nil}, out: `{"str":"hello"}`},
+		{in: structType{Struct: &innerStruct{}}, out: `{"struct":{"intsOrNil":null}}`},
+		{in: structType{Struct: &innerStruct{Ints: []int{}, IntsOrNo: []int{}, IntsOrNil: []int{}}}, out: `{"struct":{"ints":[],"intsOrNil":[]}}`},
+		{in: structType{Struct: &innerStruct{Ints: []int{1}, IntsOrNo: []int{1}, IntsOrNil: []int{1}, Bytes: []byte{1}}}, out: `{"struct":{"ints":[1],"intsOrNo":[1],"intsOrNil":[1],"bytes":"AQ=="}}`},
+	}
+
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("testCase %d", i), func(t *testing.T) {
+			assert := assert.New(t)
+
+			// Server
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(ContentTypeApplicationJSON, r.Header.Get(ContentTypeHeader))
+				payload, err := io.ReadAll(r.Body)
+				assert.NoError(err)
+				assert.Equal(testCase.out, string(payload))
+				w.WriteHeader(http.StatusCreated)
+			}))
+			defer srv.Close()
+
+			// Client
+			resp, err := NewClient().SendRequest(context.Background(), http.MethodPost, srv.URL, nil, &testCase.in)
+			assert.NoError(err)
+			assert.Equal(http.StatusCreated, resp.StatusCode)
+			resp.Body.Close()
+		})
+	}
 }
 
 func TestHttpNotAllowed(t *testing.T) {

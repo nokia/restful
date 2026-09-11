@@ -1,4 +1,4 @@
-// Copyright 2021-2024 Nokia
+// Copyright 2021-2026 Nokia
 // Licensed under the BSD 3-Clause License.
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -25,7 +25,7 @@ func SendJSONResponse(w http.ResponseWriter, statusCode int, data any, _ ...bool
 
 	w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
 	w.WriteHeader(statusCode)
-	return json.MarshalWrite(w, data) // #nosec G705: false positive; no user input
+	return json.MarshalWrite(w, data, JSONOptions...) // #nosec G705: false positive; no user input
 }
 
 // SendResponse sends an HTTP response with a JSON data.
@@ -66,7 +66,7 @@ func SendResp(w http.ResponseWriter, r *http.Request, err error, data any) error
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
 	w.WriteHeader(GetErrStatusCode(err))
-	return json.MarshalWrite(w, data) // #nosec G705: false positive; no user input
+	return json.MarshalWrite(w, data, JSONOptions...) // #nosec G705: false positive; no user input
 }
 
 // SendEmptyResponse sends an empty HTTP response.
