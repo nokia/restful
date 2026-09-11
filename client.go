@@ -1,4 +1,4 @@
-// Copyright 2021-2024 Nokia
+// Copyright 2021-2026 Nokia
 // Licensed under the BSD 3-Clause License.
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -747,13 +747,9 @@ func (c *Client) makeBodyBytes(data any) ([]byte, error) {
 		return nil, nil
 	}
 
-	body, err := json.Marshal(data)
+	body, err := json.Marshal(data, JSONOptions...)
 	if err != nil {
 		return nil, err
-	}
-
-	if len(body) <= len("{}") {
-		return nil, nil
 	}
 
 	return body, nil

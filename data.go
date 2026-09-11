@@ -18,11 +18,24 @@ import (
 	"github.com/gorilla/schema"
 )
 
+// JSONOptions is the set of default options for JSON marshaling and unmarshaling for the restful package.
+// Similar to the default options of the json package, but prefers "null" instead of "[]" or "{}" for nil slices and maps.
+var JSONOptions []json.Options
+
+func init() {
+	JSONOptions = []json.Options{
+		json.FormatNilMapAsNull(true),
+		json.FormatNilSliceAsNull(true),
+	}
+}
+
 var (
 	// DisallowUnknownFields is a global setting for JSON decoder.
 	// It tells if unknown fields to be ignored silently (false) or to make decoding fail (true).
 	// By default unknown fields are ignored.
 	// See also JSON schema and OpenAPI Specification `additionalProperties: false`.
+	// This flag is kept for backward compatibility.
+	// You are encouraged to append `json.RejectUnknownMembers(true)` to JSONOptions instead.
 	DisallowUnknownFields = false
 )
 
@@ -135,6 +148,7 @@ func getDataJSON(ctx context.Context, headers http.Header, ioBody io.ReadCloser,
 	br = bufio.NewReader(limitedBody)
 
 	var opts []json.Options
+	opts = append(opts, JSONOptions...)
 	if DisallowUnknownFields || ctx.Value(disallowUnknownFieldsCtxName) != nil {
 		opts = append(opts, json.RejectUnknownMembers(true))
 	}
