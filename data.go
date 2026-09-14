@@ -5,7 +5,6 @@
 package restful
 
 import (
-	"bufio"
 	"context"
 	"encoding/json/v2"
 	"errors"
@@ -56,39 +55,46 @@ func init() {
 }
 
 // GetDataBytes returns []byte received.
-// If maxBytes > 0 then larger body is dropped.
+// If maxBytes > 0 then larger body is dropped and nothing is returned.
 func GetDataBytes(headers http.Header, ioBody io.ReadCloser, maxBytes int) (body []byte, err error) {
 	if ioBody == nil { // On using httptest req.Body may be missing.
 		return
 	}
+	defer ioBody.Close()
 
 	if maxBytes > 0 {
-		var cl int
-		cl, err = strconv.Atoi(headers.Get("Content-length"))
-		if err == nil && cl > maxBytes {
-			_, _ = io.ReadAll(ioBody)
-			_ = ioBody.Close()
+		// Check Content-Length up front so an oversized non-streamed
+		// body is dropped without decoding. Streamed bodies (no Content-Length)
+		// go to io.ReadAll, capped by MaxBytesReader.
+		cl, clErr := strconv.Atoi(headers.Get("Content-length"))
+		if clErr == nil && cl > maxBytes {
+			dropBody(ioBody)
 			err = fmt.Errorf("too big Content-Length: %d > %d", cl, maxBytes)
 			return
 		}
+
+		// Read one extra byte so an oversized body is detected without storing it.
+		body, err = io.ReadAll(io.LimitReader(ioBody, int64(maxBytes)+1))
+		if err != nil {
+			return nil, fmt.Errorf("body read error: %s", err.Error())
+		}
+		if len(body) > maxBytes {
+			dropBody(ioBody)
+			return nil, fmt.Errorf("too long content: > %d", maxBytes)
+		}
+		return body, nil
 	}
 
 	body, err = io.ReadAll(ioBody)
-	_ = ioBody.Close()
 	if err != nil {
 		return body, fmt.Errorf("body read error: %s", err.Error())
 	}
-
-	if maxBytes > 0 && len(body) > maxBytes { // In case of streaming content-length is not known at the beginning.
-		err = fmt.Errorf("too long content: %d > %d", len(body), maxBytes)
-	}
-
 	return
 }
 
 // GetDataBytesForContentType returns []byte received, if Content-Type is matching or empty string.
 // If no content then Content-Type is not checked.
-// If maxBytes > 0 then larger body is dropped.
+// If maxBytes > 0 then larger body is not processed.
 func GetDataBytesForContentType(headers http.Header, ioBody io.ReadCloser, maxBytes int, expectedContentType string) (body []byte, err error) {
 	body, err = GetDataBytes(headers, ioBody, maxBytes)
 	if err != nil {
@@ -106,10 +112,10 @@ func GetDataBytesForContentType(headers http.Header, ioBody io.ReadCloser, maxBy
 	return
 }
 
-func getData(ctx context.Context, headers http.Header, ioBody io.ReadCloser, maxBytes int, data any, request bool) error {
+func getData(ctx context.Context, w http.ResponseWriter, headers http.Header, ioBody io.ReadCloser, maxBytes int, data any, request bool) error {
 	if data == nil || headers.Get("Content-Length") == "0" {
 		if ioBody != nil {
-			_, _ = io.Copy(io.Discard, ioBody)
+			drainLimited(w, ioBody, maxBytes)
 			_ = ioBody.Close()
 		}
 		return nil
@@ -118,19 +124,23 @@ func getData(ctx context.Context, headers http.Header, ioBody io.ReadCloser, max
 		return nil
 	}
 
-	return getDataJSON(ctx, headers, ioBody, maxBytes, data, request, GetBaseContentType(headers))
+	return getDataJSON(ctx, w, headers, ioBody, maxBytes, data, request, GetBaseContentType(headers))
 }
 
-func getDataJSON(ctx context.Context, headers http.Header, ioBody io.ReadCloser, maxBytes int, data any, request bool, recvdContentType string) error {
+func getDataJSON(ctx context.Context, w http.ResponseWriter, headers http.Header, ioBody io.ReadCloser, maxBytes int, data any, request bool, recvdContentType string) error {
 	defer ioBody.Close()
 
-	br := bufio.NewReader(ioBody)
-	if _, err := br.Peek(1); errors.Is(err, io.EOF) {
-		return nil
+	// Apply the byte limit, so that not to parse huge JSON data.
+	limitedBody, err := createLimitedReader(w, headers, ioBody, maxBytes)
+	if err != nil {
+		if request {
+			return NewError(err, http.StatusInternalServerError, "Failed to read request")
+		}
+		return err
 	}
 
 	if !isJSONContentType(recvdContentType) {
-		_, _ = io.ReadAll(br)
+		dropBody(limitedBody)
 		err := fmt.Errorf("unexpected Content-Type: '%s'; not JSON", recvdContentType)
 		if request {
 			return NewError(err, http.StatusBadRequest)
@@ -138,23 +148,15 @@ func getDataJSON(ctx context.Context, headers http.Header, ioBody io.ReadCloser,
 		return err
 	}
 
-	limitedBody, err := wrapBodyReader(headers, br, maxBytes)
-	if err != nil {
-		if request {
-			return NewError(err, http.StatusInternalServerError, "Failed to read request")
-		}
-		return err
-	}
-	br = bufio.NewReader(limitedBody)
-
 	var opts []json.Options
 	opts = append(opts, JSONOptions...)
 	if DisallowUnknownFields || ctx.Value(disallowUnknownFieldsCtxName) != nil {
 		opts = append(opts, json.RejectUnknownMembers(true))
 	}
-	err = json.UnmarshalRead(br, data, opts...)
+	err = json.UnmarshalRead(limitedBody, data, opts...)
 	if err != nil {
 		if maxBytes > 0 && strings.Contains(err.Error(), "request body too large") {
+			dropBody(limitedBody)
 			readErr := fmt.Errorf("too long content: > %d", maxBytes)
 			if request {
 				return NewError(readErr, http.StatusInternalServerError, "Failed to read request")
@@ -168,18 +170,41 @@ func getDataJSON(ctx context.Context, headers http.Header, ioBody io.ReadCloser,
 	return err
 }
 
-func wrapBodyReader(headers http.Header, ioBody io.Reader, maxBytes int) (io.ReadCloser, error) {
+func createLimitedReader(w http.ResponseWriter, headers http.Header, ioBody io.ReadCloser, maxBytes int) (io.ReadCloser, error) {
 	if maxBytes <= 0 {
-		return io.NopCloser(ioBody), nil
+		return ioBody, nil
 	}
 
-	cl, err := strconv.Atoi(headers.Get("Content-length"))
-	if err == nil && cl > maxBytes {
-		_, _ = io.ReadAll(ioBody)
+	limitedBody := http.MaxBytesReader(w, ioBody, int64(maxBytes))
+
+	if cl, err := strconv.Atoi(headers.Get("Content-length")); err == nil && cl > maxBytes {
+		dropBody(limitedBody)
 		return nil, fmt.Errorf("too big Content-Length: %d > %d", cl, maxBytes)
 	}
 
-	return http.MaxBytesReader(nil, io.NopCloser(ioBody), int64(maxBytes)), nil
+	return limitedBody, nil
+}
+
+// drainLimited discards body bytes without buffering them. When maxBytes > 0 the
+// copy stops after that many bytes so a huge or non-JSON body cannot consume excessive I/O.
+// If you have a limited reader already, then use dropBody instead.
+func drainLimited(w http.ResponseWriter, r io.ReadCloser, maxBytes int) {
+	if r == nil {
+		return
+	}
+	if maxBytes > 0 {
+		r = http.MaxBytesReader(w, r, int64(maxBytes))
+	}
+	_, _ = io.Copy(io.Discard, r)
+}
+
+// dropBody discards the body bytes without buffering them. Used when the payload is
+// over maxBytes so none of it is kept. Unlike drainLimited, it does not limit the I/O.
+func dropBody(r io.Reader) {
+	if r == nil {
+		return
+	}
+	_, _ = io.Copy(io.Discard, r)
 }
 
 // GetRequestData returns request data from HTTP request.
@@ -187,6 +212,11 @@ func wrapBodyReader(headers http.Header, ioBody io.Reader, maxBytes int) (io.Rea
 // If maxBytes > 0 it blocks parsing exceedingly huge data, which could be used for DoS or memory overflow attacks.
 // If error is returned then suggested HTTP status may be encapsulated in it, available via GetErrStatusCode.
 func GetRequestData(req *http.Request, maxBytes int, data any) error {
+	return getRequestData(nil, req, maxBytes, data)
+}
+
+// getRequestData is the same as GetRequestData, but allows to specify the response writer for MaxBytesReader.
+func getRequestData(w http.ResponseWriter, req *http.Request, maxBytes int, data any) error {
 	ct := GetBaseContentType(req.Header)
 	switch ct {
 	case "":
@@ -205,11 +235,11 @@ func GetRequestData(req *http.Request, maxBytes int, data any) error {
 		}
 		return formDecoder.Decode(data, req.PostForm)
 	}
-	return getData(req.Context(), req.Header, req.Body, maxBytes, data, true)
+	return getData(req.Context(), w, req.Header, req.Body, maxBytes, data, true)
 }
 
 // GetResponseData returns response data from JSON body of HTTP response.
 // If maxBytes > 0 it blocks parsing exceedingly huge JSON data, which could be used for DoS or memory overflow attacks.
 func GetResponseData(resp *http.Response, maxBytes int, data any) error {
-	return getData(context.Background(), resp.Header, resp.Body, maxBytes, data, false)
+	return getData(context.Background(), nil, resp.Header, resp.Body, maxBytes, data, false)
 }
