@@ -5,9 +5,12 @@
 package restful
 
 import (
+	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -99,3 +102,257 @@ func TestDataPostForm(t *testing.T) {
 		assert.Nil(err)
 	}
 }
+
+// countingReadCloser reports how many bytes were pulled from an oversized body.
+type countingReadCloser struct {
+	remain int
+	read   int
+}
+
+func (c *countingReadCloser) Read(p []byte) (int, error) {
+	if c.remain <= 0 {
+		return 0, io.EOF
+	}
+	n := len(p)
+	if n > c.remain {
+		n = c.remain
+	}
+	for i := 0; i < n; i++ {
+		p[i] = 'x'
+	}
+	c.remain -= n
+	c.read += n
+	return n, nil
+}
+
+func (c *countingReadCloser) Close() error { return nil }
+
+func TestGetResponseData_NonJSONBodyRespectsMaxBytes(t *testing.T) {
+	assert := assert.New(t)
+	const maxBytes = 64
+	body := &countingReadCloser{remain: 1_000_000}
+	resp := &http.Response{
+		Header: make(http.Header),
+		Body:   body,
+	}
+	resp.Header.Set(ContentTypeHeader, "text/plain")
+	var data struct{}
+	err := GetResponseData(resp, maxBytes, &data)
+	assert.Error(err)
+	assert.Contains(err.Error(), "not JSON")
+	assert.LessOrEqual(body.read, maxBytes+1)
+}
+
+func TestGetResponseData_NonJSONBodySmall(t *testing.T) {
+	assert := assert.New(t)
+	resp := &http.Response{
+		Header: make(http.Header),
+		Body:   io.NopCloser(strings.NewReader("not json")),
+	}
+	resp.Header.Set(ContentTypeHeader, "text/plain")
+	var data struct{}
+	err := GetResponseData(resp, 64, &data)
+	assert.Error(err)
+	assert.Contains(err.Error(), "not JSON")
+}
+
+func TestGetResponseData_NoDataMaxBytes(t *testing.T) {
+	assert := assert.New(t)
+	const maxBytes = 64
+	body := &countingReadCloser{remain: 1_000_000}
+	resp := &http.Response{
+		Header: http.Header{ContentTypeHeader: []string{ContentTypeApplicationJSON}},
+		Body:   body,
+	}
+	err := GetResponseData(resp, maxBytes, nil)
+	assert.NoError(err)
+	assert.LessOrEqual(body.read, maxBytes+1) // MaxBytesReader may read one extra byte
+}
+
+func TestGetResponseData_StreamingZeroContentLengthDrainRespectsMaxBytes(t *testing.T) {
+	assert := assert.New(t)
+	const maxBytes = 64
+	body := &countingReadCloser{remain: 1_000_000}
+	resp := &http.Response{
+		Header: http.Header{
+			ContentTypeHeader: []string{ContentTypeApplicationJSON},
+			"Content-Length":  []string{"0"},
+		},
+		Body: body,
+	}
+	var data struct{}
+	err := GetResponseData(resp, maxBytes, &data)
+	assert.NoError(err)
+	assert.LessOrEqual(body.read, maxBytes+1) // MaxBytesReader may read one extra byte
+}
+
+func TestCreateLimitedReader_TooBigContentLengthRespectsMaxBytes(t *testing.T) {
+	assert := assert.New(t)
+	const maxBytes = 64
+	body := &countingReadCloser{remain: 1_000_000}
+	h := http.Header{"Content-Length": []string{"1000000"}}
+	limited, err := createLimitedReader(nil, h, body, maxBytes)
+	assert.Nil(limited)
+	assert.Error(err)
+	assert.Contains(err.Error(), "too big Content-Length")
+	assert.LessOrEqual(body.read, maxBytes+1) // MaxBytesReader may read one extra byte
+}
+
+func TestGetRequestData_NonJSONBodyRespectsMaxBytes(t *testing.T) {
+	assert := assert.New(t)
+	const maxBytes = 64
+	body := &countingReadCloser{remain: 1_000_000}
+	req := httptest.NewRequest(http.MethodPost, "/", body)
+	req.Header.Set(ContentTypeHeader, "text/plain")
+	var data struct{}
+	err := GetRequestData(req, maxBytes, &data)
+	assert.Error(err)
+	assert.Equal(http.StatusBadRequest, GetErrStatusCode(err))
+	assert.Contains(err.Error(), "not JSON")
+	assert.LessOrEqual(body.read, maxBytes+1)
+}
+
+func TestGetRequestData_NonJSONBodySmall(t *testing.T) {
+	assert := assert.New(t)
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("not json"))
+	req.Header.Set(ContentTypeHeader, "text/plain")
+	var data struct{}
+	err := GetRequestData(req, 64, &data)
+	assert.Error(err)
+	assert.Equal(http.StatusBadRequest, GetErrStatusCode(err))
+	assert.Contains(err.Error(), "not JSON")
+}
+
+func TestGetDataBytes_WithinLimit(t *testing.T) {
+	assert := assert.New(t)
+	body := io.NopCloser(strings.NewReader(`{"ok":true}`))
+	got, err := GetDataBytes(http.Header{}, body, 64)
+	assert.NoError(err)
+	assert.Equal([]byte(`{"ok":true}`), got)
+}
+
+func TestGetDataBytes_TooBigContentLengthDropsPayload(t *testing.T) {
+	assert := assert.New(t)
+	const maxBytes = 64
+	const size = 1_000_000
+	body := &countingReadCloser{remain: size}
+	h := http.Header{"Content-Length": []string{"1000000"}}
+	got, err := GetDataBytes(h, body, maxBytes)
+	assert.Error(err)
+	assert.Nil(got)
+	assert.Contains(err.Error(), "too big Content-Length")
+	assert.Equal(0, body.remain)
+	assert.Equal(size, body.read)
+}
+
+func TestGetDataBytes_StreamingTooLongNonJSONDropsPayload(t *testing.T) {
+	assert := assert.New(t)
+	const maxBytes = 64
+	const size = 1_000_000
+	body := &countingReadCloser{remain: size}
+	got, err := GetDataBytes(http.Header{}, body, maxBytes)
+	assert.Error(err)
+	assert.Nil(got)
+	assert.Contains(err.Error(), "too long content")
+	assert.Equal(0, body.remain)
+	assert.Equal(size, body.read)
+}
+
+func TestGetResponseData_StreamingTooLongJSONDropsPayload(t *testing.T) {
+	assert := assert.New(t)
+	const maxBytes = 32
+	payload := `{"x":"` + strings.Repeat("a", 1000) + `"}`
+	body := &readCounter{Reader: strings.NewReader(payload)}
+	resp := &http.Response{
+		Header: make(http.Header),
+		Body:   body,
+	}
+	resp.Header.Set(ContentTypeHeader, ContentTypeApplicationJSON)
+	data := map[string]string{}
+	err := GetResponseData(resp, maxBytes, &data)
+	assert.Error(err)
+	assert.Contains(err.Error(), "too long content")
+	assert.LessOrEqual(body.read, maxBytes+1) // MaxBytesReader may read one extra byte
+}
+
+func TestGetResponseData_ChunkedStreamTooLongDropsPayload(t *testing.T) {
+	assert := assert.New(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
+		w.WriteHeader(http.StatusOK)
+		if f, ok := w.(http.Flusher); ok {
+			_, _ = w.Write([]byte(`{"x":"`))
+			f.Flush()
+			_, _ = w.Write([]byte(strings.Repeat("a", 10_000)))
+			_, _ = w.Write([]byte(`"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"x":"` + strings.Repeat("a", 10_000) + `"}`))
+	}))
+	defer srv.Close()
+
+	data := map[string]string{}
+	err := NewClient().Root(srv.URL).SetMaxBytesToParse(32).Get(context.Background(), "/", &data)
+	assert.Error(err)
+	assert.Contains(err.Error(), "too long content")
+}
+
+func TestGetResponseData_NonStreamedJSONWithinLimit(t *testing.T) {
+	assert := assert.New(t)
+	payload := `{"x":"ok"}`
+	resp := &http.Response{
+		Header: make(http.Header),
+		Body:   io.NopCloser(strings.NewReader(payload)),
+	}
+	resp.Header.Set(ContentTypeHeader, ContentTypeApplicationJSON)
+	resp.Header.Set("Content-Length", strconv.Itoa(len(payload)))
+	data := map[string]string{}
+	err := GetResponseData(resp, 64, &data)
+	assert.NoError(err)
+	assert.Equal("ok", data["x"])
+}
+
+func TestGetResponseData_StreamingJSONWithinLimit(t *testing.T) {
+	assert := assert.New(t)
+	payload := `{"x":"ok"}`
+	resp := &http.Response{
+		Header: make(http.Header),
+		Body:   io.NopCloser(strings.NewReader(payload)),
+	}
+	resp.Header.Set(ContentTypeHeader, ContentTypeApplicationJSON)
+	data := map[string]string{}
+	err := GetResponseData(resp, 64, &data)
+	assert.NoError(err)
+	assert.Equal("ok", data["x"])
+}
+
+func TestGetResponseData_TooBigContentLengthDropsPayload(t *testing.T) {
+	assert := assert.New(t)
+	const maxBytes = 32
+	const size = 1000
+	body := &countingReadCloser{remain: size}
+	resp := &http.Response{
+		Header: make(http.Header),
+		Body:   body,
+	}
+	resp.Header.Set(ContentTypeHeader, ContentTypeApplicationJSON)
+	resp.Header.Set("Content-Length", "1000")
+	data := map[string]string{}
+	err := GetResponseData(resp, maxBytes, &data)
+	assert.Error(err)
+	assert.Contains(err.Error(), "too big Content-Length")
+	assert.LessOrEqual(body.read, maxBytes+1) // MaxBytesReader may read one extra byte
+}
+
+type readCounter struct {
+	io.Reader
+	read int
+}
+
+func (c *readCounter) Read(p []byte) (int, error) {
+	n, err := c.Reader.Read(p)
+	c.read += n
+	return n, err
+}
+
+func (c *readCounter) Close() error { return nil }

@@ -126,7 +126,7 @@ func lambdaGetParams(w http.ResponseWriter, r *http.Request, f any) ([]reflect.V
 				reqDataInterface = reqData.Addr().Interface()
 			}
 
-			if err := GetRequestData(r, LambdaMaxBytesToParse, reqDataInterface); err != nil {
+			if err := getRequestData(w, r, LambdaMaxBytesToParse, reqDataInterface); err != nil {
 				if ReadErrConverter != nil {
 					err = ReadErrConverter(err)
 					if _, ok := err.(*restError); ok { // no need to wrap
