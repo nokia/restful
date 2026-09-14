@@ -703,10 +703,10 @@ func TestOauth2AccessTokenReqs(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, client.oauth2.token.AccessToken, accessToken)
 
-	// Test h2 OAuth2 client
-	client = NewClient().SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}}, nil).SetOauth2H2()
+	// Test h2 OAuth2 client with HTTPS config
+	client = NewClient().HTTPS(nil).SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: authSrv.URL}}, nil).SetOauth2H2()
 	err = client.setOauth2Auth(ctx, req)
-	assert.Error(t, err) // h2 is not allowed for clear text http URL.
+	assert.Error(t, err) // clear text http URL not allowed.
 }
 
 func TestGetIPFromInterface(t *testing.T) {
