@@ -379,6 +379,20 @@ func (c *Client) determineGrant(config oauth2.Config, grant ...Grant) Grant {
 	return grantInvalid
 }
 
+func (c *Client) checkHTTPSAllowed(target string) error {
+	if c.httpsCfg == nil {
+		return nil
+	}
+	targetURL, err := url.Parse(target)
+	if err != nil {
+		return err
+	}
+	if !c.httpsCfg.isAllowed(targetURL) {
+		return ErrNonHTTPSURL
+	}
+	return nil
+}
+
 // SetOauth2Conf initializes OAuth2 configuration with given grant.
 // Depending on specific setup, custom http.Client can be added to obtain access tokens.
 // Either on first request to be sent or later when the obtained access token is expired.
@@ -400,16 +414,9 @@ func (c *Client) determineGrant(config oauth2.Config, grant ...Grant) Grant {
 //
 //	client := restful.NewClient().SetOauth2Conf(oauth2.Config{ClientID: "id", ClientSecret: "secret", Endpoint: oauth2.Endpoint{TokenURL: "https://as.example.com/token"}}, nil, restful.GrantClientCredentials)
 func (c *Client) SetOauth2Conf(config oauth2.Config, tokenClient *http.Client, grant ...Grant) *Client {
-	if c.httpsCfg != nil {
-		tokenURL, err := url.Parse(config.Endpoint.TokenURL)
-		if err == nil {
-			if !c.httpsCfg.isAllowed(tokenURL) {
-				log.Error("token URL: ", ErrNonHTTPSURL)
-				return c
-			}
-		} else {
-			log.Error("token URL is not valid: ", err)
-		}
+	if err := c.checkHTTPSAllowed(config.Endpoint.TokenURL); err != nil {
+		log.Errorf("token URL %s is not allowed: %v", config.Endpoint.TokenURL, err)
+		return c
 	}
 
 	c.oauth2.grantType = c.determineGrant(config, grant...)
@@ -557,18 +564,14 @@ func (c *Client) obtainOauth2Token(ctx context.Context) error {
 	return nil
 }
 
+// setOauth2Auth sets OAuth2 authentication header for the request.
+// It obtains the token either from cache or from the OAuth2 server.
 func (c *Client) setOauth2Auth(ctx context.Context, req *http.Request) error {
-	if c.oauth2.client != nil {
-		if tr, ok := c.oauth2.client.Transport.(*http.Transport); ok && tr.Protocols.HTTP2() {
-			if c.oauth2.config.Endpoint.TokenURL != "" {
-				tokenURL, err := url.Parse(c.oauth2.config.Endpoint.TokenURL)
-				if err == nil {
-					if c.httpsCfg == nil || !c.httpsCfg.isAllowed(tokenURL) {
-						return ErrNonHTTPSURL
-					}
-				}
-			}
-		}
+	if c.oauth2.config == nil {
+		return errors.New("OAuth2 configuration is not set")
+	}
+	if err := c.checkHTTPSAllowed(c.oauth2.config.Endpoint.TokenURL); err != nil {
+		return err
 	}
 
 	// Reader lock
