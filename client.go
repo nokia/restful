@@ -997,7 +997,7 @@ func (c *Client) Put(ctx context.Context, target string, reqData, respData any) 
 
 // Put updates a resource. Might return Location of created resource, otherwise nil.
 func Put(ctx context.Context, target string, reqData, respData any) (*url.URL, error) {
-	return defaultClient.Put(context.Background(), target, reqData, respData)
+	return defaultClient.Put(ctx, target, reqData, respData)
 }
 
 // Patch partially updates a resource.
