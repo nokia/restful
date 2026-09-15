@@ -581,6 +581,14 @@ func TestBroadcastBadURL(t *testing.T) {
 	assert.Error(err)
 }
 
+func TestNewHTTPClientSetsTimeoutAndRedirect(t *testing.T) {
+	assert := assert.New(t)
+	for _, c := range []*Client{NewClient(), NewH2Client(), NewH2CClient()} {
+		assert.Equal(10*time.Second, c.Client.Timeout)
+		assert.NotNil(c.Client.CheckRedirect)
+	}
+}
+
 func TestCheckRedirect(t *testing.T) {
 	assert := assert.New(t)
 
@@ -600,6 +608,85 @@ func TestCheckRedirect(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(http.StatusTemporaryRedirect, resp.StatusCode)
 
+}
+
+func TestHTTPSRedirectDoesNotDowngradeToHTTP(t *testing.T) {
+	assert := assert.New(t)
+
+	httpHits := 0
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpHits++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpSrv.Close()
+
+	tlsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, httpSrv.URL+"/secret", http.StatusFound)
+	}))
+	defer tlsSrv.Close()
+
+	err := NewClient().Insecure().HTTPS(nil).Get(context.Background(), tlsSrv.URL, nil)
+	assert.ErrorIs(err, ErrNonHTTPSURL)
+	assert.Equal(0, httpHits)
+}
+
+func TestHTTPSRedirectToAllowedHTTPHost(t *testing.T) {
+	assert := assert.New(t)
+
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer httpSrv.Close()
+
+	tlsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, httpSrv.URL, http.StatusFound)
+	}))
+	defer tlsSrv.Close()
+
+	httpURL, err := url.Parse(httpSrv.URL)
+	assert.NoError(err)
+
+	err = NewClient().Insecure().HTTPS(&HTTPSConfig{AllowedHTTPHosts: []string{httpURL.Hostname()}}).Get(context.Background(), tlsSrv.URL, nil)
+	assert.NoError(err)
+
+	err = NewClient().Insecure().HTTPS(&HTTPSConfig{AllowLocalhostHTTP: true}).Get(context.Background(), tlsSrv.URL, nil)
+	assert.NoError(err)
+}
+
+func TestHTTPSRedirectPreservesCheckRedirect(t *testing.T) {
+	assert := assert.New(t)
+
+	dest := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("redirect must not be followed when custom CheckRedirect stops it")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer dest.Close()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, dest.URL, http.StatusTemporaryRedirect)
+	}))
+	defer srv.Close()
+
+	called := 0
+	check := func(req *http.Request, via []*http.Request) error {
+		called++
+		assert.Equal(dest.URL, strings.TrimRight(req.URL.String(), "/"))
+		assert.Len(via, 1)
+		return http.ErrUseLastResponse
+	}
+
+	clients := []*Client{
+		NewClient().HTTPS(&HTTPSConfig{AllowLocalhostHTTP: true}).CheckRedirect(check),
+		NewClient().CheckRedirect(check).HTTPS(&HTTPSConfig{AllowLocalhostHTTP: true}),
+	}
+	for _, c := range clients {
+		called = 0
+		resp, err := c.SendRecv(context.Background(), http.MethodGet, srv.URL, nil, nil, nil)
+		assert.NoError(err)
+		assert.Equal(1, called)
+		assert.Equal(http.StatusTemporaryRedirect, resp.StatusCode)
+		resp.Body.Close()
+	}
 }
 
 func TestCtxCancelBefore(t *testing.T) {
