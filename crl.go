@@ -14,8 +14,20 @@ import (
 	"time"
 )
 
-// defaultCRLHTTPTimeout bounds a single CRL HTTP(S) fetch when CRLOptions.Ctx has no deadline.
-const defaultCRLHTTPTimeout = 90 * time.Second
+const (
+	// defaultCRLHTTPTimeout bounds a single CRL HTTP(S) fetch when CRLOptions.Ctx has no deadline.
+	defaultCRLHTTPTimeout = 90 * time.Second
+	// defaultMaxCRLHTTPBodyBytes caps a single HTTP CRL download (memory / DoS).
+	defaultMaxCRLHTTPBodyBytes = 10 * 1024 * 1024 // 10 MiB
+	// defaultCRLReadInterval is the default time interval the CRL information is retrieved.
+	defaultCRLReadInterval = 24 * time.Hour
+)
+
+// CRLHTTPTimeout bounds a single CRL HTTP(S) fetch when CRLOptions.Ctx has no deadline. 90 seconds by default.
+var CRLHTTPTimeout time.Duration = defaultCRLHTTPTimeout
+
+// MaxCRLHTTPBodyBytes is the HTTP CRL body size limit. 10MiB by default.
+var MaxCRLHTTPBodyBytes int = defaultMaxCRLHTTPBodyBytes
 
 type crl struct {
 	mu          sync.RWMutex
@@ -36,6 +48,8 @@ var (
 	ErrRevocationListOutOfDate = errors.New("revocation list out of date")
 	// ErrCertificateRevoked happens when the certificate revoked
 	ErrCertificateRevoked = errors.New("certificate revoked")
+	// ErrCRLHTTPBodyTooBig is returned if the CRL HTTP body exceeds the maximum size
+	ErrCRLHTTPBodyTooBig = errors.New("CRL HTTP body exceeds maximum size")
 )
 
 // CRLOptions defines the settings restful clients/servers can use for CRL verification
@@ -81,6 +95,10 @@ func setCRL(x clientOrServer, o CRLOptions) {
 		if o.StatusChan != nil {
 			o.StatusChan <- err
 		}
+	}
+
+	if o.ReadInterval <= 0 {
+		o.ReadInterval = defaultCRLReadInterval
 	}
 
 	go func() {
@@ -164,7 +182,25 @@ func contextWithOptionalHTTPTimeout(ctx context.Context) (context.Context, conte
 	if _, ok := ctx.Deadline(); ok {
 		return ctx, func() {}
 	}
-	return context.WithTimeout(ctx, defaultCRLHTTPTimeout)
+	return context.WithTimeout(ctx, CRLHTTPTimeout)
+}
+
+func readCRLHTTPBody(resp *http.Response) ([]byte, error) {
+	limitedReader := io.LimitReader(resp.Body, int64(MaxCRLHTTPBodyBytes+1))
+	if int64(resp.ContentLength) > int64(MaxCRLHTTPBodyBytes) {
+		_, _ = io.Copy(io.Discard, limitedReader)
+		return nil, fmt.Errorf("%w: Content-Length %d > %d", ErrCRLHTTPBodyTooBig, resp.ContentLength, MaxCRLHTTPBodyBytes)
+	}
+
+	// Streamed payload
+	body, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > MaxCRLHTTPBodyBytes {
+		return nil, ErrCRLHTTPBodyTooBig
+	}
+	return body, nil
 }
 
 // fetchCRLHTTP performs one GET, honoring ctx and always closing the response body.
@@ -183,10 +219,10 @@ func fetchCRLHTTP(ctx context.Context, uri string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		_, _ = io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, int64(MaxCRLHTTPBodyBytes+1)))
 		return nil, fmt.Errorf("unexpected HTTP status %d", resp.StatusCode)
 	}
-	return io.ReadAll(resp.Body)
+	return readCRLHTTPBody(resp)
 }
 
 // getCRLbody returns the body and last modification time of the new CRL file,
@@ -213,7 +249,7 @@ func getCRLBody(ctx context.Context, location string, lastModified time.Time) ([
 		if lastErr == nil {
 			lastErr = errors.New("no fetchable http(s) CRL URI in list")
 		}
-		return nil, time.Time{}, fmt.Errorf("%w: couldn't download CRL: %s", ErrRevocationListReadError, lastErr)
+		return nil, time.Time{}, fmt.Errorf("%w: couldn't download CRL: %w", ErrRevocationListReadError, lastErr)
 	}
 	info, err := os.Stat(location)
 	if err != nil {

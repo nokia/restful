@@ -6,6 +6,7 @@ package restful
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
 	"testing"
 	"time"
@@ -50,6 +51,23 @@ func TestHTTPSServerH2(t *testing.T) {
 	client := NewH2Client().TLSRootCerts("test_certs", false)
 	err := client.Get(context.Background(), "https://localhost:18444/h2", nil)
 	assert.NoError(t, err)
+}
+
+func TestCRLDoesNotPanicWithoutTLSConfig(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var server *Server
+	assert.NotPanics(t, func() {
+		server = NewServer().CRL(CRLOptions{
+			Ctx:              ctx,
+			CRLLocation:      "test_certs/ca.crl",
+			ReadInterval:     time.Minute,
+			FileExistTimeout: time.Minute,
+		})
+	})
+	assert.NotNil(t, server.TLSConfig())
+	assert.Equal(t, uint16(tls.VersionTLS12), server.TLSConfig().MinVersion)
+	assert.NotNil(t, server.TLSConfig().VerifyPeerCertificate)
 }
 
 func TestHTTPSServerCRL(t *testing.T) {
