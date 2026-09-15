@@ -1,4 +1,4 @@
-// Copyright 2021-2024 Nokia
+// Copyright 2021-2026 Nokia
 // Licensed under the BSD 3-Clause License.
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -111,4 +111,103 @@ func TestSendRecvFirst2xxParallelTimeout(t *testing.T) {
 func TestSendRecvFirst2xxParallelNoTarget(t *testing.T) {
 	_, err := NewClient().SendRecvResolveFirst2xxParallel(context.Background(), "GET", "", nil, nil, nil)
 	assert.Error(t, err)
+}
+
+func TestSendRecvFirst2xxParallelMultiple2xxDoesNotHang(t *testing.T) {
+	assert := assert.New(t)
+
+	const n = 12
+	srvs := make([]*httptest.Server, n)
+	srvURLs := make([]string, n)
+	for i := 0; i < n; i++ {
+		id := i
+		srvs[i] = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"id":` + strconv.Itoa(id) + `}`))
+		}))
+		defer srvs[i].Close()
+		srvURLs[i] = srvs[i].URL
+	}
+
+	c := NewClient()
+	headers := http.Header{"X-Test": []string{"parallel"}}
+
+	type respType struct {
+		ID int `json:"id"`
+	}
+	var respData respType
+
+	done := make(chan struct{})
+	var resp *http.Response
+	var err error
+	go func() {
+		defer close(done)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		resp, err = c.SendRecvListFirst2xxParallel(ctx, "GET", srvURLs, headers, nil, &respData)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("SendRecvListFirst2xxParallel hung with concurrent 2xx responses")
+	}
+
+	assert.NoError(err)
+	if assert.NotNil(resp) {
+		assert.Equal(200, resp.StatusCode)
+	}
+	assert.True(respData.ID >= 0 && respData.ID < n)
+}
+
+func TestSendRecvFirst2xxParallelMixedStatusDoesNotHang(t *testing.T) {
+	assert := assert.New(t)
+
+	const n = 8
+	srvs := make([]*httptest.Server, n)
+	srvURLs := make([]string, n)
+	for i := 0; i < n; i++ {
+		ok := i%2 == 0
+		srvs[i] = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set(ContentTypeHeader, ContentTypeApplicationJSON)
+			if ok {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{"id":1}`))
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"missing"}`))
+		}))
+		defer srvs[i].Close()
+		srvURLs[i] = srvs[i].URL
+	}
+
+	c := NewClient()
+
+	var respData struct {
+		ID int `json:"id"`
+	}
+
+	done := make(chan struct{})
+	var resp *http.Response
+	var err error
+	go func() {
+		defer close(done)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		resp, err = c.SendRecvListFirst2xxParallel(ctx, "GET", srvURLs, nil, nil, &respData)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("SendRecvListFirst2xxParallel hung with mixed 2xx and non-2xx responses")
+	}
+
+	assert.NoError(err)
+	if assert.NotNil(resp) {
+		assert.Equal(200, resp.StatusCode)
+	}
+	assert.Equal(1, respData.ID)
 }

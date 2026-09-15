@@ -897,6 +897,7 @@ func (c *Client) PostForm(ctx context.Context, target string, reqData url.Values
 		return nil, err
 	}
 	if resp.StatusCode >= 300 {
+		_ = resp.Body.Close()
 		return nil, NewError(err, resp.StatusCode, "")
 	}
 
