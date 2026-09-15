@@ -363,6 +363,10 @@ func (c *Client) HTTPS(config *HTTPSConfig) *Client {
 //
 // Don't set retries or backoff too high.
 // You may use it this way: client := New().Retry(3, 500 * time.Millisecond, 2 * time.Second) or just client.Retry(3, 1 * time.Second, 0)
+//
+// Note that some operations are not idempotent. I.e. sending the same request multiple times may have different results.
+// For example, creating a resource with POST request may create a new resource and return a different resource ID each time.
+// If the server fails to acknowledge the request that does not mean that it did not start processing it.
 func (c *Client) Retry(retries int, backoffInit time.Duration, backoffMax time.Duration) *Client {
 	c.retries = retries
 	if backoffMax < backoffInit {
@@ -574,7 +578,7 @@ func (c *Client) obtainOauth2Token(ctx context.Context) error {
 		switch c.oauth2.grantType {
 		case GrantPasswordCredentials:
 			if c.oauth2.token.RefreshToken == "" {
-				token, err = c.oauth2.config.PasswordCredentialsToken(ctx, c.username, c.password)
+				token, err = c.oauth2.config.PasswordCredentialsToken(oauthCtx, c.username, c.password)
 			} else {
 				token, err = c.oauth2.config.TokenSource(oauthCtx, &c.oauth2.token).Token()
 			}
@@ -1046,9 +1050,13 @@ func Delete(ctx context.Context, target string) error {
 	return defaultClient.Delete(ctx, target)
 }
 
-// SetMaxBytesToParse sets a limit on parsing. Setting a value lower the risks of CPU-targeting DoS attack.
+// SetMaxBytesToParse sets an upper bound on response body bytes that will be parsed.
+// 0 = unbounded parse.
 func (c *Client) SetMaxBytesToParse(max int) *Client {
 	c.maxBytesToParse = max
+	if max > 0 {
+		c.maxBytesToParse = max
+	}
 	return c
 }
 

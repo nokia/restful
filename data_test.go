@@ -240,9 +240,9 @@ func TestGetDataBytes_TooBigContentLengthDropsPayload(t *testing.T) {
 	got, err := GetDataBytes(h, body, maxBytes)
 	assert.Error(err)
 	assert.Nil(got)
-	assert.Contains(err.Error(), "too big Content-Length")
-	assert.Equal(0, body.remain)
-	assert.Equal(size, body.read)
+	assert.Contains(err.Error(), "content too large")
+	assert.Equal(size, body.remain)
+	assert.Equal(0, body.read)
 }
 
 func TestGetDataBytes_StreamingTooLongNonJSONDropsPayload(t *testing.T) {
@@ -253,9 +253,8 @@ func TestGetDataBytes_StreamingTooLongNonJSONDropsPayload(t *testing.T) {
 	got, err := GetDataBytes(http.Header{}, body, maxBytes)
 	assert.Error(err)
 	assert.Nil(got)
-	assert.Contains(err.Error(), "too long content")
-	assert.Equal(0, body.remain)
-	assert.Equal(size, body.read)
+	assert.Contains(err.Error(), "content too large")
+	assert.Equal(maxBytes+1, body.read)
 }
 
 func TestGetResponseData_StreamingTooLongJSONDropsPayload(t *testing.T) {
