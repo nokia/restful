@@ -28,6 +28,9 @@ var (
 
 	// ErrMaxRedirectsExceeded is returned if the number of redirects has exceeded MaxRedirect.
 	ErrMaxRedirectsExceeded = errors.New("max redirects exceeded")
+
+	// ErrContentTooLarge is returned if the body is too big.
+	ErrContentTooLarge = errors.New("content too large")
 )
 
 type restError struct {

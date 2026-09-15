@@ -55,7 +55,8 @@ func init() {
 }
 
 // GetDataBytes returns []byte received.
-// If maxBytes > 0 then larger body is dropped and nothing is returned.
+// If the content length is greater than maxBytes then it does not read the whole body.
+// That may lead the connection to be closed by the peer.
 func GetDataBytes(headers http.Header, ioBody io.ReadCloser, maxBytes int) (body []byte, err error) {
 	if ioBody == nil { // On using httptest req.Body may be missing.
 		return
@@ -68,8 +69,7 @@ func GetDataBytes(headers http.Header, ioBody io.ReadCloser, maxBytes int) (body
 		// go to io.ReadAll, capped by MaxBytesReader.
 		cl, clErr := strconv.Atoi(headers.Get("Content-length"))
 		if clErr == nil && cl > maxBytes {
-			dropBody(ioBody)
-			err = fmt.Errorf("too big Content-Length: %d > %d", cl, maxBytes)
+			err = fmt.Errorf("%w: Content-Length: %d > %d", ErrContentTooLarge, cl, maxBytes)
 			return
 		}
 
@@ -79,8 +79,7 @@ func GetDataBytes(headers http.Header, ioBody io.ReadCloser, maxBytes int) (body
 			return nil, fmt.Errorf("body read error: %s", err.Error())
 		}
 		if len(body) > maxBytes {
-			dropBody(ioBody)
-			return nil, fmt.Errorf("too long content: > %d", maxBytes)
+			return nil, fmt.Errorf("%w: > %d", ErrContentTooLarge, maxBytes)
 		}
 		return body, nil
 	}
