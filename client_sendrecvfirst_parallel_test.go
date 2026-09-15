@@ -7,6 +7,7 @@ package restful
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -210,4 +211,50 @@ func TestSendRecvFirst2xxParallelMixedStatusDoesNotHang(t *testing.T) {
 		assert.Equal(200, resp.StatusCode)
 	}
 	assert.Equal(1, respData.ID)
+}
+
+func TestTarget2URLs_IPv6WithPort(t *testing.T) {
+	orig := netLookupIP
+	netLookupIP = func(host string) ([]net.IP, error) {
+		assert.Equal(t, "example.com", host)
+		return []net.IP{net.ParseIP("2001:db8::1"), net.ParseIP("2001:db8::2")}, nil
+	}
+	defer func() { netLookupIP = orig }()
+
+	got, err := NewClient().target2URLs("http://example.com:8080/path?q=1")
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{
+		"http://[2001:db8::1]:8080/path?q=1",
+		"http://[2001:db8::2]:8080/path?q=1",
+	}, got)
+}
+
+func TestTarget2URLs_IPv6NoPort(t *testing.T) {
+	orig := netLookupIP
+	netLookupIP = func(host string) ([]net.IP, error) {
+		return []net.IP{net.ParseIP("2001:db8::1"), net.ParseIP("2001:db8::2")}, nil
+	}
+	defer func() { netLookupIP = orig }()
+
+	got, err := NewClient().target2URLs("http://example.com/path")
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{
+		"http://[2001:db8::1]/path",
+		"http://[2001:db8::2]/path",
+	}, got)
+}
+
+func TestTarget2URLs_IPv4WithPort(t *testing.T) {
+	orig := netLookupIP
+	netLookupIP = func(host string) ([]net.IP, error) {
+		return []net.IP{net.ParseIP("192.0.2.1"), net.ParseIP("192.0.2.2")}, nil
+	}
+	defer func() { netLookupIP = orig }()
+
+	got, err := NewClient().target2URLs("http://example.com:8080/path")
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{
+		"http://192.0.2.1:8080/path",
+		"http://192.0.2.2:8080/path",
+	}, got)
 }

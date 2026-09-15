@@ -106,7 +106,7 @@ func SendProblemResponse(w http.ResponseWriter, r *http.Request, statusCode int,
 		return nil
 	}
 
-	if problem != "" && problem[0] != '{' {
+	if problem != "" && problem[0] != '{' { // Pretty lousy check for JSON content for performance reasons.
 		problem = `{"detail":"` + strings.ReplaceAll(problem, `"`, "'") + `"}`
 	}
 
@@ -156,7 +156,7 @@ func SendProblemDetails(w http.ResponseWriter, r *http.Request, err error) error
 		}
 		d := restErr.problemDetails.Detail
 		// check in case it is somehow already filled with JSON text...
-		if d != "" && d[0] != '{' {
+		if d != "" && d[0] != '{' { // Pretty lousy check for JSON content for performance reasons.
 			if restErr.err != nil {
 				if embeddedStr := restErr.err.Error(); embeddedStr != "" {
 					restErr.problemDetails.Detail += ": " + embeddedStr

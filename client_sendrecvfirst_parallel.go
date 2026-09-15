@@ -7,7 +7,6 @@ package restful
 import (
 	"context"
 	"errors"
-	"net"
 	"net/http"
 	"net/url"
 	"sync"
@@ -23,7 +22,7 @@ func (c *Client) target2URLs(target string) ([]string, error) {
 		return nil, err
 	}
 
-	ips, err := net.LookupIP(commonURL.Hostname())
+	ips, err := netLookupIP(commonURL.Hostname())
 	if err != nil {
 		return nil, err
 	}
@@ -32,11 +31,7 @@ func (c *Client) target2URLs(target string) ([]string, error) {
 	for i, ip := range ips {
 		// replace the host in the target URI, keep original port if given.
 		targetURL := commonURL
-		if commonURL.Port() == "" {
-			targetURL.Host = ip.String()
-		} else {
-			targetURL.Host = ip.String() + ":" + commonURL.Port()
-		}
+		targetURL.Host = hostPortForURL(ip.String(), commonURL.Port())
 		targets[i] = targetURL.String()
 	}
 	return targets, nil
