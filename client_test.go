@@ -1202,3 +1202,69 @@ func TestSetLoadBalanceTarget_DoubleIP(t *testing.T) {
 	assert.Equal(t, "example-headless.com", req.Host)
 	assert.Regexp(t, `\[192\.0\.2\.\d+]`, out, "Expected output to contain one IP in the format '[IP]'")
 }
+
+func TestHostPortForURL(t *testing.T) {
+	tests := []struct {
+		host, port, want string
+	}{
+		{"192.0.2.1", "", "192.0.2.1"},
+		{"192.0.2.1", "8080", "192.0.2.1:8080"},
+		{"2001:db8::1", "", "[2001:db8::1]"},
+		{"2001:db8::1", "8080", "[2001:db8::1]:8080"},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, hostPortForURL(tt.host, tt.port), "host=%q port=%q", tt.host, tt.port)
+	}
+}
+
+func TestSetLoadBalanceTarget_IPv6NoPort(t *testing.T) {
+	client := NewClient().EnableLoadBalanceRandom(true)
+	req, _ := http.NewRequest("GET", "http://example.com/resource", nil)
+	target := "http://example.com/resource"
+
+	origLookupHost := netLookupHost
+	netLookupHost = func(ctx context.Context, host string) ([]string, error) {
+		return []string{"2001:db8::1", "2001:db8::2"}, nil
+	}
+	defer func() { netLookupHost = origLookupHost }()
+
+	out := client.setLoadBalanceTarget(req, target, req.URL.Hostname())
+	assert.Contains(t, []string{"[2001:db8::1]", "[2001:db8::2]"}, req.URL.Host)
+	assert.True(t, req.URL.Hostname() == "2001:db8::1" || req.URL.Hostname() == "2001:db8::2")
+	assert.Equal(t, "example.com", req.Host)
+	assert.Regexp(t, `\[2001:db8::\d+]`, out)
+}
+
+func TestSetLoadBalanceTarget_IPv6WithPort(t *testing.T) {
+	client := NewClient().EnableLoadBalanceRandom(true)
+	req, _ := http.NewRequest("GET", "http://example.com:8080/resource", nil)
+	target := "http://example.com:8080/resource"
+
+	origLookupHost := netLookupHost
+	netLookupHost = func(ctx context.Context, host string) ([]string, error) {
+		return []string{"2001:db8::1", "2001:db8::2"}, nil
+	}
+	defer func() { netLookupHost = origLookupHost }()
+
+	out := client.setLoadBalanceTarget(req, target, req.URL.Hostname())
+	assert.Contains(t, []string{"[2001:db8::1]:8080", "[2001:db8::2]:8080"}, req.URL.Host)
+	assert.Equal(t, "8080", req.URL.Port())
+	assert.Equal(t, "example.com:8080", req.Host)
+	assert.Regexp(t, `\[2001:db8::\d+]`, out)
+}
+
+func TestSetLoadBalanceTarget_IPv4WithPort(t *testing.T) {
+	client := NewClient().EnableLoadBalanceRandom(true)
+	req, _ := http.NewRequest("GET", "http://example.com:8080/resource", nil)
+	target := "http://example.com:8080/resource"
+
+	origLookupHost := netLookupHost
+	netLookupHost = func(ctx context.Context, host string) ([]string, error) {
+		return []string{"192.0.2.1", "192.0.2.2"}, nil
+	}
+	defer func() { netLookupHost = origLookupHost }()
+
+	_ = client.setLoadBalanceTarget(req, target, req.URL.Hostname())
+	assert.Contains(t, []string{"192.0.2.1:8080", "192.0.2.2:8080"}, req.URL.Host)
+	assert.Equal(t, "8080", req.URL.Port())
+}

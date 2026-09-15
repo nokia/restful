@@ -43,6 +43,7 @@ var DialTimeout = 2 * time.Second
 
 // MaxRedirect is the maximum number of redirects a client follows.
 // Set to a negative value to disable checking the number of redirects.
+// If redirects are beyond that, the client returns ErrMaxRedirectsExceeded.
 var MaxRedirect = 10
 
 // Kind is a string representation of what kind the client is. Depending on which New() function is called.
@@ -341,6 +342,8 @@ func (c *Client) Root(rootURL string) *Client {
 // HTTPS lets you set what kind of URLs are allowed to be used.
 // If HTTPS is not called, there are no restrictions applied.
 // If HTTPS is called with nil config, then cleartext HTTP is not allowed.
+// If the server redirects to a different target, then the new URL is checked against the HTTPS config, too.
+// On request operations error ErrNonHTTPSURL indicates if the target URL is not allowed.
 //
 //	cLocal := restful.NewClient().Root(peerURL).HTTPS(restful.HTTPSConfig{AllowLocalhostHTTP: true})
 //	cTest := restful.NewClient().Root(peerURL).HTTPS(restful.HTTPSConfig{AllowedHTTPHosts: []string{"test"}})
@@ -363,6 +366,8 @@ func (c *Client) HTTPS(config *HTTPSConfig) *Client {
 //
 // Don't set retries or backoff too high.
 // You may use it this way: client := New().Retry(3, 500 * time.Millisecond, 2 * time.Second) or just client.Retry(3, 1 * time.Second, 0)
+//
+// If the target hostname resolution returns multiple IP addresses, then the client will randomly choose one of them for each retry.
 //
 // Note that some operations are not idempotent. I.e. sending the same request multiple times may have different results.
 // For example, creating a resource with POST request may create a new resource and return a different resource ID each time.
@@ -881,7 +886,7 @@ func (c *Client) SendRecv2xx(ctx context.Context, method string, target string, 
 		body, err := GetDataBytesForContentType(resp.Header, resp.Body, c.maxBytesToParse, ContentTypeProblemJSON)
 		if err == nil {
 			detail = string(body)
-			if len(detail) > 0 && detail[0] == '{' { // Preserve incoming problem detail
+			if len(detail) > 0 && detail[0] == '{' { // Preserve incoming problem detail JSON. Lousy check for performance reasons.
 				return nil, NewError(nil, resp.StatusCode, detail)
 			}
 		} else if errors.Is(err, ErrUnexpectedContentType) { // Non-problem JSON, e.g. plain text or other JSON
@@ -1051,11 +1056,12 @@ func Delete(ctx context.Context, target string) error {
 }
 
 // SetMaxBytesToParse sets an upper bound on response body bytes that will be parsed.
-// 0 = unbounded parse.
+// If zero or less then the parse is unbounded.
 func (c *Client) SetMaxBytesToParse(max int) *Client {
-	c.maxBytesToParse = max
 	if max > 0 {
 		c.maxBytesToParse = max
+	} else {
+		c.maxBytesToParse = 0 // unbounded parsing
 	}
 	return c
 }
@@ -1101,6 +1107,15 @@ var netLookupHost = func(ctx context.Context, host string) ([]string, error) {
 	return net.DefaultResolver.LookupHost(ctx, host)
 }
 
+// netLookupIP is a variable to allow patching net.LookupIP in tests.
+var netLookupIP = net.LookupIP
+
+// hostPortForURL formats host:port for url.URL.Host. IPv6 addresses are
+// bracketed. An empty port omits the trailing colon (JoinHostPort always adds one).
+func hostPortForURL(host, port string) string {
+	return strings.TrimSuffix(net.JoinHostPort(host, port), ":")
+}
+
 func (c *Client) setLoadBalanceTarget(req *http.Request, target, originalHost string) (targetOut string) {
 	targetOut = target
 	if !c.LoadBalanceRandom {
@@ -1121,8 +1136,8 @@ func (c *Client) setLoadBalanceTarget(req *http.Request, target, originalHost st
 		if req.Host == "" { //  MonitorPre maybe already change req.URL.Host. And set req.Host to the original Host.
 			req.Host = req.URL.Host // Set Host header to original Host. This is used for TLS SNI and other purposes.
 		}
-		req.URL.Host = strings.TrimSuffix(chooseIPFromList(IPs)+":"+req.URL.Port(), ":") // Use the random IP address.
-		targetOut += "[" + req.URL.Hostname() + "]"                                      // targetOut is only used for logging, so it is ok to modify it.
+		req.URL.Host = hostPortForURL(chooseIPFromList(IPs), req.URL.Port()) // Use the random IP address.
+		targetOut += "[" + req.URL.Hostname() + "]"                          // targetOut is only used for logging, so it is ok to modify it.
 	}
 	return
 }
