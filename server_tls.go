@@ -58,6 +58,9 @@ func ListenAndServeMTLS(addr, certFile, keyFile, clientCerts string, loadSystemC
 // Errors are delivered through *errChan*
 func (s *Server) CRL(o CRLOptions) *Server {
 	setCRL(s, o)
+	if s.server.TLSConfig == nil {
+		s.server.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
 	s.server.TLSConfig.VerifyPeerCertificate = verifyPeerCert(s.crl) // #nosec G123: CRL should be set before dialing.
 	return s
 }
