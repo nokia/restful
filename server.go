@@ -6,6 +6,7 @@ package restful
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
 	"os"
 	"os/signal"
@@ -36,16 +37,32 @@ type Server struct {
 var ServerReadHeaderTimeout = 5 * time.Second
 
 // ServerReadTimeout is the amount of time allowed to read request body.
-// Default 60s is quite liberal.
+// Default value is 60s.
 var ServerReadTimeout = 60 * time.Second
+
+// ServerWriteTimeout is the amount of time allowed to write a response.
+// Default value is 60s.
+var ServerWriteTimeout = 60 * time.Second
+
+// ServerIdleTimeout is the maximum time to wait for the next request when keep-alives are enabled.
+// Default value is 120s.
+var ServerIdleTimeout = 120 * time.Second
+
+func newHTTPServer(addr string, handler http.Handler, tlsConfig *tls.Config) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		TLSConfig:         tlsConfig,
+		ReadHeaderTimeout: ServerReadHeaderTimeout,
+		ReadTimeout:       ServerReadTimeout,
+		WriteTimeout:      ServerWriteTimeout,
+		IdleTimeout:       ServerIdleTimeout,
+	}
+}
 
 // NewServer creates a new Server instance.
 func NewServer() *Server {
-	server := Server{server: &http.Server{
-		ReadHeaderTimeout: ServerReadHeaderTimeout,
-		ReadTimeout:       ServerReadTimeout}}
-
-	return &server
+	return &Server{server: newHTTPServer("", nil, nil)}
 }
 
 // Graceful enables graceful shutdown.
@@ -155,7 +172,7 @@ func (s *Server) listenAndServe() error {
 		s.restarting = false
 
 		s.serverMutex.Lock() // ListenAndServe routines and Close are executed in parallel.
-		s.server = &http.Server{Handler: s.server.Handler, Addr: s.server.Addr, ReadHeaderTimeout: ServerReadHeaderTimeout, ReadTimeout: ServerReadTimeout}
+		s.server = newHTTPServer(s.server.Addr, s.server.Handler, s.server.TLSConfig)
 		s.serverMutex.Unlock()
 	}
 }
