@@ -25,6 +25,9 @@ var (
 	// ErrUnexpectedContentType is returned if content-type is unexpected.
 	// It may be wrapped, so use errors.Is() for checking.
 	ErrUnexpectedContentType = errors.New("unexpected Content-Type")
+
+	// ErrMaxRedirectsExceeded is returned if the number of redirects has exceeded MaxRedirect.
+	ErrMaxRedirectsExceeded = errors.New("max redirects exceeded")
 )
 
 type restError struct {

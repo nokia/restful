@@ -41,6 +41,10 @@ var DefaultTokenClient *http.Client = &http.Client{Timeout: 10 * time.Second}
 // DialTimeout defines the default timeout for dialing connections.
 var DialTimeout = 2 * time.Second
 
+// MaxRedirect is the maximum number of redirects a client follows.
+// Set to a negative value to disable checking the number of redirects.
+var MaxRedirect = 10
+
 // Kind is a string representation of what kind the client is. Depending on which New() function is called.
 const (
 	KindBasic = ""
@@ -117,6 +121,7 @@ type Client struct {
 	// Changing its value does not change client kind.
 	Kind              string
 	httpsCfg          *HTTPSConfig
+	userCheckRedirect func(req *http.Request, via []*http.Request) error
 	rootURL           string
 	userAgent         string
 	username          string
@@ -207,9 +212,7 @@ func NewClientWInterface(networkInterface string) *Client {
 	}
 
 	c := &Client{Kind: KindBasic}
-	c.Client = &http.Client{
-		Timeout: 10 * time.Second,
-	}
+	c.Client = c.newHTTPClient()
 	c.SetTransport(t)
 
 	c.acceptProblemJSON = true /* backward compatible */
@@ -229,7 +232,8 @@ func NewH2CClient() *Client {
 // NewH2ClientWInterface creates a RESTful client instance with the http2 protocol bound to that network interface.
 // The instance has a semi-permanent transport TCP connection.
 func NewH2ClientWInterface(networkInterface string) *Client {
-	c := &Client{Kind: KindH2, Client: &http.Client{}}
+	c := &Client{Kind: KindH2}
+	c.Client = c.newHTTPClient()
 	c.SetTransport(newH2Transport(networkInterface))
 	return c
 }
@@ -238,9 +242,17 @@ func NewH2ClientWInterface(networkInterface string) *Client {
 // In other words, the http2 clear text is the http2 but without TLS handshake.
 // The instance has a semi-permanent transport TCP connection.
 func NewH2CClientWInterface(networkInterface string) *Client {
-	c := &Client{Kind: KindH2C, Client: &http.Client{}}
+	c := &Client{Kind: KindH2C}
+	c.Client = c.newHTTPClient()
 	c.SetTransport(newH2CTransport(networkInterface))
 	return c
+}
+
+func (c *Client) newHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout:       10 * time.Second,
+		CheckRedirect: c.redirectPolicy,
+	}
 }
 
 func newH2Transport(iface string) *http.Transport {
@@ -290,11 +302,26 @@ func (c *Client) UserAgent(userAgent string) *Client {
 	return c
 }
 
-// CheckRedirect set client CheckRedirect field
 // CheckRedirect specifies the policy for handling redirects.
+// If HTTPS() is also used, that remains in force. And MaxRedirect is checked, too.
 func (c *Client) CheckRedirect(checkRedirect func(req *http.Request, via []*http.Request) error) *Client {
-	c.Client.CheckRedirect = checkRedirect
+	c.userCheckRedirect = checkRedirect
+	c.Client.CheckRedirect = c.redirectPolicy
 	return c
+}
+
+// redirectPolicy enforces HTTPS() and MaxRedirect on every redirect hop and then the caller CheckRedirect, if any.
+func (c *Client) redirectPolicy(req *http.Request, via []*http.Request) error {
+	if c.httpsCfg != nil && !c.httpsCfg.isAllowed(req.URL) {
+		return ErrNonHTTPSURL
+	}
+	if MaxRedirect >= 0 && len(via) >= MaxRedirect {
+		return ErrMaxRedirectsExceeded
+	}
+	if c.userCheckRedirect != nil {
+		return c.userCheckRedirect(req, via)
+	}
+	return nil
 }
 
 // AcceptProblemJSON sets whether client is to send "Accept: application/problem+json" header.
@@ -323,6 +350,7 @@ func (c *Client) HTTPS(config *HTTPSConfig) *Client {
 	} else {
 		c.httpsCfg = config
 	}
+	c.Client.CheckRedirect = c.redirectPolicy // it must have been set before
 	return c
 }
 
@@ -442,7 +470,8 @@ func (c *Client) SetOauth2H2() *Client {
 	if isTraced && tracer.GetOTel() {
 		transport = otelhttp.NewTransport(transport)
 	}
-	c.oauth2.client = &http.Client{Timeout: 10 * time.Second, Transport: transport}
+	c.oauth2.client = c.newHTTPClient()
+	c.oauth2.client.Transport = transport
 	return c
 }
 
