@@ -22,6 +22,9 @@ func (c *Client) SendRecvListFirst2xxSequential(ctx context.Context, method stri
 	for i := range targets {
 		resp, err := c.sendRequestBytes(ctx, method, targets[i], headers, &body, false)
 		if err != nil || resp.StatusCode >= 300 { // Errors are silently omitted
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
 			continue
 		}
 		return resp, GetResponseData(resp, c.maxBytesToParse, respData)
