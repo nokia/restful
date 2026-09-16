@@ -61,6 +61,9 @@ func newTraceB3FromSingleLine(r *http.Request) *TraceB3 {
 	}
 
 	b3.singleLine = true
+	if !validB3IDs(&b3) {
+		return nil
+	}
 	return &b3
 }
 
@@ -70,13 +73,29 @@ func newTraceB3FromMultiLine(r *http.Request) *TraceB3 {
 		return nil
 	}
 
-	return &TraceB3{
+	b3 := &TraceB3{
 		traceID:      traceID,
 		parentSpanID: r.Header.Get(headerB3ParentSpanID),
 		spanID:       r.Header.Get(headerB3SpanID),
 		sampled:      r.Header.Get(headerB3Sampled),
 		flags:        r.Header.Get(headerB3Flags),
 	}
+	if !validB3IDs(b3) {
+		return nil
+	}
+	return b3
+}
+
+func validB3IDs(b3 *TraceB3) bool {
+	if !tracecommon.IsHexID(b3.traceID, 16, 32) || !tracecommon.IsHexID(b3.spanID, 16) {
+		return false
+	}
+	if b3.parentSpanID != "" && !tracecommon.IsHexID(b3.parentSpanID, 16) {
+		return false
+	}
+	b3.sampled = tracecommon.SafeHeaderValue(b3.sampled, 8)
+	b3.flags = tracecommon.SafeHeaderValue(b3.flags, 8)
+	return true
 }
 
 // NewFromRequest creates new TraceB3 object. If there is no trace data in request, then returns nil.
@@ -95,8 +114,8 @@ func NewFromRequest(r *http.Request) *TraceB3 {
 		}
 	}
 
-	b3.requestID = r.Header.Get(headerEnvoyRequestID)
-	b3.spanCtx = r.Header.Get(headerLightStepSpanC)
+	b3.requestID = tracecommon.SafeHeaderValue(r.Header.Get(headerEnvoyRequestID), 128)
+	b3.spanCtx = tracecommon.SafeHeaderValue(r.Header.Get(headerLightStepSpanC), 128)
 
 	return b3
 }

@@ -40,7 +40,10 @@ func newTraceParentFromHeaderValue(traceparent, tracestate string) *TraceParent 
 	if parent[0] != "00" {
 		return nil
 	}
-	return &TraceParent{parent: parent, state: tracestate}
+	if !tracecommon.IsHexID(parent[1], 32) || !tracecommon.IsHexID(parent[2], 16) || !tracecommon.IsHexID(parent[3], 2) {
+		return nil
+	}
+	return &TraceParent{parent: parent, state: tracecommon.SafeHeaderValue(tracestate, 512)}
 }
 
 func (p *TraceParent) span() *TraceParent {
